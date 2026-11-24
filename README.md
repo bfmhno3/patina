@@ -14,6 +14,10 @@ just gui             # run the desktop GUI
 nix develop .#android  # Android shell, then: just android-run
 ```
 
+## CLI data
+
+`patina` stores events in `<data root>/events/<device>.jsonl` (override the root with `PATINA_DIR`) and optional settings in `<data root>/config.toml`. The device id lives outside the data root where the platform allows it (`PATINA_DEVICE_ID` overrides). To sync between machines, sync only `events/` and `config.toml`, never the device id file.
+
 Conventions for contributors and agents are in [AGENTS.md](AGENTS.md).
 
 ## License
