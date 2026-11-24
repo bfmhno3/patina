@@ -24,6 +24,8 @@ thiserror = "2.0.21"
 toml = "1.2.2"
 anyhow = "1.0.105"
 dirs = "7.0.0"
+rmcp = { version = "3.11", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["macros", "rt", "io-std"] }
 tempfile = "3.27.0"
 
 [workspace.lints.rust]
