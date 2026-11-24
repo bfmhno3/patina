@@ -36,7 +36,7 @@ pub struct Event {
 pub enum Category {
     /// A domain change.
     Domain,
-    /// An observation (phase 0 emits none).
+    /// An observation (survives undo of its command).
     Observation,
 }
 
@@ -433,6 +433,13 @@ impl EventData {
             | EventData::HabitResumed(_)
             | EventData::CommandUndone(_) => 1,
         }
+    }
+
+    /// Whether the event changes the domain or only observes.
+    ///
+    /// Observations survive the undo of their command.
+    pub fn category(&self) -> Category {
+        Category::Domain
     }
 }
 

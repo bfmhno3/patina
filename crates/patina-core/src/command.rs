@@ -104,6 +104,12 @@ pub enum CommandError {
     /// Text is empty.
     #[error("text must not be empty")]
     EmptyText,
+    /// A time argument lies after the current time.
+    #[error("time {at} is in the future")]
+    FutureTime {
+        /// The offending time.
+        at: jiff::Timestamp,
+    },
 }
 
 macro_rules! cmd_structs {
@@ -399,6 +405,19 @@ pub fn capture(device: DeviceId, raw: &str, ctx: &Context) -> Result<Event, Comm
     })
 }
 
+/// Result of a successful [`execute`].
+#[derive(Debug)]
+pub struct Executed {
+    /// The events to append, in order.
+    pub events: Vec<Event>,
+}
+
+/// What `build` decided: payloads plus the shared effective time.
+struct Built {
+    datas: Vec<EventData>,
+    effective_at: Option<jiff::Timestamp>,
+}
+
 /// Validates `cmd` against `state` and produces its events.
 ///
 /// # Errors
@@ -409,37 +428,40 @@ pub fn execute(
     device: DeviceId,
     cmd: &Command,
     ctx: &Context,
-) -> Result<Vec<Event>, CommandError> {
+) -> Result<Executed, CommandError> {
     if ctx.source.is_proposal_level() && !matches!(cmd, Command::Capture(_)) {
         return Err(CommandError::ProposalOnly);
     }
     if let Command::Capture(c) = cmd {
-        return Ok(vec![capture(device, &c.text, ctx)?]);
+        return Ok(Executed {
+            events: vec![capture(device, &c.text, ctx)?],
+        });
     }
     let now = ctx.now.timestamp();
     let gen_ = Gen {
         ctx: ContextV7::new(),
         now,
     };
-    let datas = build(state, log, device, cmd, ctx, &gen_)?;
+    let built = build(state, log, device, cmd, ctx, &gen_)?;
+    let effective_at = built.effective_at.unwrap_or(now);
     let command = CommandId::from_uuid(gen_.uuid());
     let mut scratch = state.clone();
-    let mut events = Vec::with_capacity(datas.len());
-    for data in datas {
+    let mut events = Vec::with_capacity(built.datas.len());
+    for data in built.datas {
         let event = Event {
             id: EventId::from_uuid(gen_.uuid()),
             device,
-            effective_at: now,
+            effective_at,
             recorded_at: now,
             source: ctx.source.clone(),
             command,
-            category: Category::Domain,
+            category: data.category(),
             data,
         };
         scratch.apply(&event)?;
         events.push(event);
     }
-    Ok(events)
+    Ok(Executed { events })
 }
 
 fn build(
@@ -449,9 +471,10 @@ fn build(
     cmd: &Command,
     ctx: &Context,
     gen_: &Gen,
-) -> Result<Vec<EventData>, CommandError> {
+) -> Result<Built, CommandError> {
     let today = logical_day(&ctx.now, &ctx.settings)?;
-    Ok(match cmd {
+    let mut effective_at: Option<jiff::Timestamp> = None;
+    let datas = match cmd {
         Command::Capture(_) => Vec::new(),
         Command::Init => {
             if !state.identities.is_empty() {
@@ -840,7 +863,8 @@ fn build(
         Command::Undo => vec![EventData::CommandUndone(CommandUndone {
             command: undo_target(log, device)?,
         })],
-    })
+    };
+    Ok(Built { datas, effective_at })
 }
 
 /// The command `Undo` would undo, after checking nothing later depends on it.
@@ -858,6 +882,7 @@ fn undo_target(log: &[Event], device: DeviceId) -> Result<CommandId, CommandErro
         .rev()
         .find(|e| {
             e.device == device
+                && e.category == Category::Domain
                 && !undo_commands.contains(&e.command)
                 && !undone.contains(&e.command)
         })
@@ -866,7 +891,7 @@ fn undo_target(log: &[Event], device: DeviceId) -> Result<CommandId, CommandErro
     let before: HashSet<EventId> = project(log).warnings.iter().map(|w| w.event).collect();
     let rest: Vec<Event> = log
         .iter()
-        .filter(|e| e.command != candidate)
+        .filter(|e| e.command != candidate || e.category == Category::Observation)
         .cloned()
         .collect();
     let blocked: Vec<EventId> = project(&rest)
@@ -912,7 +937,7 @@ mod tests {
         source: Source,
     ) -> Result<(), CommandError> {
         let state = project(log);
-        let events = execute(&state, log, device, &cmd, &ctx(NOW, source))?;
+        let events = execute(&state, log, device, &cmd, &ctx(NOW, source))?.events;
         log.extend(events);
         Ok(())
     }
@@ -1087,5 +1112,70 @@ mod tests {
             matches!(err, CommandError::Rejected(Rejection::Cycle { .. })),
             "{err:?}"
         );
+    }
+
+    fn mark_observation(log: &mut [Event], kind: &str) {
+        for e in log.iter_mut().filter(|e| e.data.kind() == kind) {
+            e.category = Category::Observation;
+        }
+    }
+
+    #[test]
+    fn undo_keeps_observation_events_of_the_undone_command() {
+        let mut log = Vec::new();
+        init(&mut log);
+        run(&mut log, dev(1), add("target", None)).unwrap();
+        run(
+            &mut log,
+            dev(1),
+            Command::Capture(Capture {
+                text: "inbox entry".into(),
+            }),
+        )
+        .unwrap();
+        run(
+            &mut log,
+            dev(1),
+            Command::Merge(Merge {
+                item: "inbox entry".into(),
+                into: "target".into(),
+            }),
+        )
+        .unwrap();
+        mark_observation(&mut log, "item.note_added");
+        run(&mut log, dev(1), Command::Undo).unwrap();
+        let state = project(&log);
+        assert!(state.warnings.is_empty());
+        let target = state.items.values().find(|i| i.title == "target").unwrap();
+        assert_eq!(target.notes.len(), 1);
+        let entry = state
+            .items
+            .values()
+            .find(|i| i.title == "inbox entry")
+            .unwrap();
+        assert_eq!(entry.status, ItemStatus::Inbox);
+    }
+
+    #[test]
+    fn undo_skips_observation_only_commands() {
+        let mut log = Vec::new();
+        init(&mut log);
+        run(&mut log, dev(1), add("A", None)).unwrap();
+        run(&mut log, dev(1), add("B", None)).unwrap();
+        run(
+            &mut log,
+            dev(1),
+            Command::Note(Note {
+                item: "A".into(),
+                text: "seen".into(),
+            }),
+        )
+        .unwrap();
+        mark_observation(&mut log, "item.note_added");
+        run(&mut log, dev(1), Command::Undo).unwrap();
+        let state = project(&log);
+        let titles: Vec<&str> = state.items.values().map(|i| i.title.as_str()).collect();
+        assert_eq!(titles, ["A"]);
+        assert_eq!(state.items.values().next().unwrap().notes.len(), 1);
     }
 }

@@ -215,7 +215,7 @@ impl Patina {
 
         let log = self.store.load()?;
         let mut state = project(&log.events);
-        let events = command::execute(&state, &log.events, device, &cmd, &ctx)?;
+        let events = command::execute(&state, &log.events, device, &cmd, &ctx)?.events;
         guard.append(&events)?;
         let command_id = events
             .first()
@@ -237,7 +237,7 @@ impl Patina {
             undone = log
                 .events
                 .iter()
-                .filter(|e| e.command == target)
+                .filter(|e| e.command == target && e.category == Category::Domain)
                 .map(|e| e.data.kind().to_string())
                 .collect();
             let mut all = log.events.clone();

@@ -10,7 +10,7 @@ use jiff::civil::Date;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::event::{AbandonReason, Event, EventData, Frequency, HabitKind};
+use crate::event::{AbandonReason, Category, Event, EventData, Frequency, HabitKind};
 use crate::ids::{CommandId, EventId, HabitId, IdentityId, ItemId};
 
 /// An event that cannot be applied to the current state.
@@ -276,6 +276,8 @@ pub struct State {
     pub habits: BTreeMap<HabitId, Habit>,
     /// Events skipped during projection.
     pub warnings: Vec<Warning>,
+    /// Recorded time of every event, in log order (idle detection and active days).
+    pub activity: Vec<Timestamp>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -846,7 +848,9 @@ pub fn project(events: &[Event]) -> State {
         seen.insert(e.command);
     }
     for e in events {
-        if matches!(e.data, EventData::CommandUndone(_)) || undone.contains(&e.command) {
+        state.activity.push(e.recorded_at);
+        let undone_domain = undone.contains(&e.command) && e.category == Category::Domain;
+        if matches!(e.data, EventData::CommandUndone(_)) || undone_domain {
             continue;
         }
         if let Err(rejection) = state.apply(e) {
