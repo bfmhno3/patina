@@ -18,7 +18,18 @@ name = "patina-gui"
 path = "src/main.rs"
 
 [dependencies]
+patina-core.workspace = true
 slint.workspace = true
+jiff.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+notify-rust.workspace = true
+
+[dev-dependencies]
+i-slint-backend-testing.workspace = true
+tempfile.workspace = true
 
 [build-dependencies]
 slint-build.workspace = true

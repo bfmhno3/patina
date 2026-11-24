@@ -1,0 +1,47 @@
+import { FullscreenDialog, MaterialStyleMetrics } from "@material";
+import { App } from "../app.slint";
+import { PickerPurpose } from "../types.slint";
+import { ItemPicker } from "item_picker.slint";
+
+export component ItemPickerDialog inherits Rectangle {
+    in property <string> title;
+    in property <PickerPurpose> purpose;
+    in property <string> context_id;
+
+    callback picked(id: string);
+
+    property <string> filter_value;
+
+    width: 0;
+    height: 0;
+
+    public function open() {
+        root.filter_value = "";
+        App.picker_query(root.purpose, "", root.context_id);
+        dlg.show();
+    }
+
+    dlg := FullscreenDialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.title;
+
+        VerticalLayout {
+            padding: MaterialStyleMetrics.padding_16;
+            padding_top: 0;
+
+            ItemPicker {
+                filter <=> root.filter_value;
+                purpose: root.purpose;
+                context_id: root.context_id;
+
+                picked(id, title) => {
+                    dlg.close();
+                    root.picked(id);
+                }
+            }
+        }
+    }
+}

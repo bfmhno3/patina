@@ -1,0 +1,50 @@
+import { Dialog, MaterialStyleMetrics } from "@material";
+import { App } from "../app.slint";
+import { RadioRow } from "radio_row.slint";
+
+// Switch the identity mode, or go away.
+export component ModeDialog inherits Rectangle {
+    width: 0;
+    height: 0;
+
+    public function open() {
+        dlg.show();
+    }
+
+    dlg := Dialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: @tr("Identity mode");
+        actions: [@tr("Cancel")];
+
+        action_clicked(index) => {
+            dlg.close();
+        }
+
+        VerticalLayout {
+            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+
+            for name in App.identities: RadioRow {
+                text: name;
+                checked: App.mode_identity == name;
+
+                clicked => {
+                    App.switch_mode(name);
+                    dlg.close();
+                }
+            }
+
+            RadioRow {
+                text: @tr("Away");
+                checked: App.mode_identity == "";
+
+                clicked => {
+                    App.switch_mode("");
+                    dlg.close();
+                }
+            }
+        }
+    }
+}

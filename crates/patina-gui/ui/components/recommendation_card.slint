@@ -1,0 +1,181 @@
+import {
+    FilledButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    TextButton,
+    TonalButton,
+} from "@material";
+import { App } from "../app.slint";
+import { Labels } from "../labels.slint";
+import { CardKind } from "../types.slint";
+import { TextPromptDialog } from "text_prompt_dialog.slint";
+
+// The one recommended thing to do next.
+export component RecommendationCard inherits Rectangle {
+    background: MaterialPalette.primary_container;
+    border_radius: MaterialStyleMetrics.border_radius_12;
+
+    layout := VerticalLayout {
+        padding: MaterialStyleMetrics.padding_16;
+        spacing: MaterialStyleMetrics.spacing_8;
+
+        if App.card.kind == CardKind.item || App.card.kind == CardKind.break_down: VerticalLayout {
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            MaterialText {
+                text: App.card.kind == CardKind.item ? @tr("Next up") : @tr("This one looks big");
+                style: MaterialTypography.label_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            MaterialText {
+                text: App.card.item.title;
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.title_large;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            if App.card.item.path != "": MaterialText {
+                text: App.card.item.path;
+                style: MaterialTypography.body_small;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            for reason in App.card.reasons: MaterialText {
+                text: "· " + Labels.reason(reason);
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+                padding_top: MaterialStyleMetrics.padding_8;
+
+                if App.card.kind == CardKind.item: FilledButton {
+                    text: @tr("Start");
+
+                    clicked => {
+                        App.card_start();
+                    }
+                }
+
+                if App.card.kind == CardKind.break_down: FilledButton {
+                    text: @tr("Split");
+
+                    clicked => {
+                        split.open("");
+                    }
+                }
+
+                TonalButton {
+                    text: @tr("Skip");
+
+                    clicked => {
+                        App.card_skip();
+                    }
+                }
+
+                if App.card.kind == CardKind.item: TextButton {
+                    text: @tr("Too big");
+
+                    clicked => {
+                        split.open("");
+                    }
+                }
+            }
+        }
+
+        if App.card.kind == CardKind.review: VerticalLayout {
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            MaterialText {
+                text: App.card.since != "" ? @tr("The weekly review is due (last: {})", App.card.since) : @tr("The weekly review is due");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.title_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                FilledButton {
+                    text: @tr("Start review");
+
+                    clicked => {
+                        App.navigate(4);
+                    }
+                }
+
+                TonalButton {
+                    text: @tr("Skip");
+
+                    clicked => {
+                        App.card_skip();
+                    }
+                }
+            }
+        }
+
+        if App.card.kind == CardKind.triage: VerticalLayout {
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            MaterialText {
+                text: @tr("{} thoughts are waiting in the inbox", App.card.inbox);
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.title_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                FilledButton {
+                    text: @tr("Triage");
+
+                    clicked => {
+                        App.navigate(1);
+                    }
+                }
+
+                TonalButton {
+                    text: @tr("Skip");
+
+                    clicked => {
+                        App.card_skip();
+                    }
+                }
+            }
+        }
+
+        if App.card.kind == CardKind.empty: VerticalLayout {
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            MaterialText {
+                text: @tr("Nothing to do here");
+                style: MaterialTypography.title_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+
+            for row in App.card.elsewhere: MaterialText {
+                text: @tr("{}: {} actionable", row.label, row.count);
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_primary_container;
+            }
+        }
+    }
+
+    split := TextPromptDialog {
+        title: @tr("Too big");
+        label: @tr("What could you do in the first 5 minutes?");
+        action_text: @tr("Split");
+
+        submitted(text) => {
+            return App.card_split(text);
+        }
+    }
+}

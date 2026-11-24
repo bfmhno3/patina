@@ -1,30 +1,186 @@
-import { AboutSlint } from "std-widgets.slint";
 import {
+    IconButton,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
     MaterialWindow,
+    NavigationBar,
+    NavigationItem,
+    NavigationRail,
+    TonalButton,
 } from "@material";
+import { App } from "app.slint";
+import { AppIcons } from "icons.slint";
+import { BreakDialog } from "components/break_dialog.slint";
+import { CaptureBar } from "components/capture_bar.slint";
+import { ModeDialog } from "components/mode_dialog.slint";
+import { NoticeBar } from "components/notice_bar.slint";
+import { StatusStrip } from "components/status_strip.slint";
+import { TimeCorrectionDialog } from "components/time_correction_dialog.slint";
+import { HabitsPage } from "pages/habits_page.slint";
+import { InboxPage } from "pages/inbox_page.slint";
+import { ItemPage } from "pages/item_page.slint";
+import { ProjectsPage } from "pages/projects_page.slint";
+import { ReviewPage } from "pages/review_page.slint";
+import { SettingsPage } from "pages/settings_page.slint";
+import { TodayPage } from "pages/today_page.slint";
+import { PromptKind } from "types.slint";
 
 export { MaterialWindowAdapter } from "@material";
+export { App } from "app.slint";
+export { AppIcons } from "icons.slint";
+export { Labels } from "labels.slint";
+export * from "types.slint";
 
 export component MainWindow inherits MaterialWindow {
     title: @tr("Patina");
-    preferred_width: 400px;
+    preferred_width: 960px;
     preferred_height: 720px;
+    min_width: 360px;
 
-    VerticalLayout {
-        alignment: center;
-        padding: MaterialStyleMetrics.padding_16;
-        spacing: MaterialStyleMetrics.spacing_16;
+    property <bool> wide: App.window_width >= 600px;
+    property <int> prompt_seq: App.prompt.seq;
+    property <int> notice_seq: App.notice.seq;
+    property <[NavigationItem]> nav_items: [
+        {
+            icon: AppIcons.today,
+            selected_icon: AppIcons.today,
+            text: @tr("Today"),
+            show_badge: false,
+            badge: ""
+        },
+        {
+            icon: AppIcons.inbox,
+            selected_icon: AppIcons.inbox,
+            text: @tr("Inbox"),
+            show_badge: App.today.inbox > 0,
+            badge: App.today.inbox
+        },
+        {
+            icon: AppIcons.account_tree,
+            selected_icon: AppIcons.account_tree,
+            text: @tr("Projects"),
+            show_badge: false,
+            badge: ""
+        },
+        {
+            icon: AppIcons.event_repeat,
+            selected_icon: AppIcons.event_repeat,
+            text: @tr("Habits"),
+            show_badge: false,
+            badge: ""
+        },
+        {
+            icon: AppIcons.rate_review,
+            selected_icon: AppIcons.rate_review,
+            text: @tr("Review"),
+            show_badge: App.today.review_due,
+            badge: ""
+        },
+    ];
 
-        MaterialText {
-            text: @tr("Patina");
-            style: MaterialTypography.display_small;
-            horizontal_alignment: center;
+    init => {
+        App.window_width = root.width;
+        App.window_height = root.height;
+    }
+
+    changed width => {
+        App.window_width = root.width;
+    }
+
+    changed height => {
+        App.window_height = root.height;
+    }
+
+    changed prompt_seq => {
+        if App.prompt.kind == PromptKind.break_due {
+            break_dialog.open();
+        } else if App.prompt.kind != PromptKind.none {
+            correction.open();
+        }
+    }
+
+    changed notice_seq => {
+        notice.show();
+    }
+
+    HorizontalLayout {
+        if root.wide: NavigationRail {
+            alignment: start;
+            horizontal_stretch: 0;
+            items: root.nav_items;
+            current_index <=> App.page;
+
+            index_changed(index) => {
+                App.navigate(index);
+            }
         }
 
-        // Slint Royalty-free License attribution. Move into the About page once it exists; never remove.
-        AboutSlint { }
+        VerticalLayout {
+            horizontal_stretch: 1;
+
+            HorizontalLayout {
+                padding: MaterialStyleMetrics.padding_8;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                MaterialText {
+                    text: @tr("Patina");
+                    vertical_alignment: center;
+                    style: MaterialTypography.title_large;
+                }
+
+                Rectangle { }
+
+                TonalButton {
+                    text: App.mode_label != "" ? App.mode_label : @tr("Away");
+
+                    clicked => {
+                        mode_dialog.open();
+                    }
+                }
+
+                IconButton {
+                    icon: AppIcons.settings;
+                    tooltip: @tr("Settings");
+
+                    clicked => {
+                        App.open_settings();
+                    }
+                }
+            }
+
+            CaptureBar { }
+
+            StatusStrip { }
+
+            Rectangle {
+                vertical_stretch: 1;
+
+                if App.detail_open: ItemPage { }
+                if !App.detail_open && App.settings_open: SettingsPage { }
+                if !App.detail_open && !App.settings_open && App.page == 0: TodayPage { }
+                if !App.detail_open && !App.settings_open && App.page == 1: InboxPage { }
+                if !App.detail_open && !App.settings_open && App.page == 2: ProjectsPage { }
+                if !App.detail_open && !App.settings_open && App.page == 3: HabitsPage { }
+                if !App.detail_open && !App.settings_open && App.page == 4: ReviewPage { }
+            }
+
+            if !root.wide: NavigationBar {
+                items: root.nav_items;
+                current_index <=> App.page;
+
+                index_changed(index) => {
+                    App.navigate(index);
+                }
+            }
+        }
     }
+
+    mode_dialog := ModeDialog { }
+
+    correction := TimeCorrectionDialog { }
+
+    break_dialog := BreakDialog { }
+
+    notice := NoticeBar { }
 }

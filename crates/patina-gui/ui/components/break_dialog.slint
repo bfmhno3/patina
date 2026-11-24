@@ -1,0 +1,48 @@
+import {
+    Dialog,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { App } from "../app.slint";
+import { Labels } from "../labels.slint";
+import { RhythmModeUi } from "../types.slint";
+
+export component BreakDialog inherits Rectangle {
+    width: 0;
+    height: 0;
+
+    public function open() {
+        dlg.show();
+    }
+
+    dlg := Dialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: @tr("Time for a break");
+        actions: [App.rhythm.mode == RhythmModeUi.flowtime ? @tr("Not now") : @tr("10 more minutes")];
+        default_action_text: @tr("OK");
+
+        default_action_clicked => {
+            App.start_break();
+            dlg.close();
+        }
+        action_clicked(index) => {
+            App.snooze_break();
+            dlg.close();
+        }
+
+        VerticalLayout {
+            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+
+            MaterialText {
+                text: @tr("You've focused {} min. Take a {}-min {} break?", App.prompt.focus_minutes, App.prompt.minutes, Labels.break_kind(App.prompt.break_kind));
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+            }
+        }
+    }
+}

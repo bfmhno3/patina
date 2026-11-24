@@ -1,0 +1,63 @@
+import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import { App } from "../app.slint";
+import { RadioRow } from "radio_row.slint";
+import { Labels } from "../labels.slint";
+
+export component AbandonDialog inherits Rectangle {
+    property <string> item_id;
+    property <int> reason;
+    property <string> error;
+    property <string> note_value;
+
+    width: 0;
+    height: 0;
+
+    public function open(id: string) {
+        root.item_id = id;
+        root.reason = 0;
+        root.error = "";
+        root.note_value = "";
+        dlg.show();
+    }
+
+    dlg := Dialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: @tr("Abandon");
+        actions: [@tr("Cancel")];
+        default_action_text: @tr("Abandon");
+
+        default_action_clicked => {
+            root.error = App.abandon(root.item_id, root.reason, root.note_value);
+            if root.error == "" {
+                dlg.close();
+            }
+        }
+        action_clicked(index) => {
+            dlg.close();
+        }
+
+        VerticalLayout {
+            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            for i in [0, 1, 2, 3]: RadioRow {
+                text: Labels.abandon_reason(i);
+                checked: root.reason == i;
+
+                clicked => {
+                    root.reason = i;
+                }
+            }
+
+            TextField {
+                text <=> root.note_value;
+                label: @tr("Note");
+                has_error: root.error != "";
+                supporting_text: root.error;
+            }
+        }
+    }
+}

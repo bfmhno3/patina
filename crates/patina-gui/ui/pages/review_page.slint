@@ -1,0 +1,513 @@
+import {
+    FilledButton,
+    IconButton,
+    LinearProgressIndicator,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+    TextButton,
+    TextField,
+    TonalButton,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { AbandonDialog } from "../components/abandon_dialog.slint";
+import { BarChart } from "../components/bar_chart.slint";
+import { ChoiceRow } from "../components/choice_row.slint";
+import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { ItemTile } from "../components/item_tile.slint";
+import { SectionHeader } from "../components/section_header.slint";
+import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
+import { WeekChart } from "../components/week_chart.slint";
+
+// The weekly review: seven steps, or the minimal 1, 5, 7.
+export component ReviewPage inherits Rectangle {
+    property <int> position;
+    property <int> mode_index: App.review_minimal ? 1 : 0;
+    property <string> date_target;
+    property <string> finish_error;
+    property <string> action_error;
+    property <string> conclusion_value;
+    // One chosen item id and title per focus group (index = group); "" keeps the group empty.
+    property <[string]> picks: ["", "", "", "", "", "", "", ""];
+    property <[string]> pick_titles: ["", "", "", "", "", "", "", ""];
+
+    pure function count() -> int {
+        return App.review_minimal ? 3 : 7;
+    }
+
+    pure function step() -> int {
+        return App.review_minimal ? [1, 5, 7][root.position] : root.position + 1;
+    }
+
+    pure function step_title() -> string {
+        if root.step() == 1 {
+            return @tr("1 · Progress");
+        }
+        if root.step() == 2 {
+            return @tr("2 · Time");
+        }
+        if root.step() == 3 {
+            return @tr("3 · Habits");
+        }
+        if root.step() == 4 {
+            return @tr("4 · Calibration");
+        }
+        if root.step() == 5 {
+            return @tr("5 · Backlog");
+        }
+        if root.step() == 6 {
+            return @tr("6 · Notes");
+        }
+        return @tr("7 · Conclusion");
+    }
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            MaterialText {
+                text: App.review.since != "" ? @tr("Since {}", App.review.since) : @tr("Since the beginning");
+                style: MaterialTypography.title_medium;
+            }
+
+            if App.review.due: MaterialText {
+                text: @tr("A review is due");
+                style: MaterialTypography.label_large;
+                color: MaterialPalette.primary;
+            }
+
+            ChoiceRow {
+                options: [@tr("Full"), @tr("Minimal")];
+                current: root.mode_index;
+
+                chosen(index) => {
+                    App.review_minimal = index == 1;
+                    root.position = 0;
+                }
+            }
+
+            SectionHeader {
+                text: root.step_title();
+            }
+
+            // Step 1: progress and project completion.
+            if root.step() == 1: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_4;
+
+                if App.review.completed.length == 0: MaterialText {
+                    text: @tr("Nothing completed in this window.");
+                    style: MaterialTypography.body_medium;
+                }
+
+                for group in App.review.completed: VerticalLayout {
+                    MaterialText {
+                        text: group.label;
+                        style: MaterialTypography.label_large;
+                        color: MaterialPalette.primary;
+                    }
+
+                    for r in group.items: ItemTile {
+                        data: r;
+                        actions: false;
+
+                        clicked => {
+                            App.open_item(r.id);
+                        }
+                    }
+                }
+
+                for p in App.review.projects: MaterialText {
+                    text: @tr("{}: +{} this window ({} done, {} open)", p.item.title, p.completed, p.done, p.open);
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_medium;
+                }
+
+                if App.review.open_projects.length > 0: MaterialText {
+                    text: @tr("Open projects");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for p in App.review.open_projects: VerticalLayout {
+                    spacing: MaterialStyleMetrics.spacing_2;
+
+                    MaterialText {
+                        text: @tr("{}: {} done, {} open ({} {} open, +{} this window)", p.item.title, p.done, p.open, p.open_change > 0 ? "+" : "", p.open_change, p.completed);
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    LinearProgressIndicator {
+                        progress: p.done + p.open > 0 ? p.done / (p.done + p.open) : 0;
+                    }
+                }
+            }
+
+            // Step 2: time allocation against targets, and interruptions.
+            if root.step() == 2: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                for t in App.review.time: VerticalLayout {
+                    spacing: MaterialStyleMetrics.spacing_2;
+
+                    MaterialText {
+                        text: t.identity + ": " + Labels.minutes(t.tracked) + (t.target >= 0 ? " / " + Labels.minutes(t.target) + " (" + (t.deviation > 0 ? "+" : "") + t.deviation + " min)" : "") + " · " + @tr("mode {}", Labels.minutes(t.mode));
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    if t.target > 0: LinearProgressIndicator {
+                        progress: min(t.tracked / t.target, 1);
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Interruptions: {}", App.review.interruptions);
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for s in App.review.sources: MaterialText {
+                    text: (s.label != "" ? s.label : @tr("inbox")) + ": " + s.count;
+                    style: MaterialTypography.body_medium;
+                }
+
+                for i in App.review.interrupt_items: MaterialText {
+                    text: i.day + "  " + i.title + (i.identity != "" ? " [" + i.identity + "]" : "");
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_small;
+                }
+            }
+
+            // Step 3: habit strength.
+            if root.step() == 3: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                for t in App.review.habits: VerticalLayout {
+                    spacing: MaterialStyleMetrics.spacing_2;
+
+                    MaterialText {
+                        text: t.habit.name + " [" + t.habit.identity + "]: " + Math.round(t.habit.strength * 100) + "% (" + (t.change > 0 ? "+" : "") + Math.round(t.change * 100) + " " + @tr("points") + ")";
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    BarChart {
+                        values: t.curve;
+                        ceiling: 1.0;
+                    }
+                }
+            }
+
+            // Step 4: calibration.
+            if root.step() == 4: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                MaterialText {
+                    text: App.review.calib_samples > 0 ? @tr("Estimate error {} over {} timed items (0 is perfect, 1 is off by a factor of two)", Math.round(App.review.calib_error * 100) / 100, App.review.calib_samples) : @tr("No timed estimates in this window.");
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_medium;
+                }
+
+                WeekChart {
+                    points: App.review.calib_weeks;
+                }
+
+                for t in App.review.calib_tags: MaterialText {
+                    text: "#" + t.tag + ": " + Math.round(t.error * 100) / 100 + " (" + t.samples + ")";
+                    style: MaterialTypography.body_medium;
+                }
+
+                for c in App.review.conversions: MaterialText {
+                    text: @tr("Your {} {} ≈ {} (default {}, {} samples)", c.tag != "" ? "#" + c.tag : @tr("all"), c.size, Labels.minutes(c.minutes), Labels.minutes(c.default_minutes), c.samples);
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_medium;
+                }
+            }
+
+            // Step 5: backlog decisions.
+            if root.step() == 5: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_4;
+
+                if root.action_error != "": MaterialText {
+                    text: root.action_error;
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.error;
+                }
+
+                MaterialText {
+                    text: @tr("Postponed again and again");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for p in App.review.postponed: VerticalLayout {
+                    ItemTile {
+                        data: p.item;
+                        actions: false;
+
+                        clicked => {
+                            App.open_item(p.item.id);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: end;
+
+                        TextButton {
+                            text: @tr("Split…");
+
+                            clicked => {
+                                split_form.open(1, "", App.blank_form("", p.item.identity, p.item.id), p.item.title);
+                            }
+                        }
+
+                        TextButton {
+                            text: @tr("Abandon…");
+
+                            clicked => {
+                                abandon.open(p.item.id);
+                            }
+                        }
+
+                        TextButton {
+                            text: @tr("Set date…");
+
+                            clicked => {
+                                root.date_target = p.item.id;
+                                set_date.open("");
+                            }
+                        }
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Waiting for others");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for w in App.review.waiting: VerticalLayout {
+                    ItemTile {
+                        data: w.item;
+                        actions: false;
+
+                        clicked => {
+                            App.open_item(w.item.id);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: end;
+
+                        MaterialText {
+                            text: @tr("{} days", w.days);
+                            vertical_alignment: center;
+                            style: MaterialTypography.body_small;
+                        }
+
+                        TextButton {
+                            text: @tr("Follow up on…");
+
+                            clicked => {
+                                root.date_target = w.item.id;
+                                set_follow_up.open("");
+                            }
+                        }
+
+                        TextButton {
+                            text: @tr("Arrived");
+
+                            clicked => {
+                                root.action_error = App.complete(w.item.id, "");
+                            }
+                        }
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Inbox");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for e in App.review.inbox: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: e.text;
+                        vertical_alignment: center;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    TextButton {
+                        text: @tr("Triage…");
+
+                        clicked => {
+                            triage_form.open(2, e.id, App.blank_form(e.text, e.identity_hint != "" ? e.identity_hint : App.mode_identity, ""), "");
+                        }
+                    }
+
+                    TextButton {
+                        text: @tr("Discard");
+
+                        clicked => {
+                            App.discard(e.id);
+                        }
+                    }
+                }
+            }
+
+            // Step 6: notes of the window.
+            if root.step() == 6: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_4;
+
+                if App.review.notes.length == 0: MaterialText {
+                    text: @tr("No notes in this window.");
+                    style: MaterialTypography.body_medium;
+                }
+
+                for n in App.review.notes: MaterialText {
+                    text: n.day + "  " + n.subject + ": " + n.text;
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_medium;
+                }
+            }
+
+            // Step 7: conclusion and next week's focus.
+            if root.step() == 7: VerticalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                TextField {
+                    text <=> root.conclusion_value;
+                    label: @tr("What do you conclude from this week?");
+                }
+
+                if App.review.focus_current.length > 0: MaterialText {
+                    text: @tr("Current focus");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for r in App.review.focus_current: ItemTile {
+                    data: r;
+                    actions: false;
+
+                    clicked => {
+                        App.open_item(r.id);
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Next week's focus: one item per identity");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.primary;
+                }
+
+                for group[gi] in App.review.focus_groups: VerticalLayout {
+                    MaterialText {
+                        text: group.identity;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    ChoiceRow {
+                        options: group.titles;
+                        by_value: true;
+                        value: root.pick_titles[gi];
+
+                        chosen(index) => {
+                            root.picks[gi] = group.ids[index];
+                            root.pick_titles[gi] = group.titles[index];
+                        }
+                    }
+                }
+
+                if root.finish_error != "": MaterialText {
+                    text: root.finish_error;
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.error;
+                }
+
+                FilledButton {
+                    text: @tr("Finish review");
+
+                    clicked => {
+                        root.finish_error = App.review_finish(root.conclusion_value, root.picks, App.review_minimal);
+                        if root.finish_error == "" {
+                            root.position = 0;
+                            root.conclusion_value = "";
+                            App.navigate(0);
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                TonalButton {
+                    text: @tr("Back");
+                    enabled: root.position > 0;
+
+                    clicked => {
+                        root.position -= 1;
+                    }
+                }
+
+                TonalButton {
+                    text: @tr("Next");
+                    enabled: root.position < root.count() - 1;
+
+                    clicked => {
+                        root.position += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    abandon := AbandonDialog { }
+
+    split_form := ItemFormDialog { }
+
+    triage_form := ItemFormDialog { }
+
+    set_date := TextPromptDialog {
+        title: @tr("Set a date");
+        label: @tr("Date");
+        hint: @tr("YYYY-MM-DD, today, tomorrow, +N");
+
+        submitted(text) => {
+            return App.set_scheduled(root.date_target, text);
+        }
+    }
+
+    set_follow_up := TextPromptDialog {
+        title: @tr("Follow up");
+        label: @tr("Date");
+        hint: @tr("YYYY-MM-DD, today, tomorrow, +N");
+
+        submitted(text) => {
+            return App.set_follow_up(root.date_target, text);
+        }
+    }
+}

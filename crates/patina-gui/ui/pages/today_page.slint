@@ -1,0 +1,210 @@
+import {
+    FilledButton,
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+    TextButton,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { AbandonDialog } from "../components/abandon_dialog.slint";
+import { CheckInDialog } from "../components/check_in_dialog.slint";
+import { ChoiceRow } from "../components/choice_row.slint";
+import { HabitFormDialog } from "../components/habit_form_dialog.slint";
+import { HabitTile } from "../components/habit_tile.slint";
+import { ItemTile } from "../components/item_tile.slint";
+import { RecommendationCard } from "../components/recommendation_card.slint";
+import { SectionHeader } from "../components/section_header.slint";
+
+export component TodayPage inherits Rectangle {
+    property <bool> actionable_open;
+    property <string> scope_text: @tr("Mode");
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            if !App.today.has_identities: Rectangle {
+                background: MaterialPalette.secondary_container;
+                border_radius: MaterialStyleMetrics.border_radius_12;
+
+                onboarding := VerticalLayout {
+                    padding: MaterialStyleMetrics.padding_16;
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: @tr("Welcome to Patina. Start with the default identities: work, life, study.");
+                        wrap: word_wrap;
+                        overflow: clip;
+                        color: MaterialPalette.on_secondary_container;
+                        style: MaterialTypography.body_large;
+                    }
+
+                    FilledButton {
+                        text: @tr("Create default identities");
+
+                        clicked => {
+                            App.init_identities();
+                        }
+                    }
+                }
+            }
+
+            ChoiceRow {
+                options: [@tr("Mode"), @tr("All")];
+                by_value: true;
+                value <=> root.scope_text;
+
+                chosen(index) => {
+                    App.set_scope(index, "");
+                }
+            }
+
+            ChoiceRow {
+                options: App.identities;
+                by_value: true;
+                value <=> root.scope_text;
+
+                chosen(index) => {
+                    App.set_scope(2, App.identities[index]);
+                }
+            }
+
+            RecommendationCard { }
+
+            if App.today.needs_decision.length > 0: SectionHeader {
+                text: @tr("Needs decision");
+            }
+
+            for decision in App.today.needs_decision: VerticalLayout {
+                ItemTile {
+                    data: decision.item;
+                    actions: false;
+
+                    clicked => {
+                        App.open_item(decision.item.id);
+                    }
+                }
+
+                for gone in decision.abandoned: MaterialText {
+                    text: @tr("Abandoned prerequisite: {}", gone.title);
+                    style: MaterialTypography.body_small;
+                    color: MaterialPalette.error;
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+
+                    TextButton {
+                        text: @tr("Unlink");
+
+                        clicked => {
+                            App.unlink_abandoned(decision.item.id);
+                        }
+                    }
+
+                    TextButton {
+                        text: @tr("Abandon…");
+
+                        clicked => {
+                            abandon.open(decision.item.id);
+                        }
+                    }
+                }
+            }
+
+            if App.today.follow_ups.length > 0: SectionHeader {
+                text: @tr("Follow up");
+            }
+
+            for r in App.today.follow_ups: ItemTile {
+                data: r;
+
+                clicked => {
+                    App.open_item(r.id);
+                }
+            }
+
+            if App.today.deadlines.length > 0: SectionHeader {
+                text: @tr("Deadlines");
+            }
+
+            for r in App.today.deadlines: ItemTile {
+                data: r;
+
+                clicked => {
+                    App.open_item(r.id);
+                }
+            }
+
+            if App.today.scheduled.length > 0: SectionHeader {
+                text: @tr("Planned for today");
+            }
+
+            for r in App.today.scheduled: ItemTile {
+                data: r;
+
+                clicked => {
+                    App.open_item(r.id);
+                }
+            }
+
+            if App.today.habits.length > 0: SectionHeader {
+                text: @tr("Habits");
+            }
+
+            for r in App.today.habits: HabitTile {
+                data: r;
+
+                check_in_requested(kind) => {
+                    check_in.open(r.id, kind, false);
+                }
+                skip_requested(kind) => {
+                    check_in.open(r.id, kind, true);
+                }
+                edit_requested => {
+                    habit_form.open(1, r.id, r.name, r.identity, r.cue);
+                }
+            }
+
+            if App.today.actionable.length > 0: HorizontalLayout {
+                SectionHeader {
+                    text: @tr("Actionable ({})", App.today.actionable.length);
+                }
+
+                IconButton {
+                    icon: root.actionable_open ? AppIcons.expand_less : AppIcons.expand_more;
+                    tooltip: @tr("Show or hide");
+
+                    clicked => {
+                        root.actionable_open = !root.actionable_open;
+                    }
+                }
+            }
+
+            if root.actionable_open: VerticalLayout {
+                for r in App.today.actionable: ItemTile {
+                    data: r;
+
+                    clicked => {
+                        App.open_item(r.id);
+                    }
+                }
+            }
+        }
+    }
+
+    abandon := AbandonDialog { }
+
+    check_in := CheckInDialog { }
+
+    habit_form := HabitFormDialog { }
+}

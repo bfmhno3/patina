@@ -1,0 +1,105 @@
+import {
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    TextButton,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { InterruptDialog } from "interrupt_dialog.slint";
+import { StuckDialog } from "stuck_dialog.slint";
+
+// What is running or paused right now, plus urgent items of other identities.
+export component StatusStrip inherits Rectangle {
+    background: MaterialPalette.surface_container;
+
+    layout := VerticalLayout {
+        padding: MaterialStyleMetrics.padding_8;
+        spacing: MaterialStyleMetrics.spacing_4;
+
+        if App.timer.running: HorizontalLayout {
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            MaterialText {
+                text: @tr("Timing {} · {}", App.timer.label, Labels.minutes(App.timer.minutes));
+                horizontal_stretch: 1;
+                vertical_alignment: center;
+                style: MaterialTypography.title_small;
+            }
+
+            IconButton {
+                icon: AppIcons.stop;
+                tooltip: @tr("Stop");
+
+                clicked => {
+                    App.stop_timer();
+                }
+            }
+
+            IconButton {
+                icon: AppIcons.hourglass_empty;
+                tooltip: @tr("Stuck");
+                enabled: !App.timer.is_habit;
+
+                clicked => {
+                    stuck.open("");
+                }
+            }
+
+            IconButton {
+                icon: AppIcons.bolt;
+                tooltip: @tr("Interrupt");
+
+                clicked => {
+                    interrupt.open();
+                }
+            }
+
+            IconButton {
+                icon: AppIcons.coffee;
+                tooltip: @tr("Break");
+
+                clicked => {
+                    App.start_break();
+                }
+            }
+        }
+
+        if App.rhythm.on_break: HorizontalLayout {
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            MaterialText {
+                text: @tr("On a {} break until {}", Labels.break_kind(App.rhythm.break_kind), App.rhythm.break_ends);
+                vertical_alignment: center;
+                style: MaterialTypography.title_small;
+            }
+
+            if App.rhythm.resume_label != "": TextButton {
+                text: @tr("Resume {}", App.rhythm.resume_label);
+
+                clicked => {
+                    App.resume();
+                }
+            }
+        }
+
+        for item in App.today.banner_items: MaterialText {
+            text: item.identity + ": " + item.title + (item.deadline != "" ? " · " + @tr("due {}", item.deadline) : "") + (item.follow_up != "" ? " · " + @tr("follow up {}", item.follow_up) : "");
+            style: MaterialTypography.body_small;
+            color: MaterialPalette.on_surface_variant;
+        }
+
+        for habit in App.today.banner_habits: MaterialText {
+            text: habit.identity + ": " + habit.name;
+            style: MaterialTypography.body_small;
+            color: MaterialPalette.on_surface_variant;
+        }
+    }
+
+    stuck := StuckDialog { }
+
+    interrupt := InterruptDialog { }
+}

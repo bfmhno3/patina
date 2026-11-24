@@ -1,0 +1,76 @@
+import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import { App } from "../app.slint";
+import { HabitKindUi } from "../types.slint";
+import { ChoiceRow } from "choice_row.slint";
+
+// Check in or skip a habit on today or one of the two days before.
+export component CheckInDialog inherits Rectangle {
+    property <string> habit_id;
+    property <bool> skip;
+    property <bool> counted;
+    property <int> day_offset;
+    property <string> error;
+    property <string> count_value;
+    property <string> note_value;
+
+    width: 0;
+    height: 0;
+
+    public function open(id: string, kind: HabitKindUi, skipping: bool) {
+        root.habit_id = id;
+        root.skip = skipping;
+        root.counted = kind == HabitKindUi.count;
+        root.day_offset = 0;
+        root.error = "";
+        root.count_value = "";
+        root.note_value = "";
+        dlg.show();
+    }
+
+    dlg := Dialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.skip ? @tr("Skip habit") : @tr("Check in");
+        actions: [@tr("Cancel")];
+        default_action_text: root.skip ? @tr("Skip") : @tr("Check in");
+
+        default_action_clicked => {
+            if root.skip {
+                root.error = App.skip_habit(root.habit_id, root.day_offset);
+            } else {
+                root.error = App.check_in(root.habit_id, root.day_offset, root.counted ? Math.round(root.count_value.to_float()) : -1, root.note_value);
+            }
+            if root.error == "" {
+                dlg.close();
+            }
+        }
+        action_clicked(index) => {
+            dlg.close();
+        }
+
+        VerticalLayout {
+            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            ChoiceRow {
+                options: [@tr("Today"), @tr("Yesterday"), @tr("2 days ago")];
+                current <=> root.day_offset;
+            }
+
+            if !root.skip && root.counted: TextField {
+                text <=> root.count_value;
+                label: @tr("Count");
+                input_type: number;
+            }
+
+            if !root.skip: TextField {
+                text <=> root.note_value;
+                label: @tr("Note");
+                has_error: root.error != "";
+                supporting_text: root.error;
+            }
+        }
+    }
+}

@@ -16,6 +16,7 @@ patina-core = { path = "crates/patina-core" }
 clap = { version = "4", features = ["derive"] }
 slint = { version = "1.19", features = ["backend-android-activity-06"] }
 slint-build = "1.19"
+i-slint-backend-testing = "1.19"
 jiff = { version = "1.0.2", features = ["serde"] }
 uuid = { version = "1.29.3", features = ["v7", "serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -24,6 +25,7 @@ thiserror = "2.0.21"
 toml = "1.2.2"
 anyhow = "1.0.105"
 dirs = "7.0.0"
+notify-rust = "4.19"
 rmcp = { version = "3.11", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1", features = ["macros", "rt", "io-std"] }
 tempfile = "3.27.0"

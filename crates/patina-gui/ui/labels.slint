@@ -1,0 +1,193 @@
+// Stable keys from Rust mapped to translatable text.
+
+import {
+    BreakKindUi,
+    ItemRow,
+    NoticeKind,
+    ReasonData,
+    ReasonKind,
+    RhythmModeUi,
+} from "types.slint";
+
+export global Labels {
+    public pure function status(key: string) -> string {
+        if key == "inbox" {
+            return @tr("Inbox");
+        }
+        if key == "todo" {
+            return @tr("To do");
+        }
+        if key == "in_progress" {
+            return @tr("In progress");
+        }
+        if key == "blocked" {
+            return @tr("Blocked");
+        }
+        if key == "waiting" {
+            return @tr("Waiting");
+        }
+        if key == "done" {
+            return @tr("Done");
+        }
+        if key == "abandoned" {
+            return @tr("Abandoned");
+        }
+        if key == "deferred" {
+            return @tr("Deferred");
+        }
+        return key;
+    }
+
+    public pure function size(i: int) -> string {
+        if i == 1 {
+            return @tr("S");
+        }
+        if i == 2 {
+            return @tr("M");
+        }
+        if i == 3 {
+            return @tr("L");
+        }
+        return @tr("–");
+    }
+
+    public pure function minutes(n: int) -> string {
+        if n >= 60 {
+            return @tr("{}h {}m", floor(n / 60), mod(n, 60));
+        }
+        return @tr("{} min", n);
+    }
+
+    public pure function reason(r: ReasonData) -> string {
+        if r.kind == ReasonKind.deadline {
+            if r.value < 0 {
+                return @tr("Overdue by {} days", -r.value);
+            }
+            if r.value == 0 {
+                return @tr("Due today");
+            }
+            return @tr("Due in {} days", r.value);
+        }
+        if r.kind == ReasonKind.scheduled {
+            return r.value > 0 ? @tr("Planned {} days ago", r.value) : @tr("Planned for today");
+        }
+        if r.kind == ReasonKind.unlocks {
+            return @tr("Unlocks {} items", r.value);
+        }
+        if r.kind == ReasonKind.downstream {
+            return @tr("{} items depend on it", r.value);
+        }
+        if r.kind == ReasonKind.focus {
+            return @tr("In this week's focus");
+        }
+        if r.kind == ReasonKind.important {
+            return @tr("Marked important");
+        }
+        if r.kind == ReasonKind.small {
+            return @tr("Small ({})", r.size);
+        }
+        if r.kind == ReasonKind.recently_skipped {
+            return @tr("Skipped {} times recently", r.value);
+        }
+        return @tr("First step");
+    }
+
+    public pure function abandon_reason(i: int) -> string {
+        if i == 0 {
+            return @tr("No longer important");
+        }
+        if i == 1 {
+            return @tr("Replaced by something else");
+        }
+        if i == 2 {
+            return @tr("Too hard");
+        }
+        return @tr("Other");
+    }
+
+    public pure function repeat_unit(i: int) -> string {
+        if i == 1 {
+            return @tr("weeks");
+        }
+        if i == 2 {
+            return @tr("months");
+        }
+        return @tr("days");
+    }
+
+    public pure function weekday(key: string) -> string {
+        if key == "mon" {
+            return @tr("Mon");
+        }
+        if key == "tue" {
+            return @tr("Tue");
+        }
+        if key == "wed" {
+            return @tr("Wed");
+        }
+        if key == "thu" {
+            return @tr("Thu");
+        }
+        if key == "fri" {
+            return @tr("Fri");
+        }
+        if key == "sat" {
+            return @tr("Sat");
+        }
+        return @tr("Sun");
+    }
+
+    public pure function break_kind(k: BreakKindUi) -> string {
+        if k == BreakKindUi.short {
+            return @tr("short");
+        }
+        if k == BreakKindUi.long {
+            return @tr("long");
+        }
+        return @tr("flow");
+    }
+
+    public pure function rhythm_mode(m: RhythmModeUi) -> string {
+        if m == RhythmModeUi.fixed {
+            return @tr("Fixed");
+        }
+        if m == RhythmModeUi.flowtime {
+            return @tr("Flowtime");
+        }
+        return @tr("Off");
+    }
+
+    public pure function notice(kind: NoticeKind, text: string) -> string {
+        if kind == NoticeKind.saved {
+            return text != "" ? @tr("Saved: {}", text) : @tr("Saved");
+        }
+        if kind == NoticeKind.undone {
+            return @tr("Undone");
+        }
+        if kind == NoticeKind.left_off {
+            return @tr("Left off: {}", text);
+        }
+        if kind == NoticeKind.over_estimate {
+            return @tr("{} took over twice its estimate", text);
+        }
+        if kind == NoticeKind.break_over {
+            return @tr("Break over");
+        }
+        if kind == NoticeKind.needs_decision {
+            return @tr("{} items need a decision", text);
+        }
+        return text;
+    }
+
+    // One line of context under an item title.
+    public pure function item_info(r: ItemRow) -> string {
+        return (r.path != "" ? r.path + " · " : "") + (r.identity != "" ? r.identity + " · " : "")
+            + status(r.status)
+            + (r.deadline != "" ? " · " + @tr("due {}", r.deadline) : "")
+            + (r.scheduled != "" ? " · " + @tr("planned {}", r.scheduled) : "")
+            + (r.follow_up != "" ? " · " + @tr("follow up {}", r.follow_up) : "")
+            + (r.waiting_for != "" ? " · " + @tr("waiting for {}", r.waiting_for) : "")
+            + (r.estimate != "" ? " · " + r.estimate : "")
+            + (r.tracked_minutes > 0 ? " · " + minutes(r.tracked_minutes) : "");
+    }
+}

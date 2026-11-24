@@ -1,0 +1,49 @@
+import { IconButton, MaterialStyleMetrics } from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { ItemRow } from "../types.slint";
+import { Tile } from "tile.slint";
+
+// One item as a list row: title, context line, quick start and done.
+export component ItemTile inherits Rectangle {
+    in property <ItemRow> data;
+    in property <bool> actions: true;
+
+    callback clicked();
+
+    min_height: MaterialStyleMetrics.size_72;
+
+    HorizontalLayout {
+        padding_left: root.data.depth * MaterialStyleMetrics.padding_16;
+
+        tile := Tile {
+            text: (root.data.important ? "★ " : "") + root.data.title;
+            supporting_text: Labels.item_info(root.data);
+
+            clicked => {
+                root.clicked();
+            }
+
+            if root.actions && (root.data.status == "todo" || root.data.status == "in_progress"): IconButton {
+                icon: AppIcons.play_arrow;
+                tooltip: @tr("Start timer");
+
+                clicked => {
+                    App.start_timer(root.data.id);
+                }
+            }
+
+            if root.actions && (root.data.status == "todo" || root.data.status == "in_progress"): IconButton {
+                icon: AppIcons.check;
+                tooltip: @tr("Done");
+
+                clicked => {
+                    App.complete(root.data.id, "");
+                }
+            }
+
+            @children
+        }
+    }
+}

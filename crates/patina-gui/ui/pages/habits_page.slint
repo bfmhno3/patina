@@ -1,0 +1,83 @@
+import {
+    FloatingActionButton,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { CheckInDialog } from "../components/check_in_dialog.slint";
+import { HabitFormDialog } from "../components/habit_form_dialog.slint";
+import { HabitTile } from "../components/habit_tile.slint";
+import { FrequencyUi } from "../types.slint";
+
+export component HabitsPage inherits Rectangle {
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            padding_bottom: MaterialStyleMetrics.size_90;
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            if App.habits.length == 0: MaterialText {
+                text: @tr("No habits yet.");
+                style: MaterialTypography.body_large;
+            }
+
+            for r in App.habits: VerticalLayout {
+                HabitTile {
+                    data: r;
+
+                    check_in_requested(kind) => {
+                        check_in.open(r.id, kind, false);
+                    }
+                    skip_requested(kind) => {
+                        check_in.open(r.id, kind, true);
+                    }
+                    edit_requested => {
+                        form.open(1, r.id, r.name, r.identity, r.cue);
+                    }
+                }
+
+                HorizontalLayout {
+                    padding_left: MaterialStyleMetrics.padding_16;
+
+                    MaterialText {
+                        text: r.frequency == FrequencyUi.daily ? @tr("Every day") : r.frequency == FrequencyUi.weekly ? @tr("{} times a week", r.times) : @tr("On specific weekdays");
+                        style: MaterialTypography.body_small;
+                    }
+                }
+
+                HorizontalLayout {
+                    padding_left: MaterialStyleMetrics.padding_16;
+                    spacing: MaterialStyleMetrics.spacing_4;
+
+                    for day in r.days: MaterialText {
+                        text: Labels.weekday(day);
+                        style: MaterialTypography.label_small;
+                    }
+                }
+            }
+        }
+    }
+
+    FloatingActionButton {
+        x: root.width - self.width - MaterialStyleMetrics.padding_16;
+        y: root.height - self.height - MaterialStyleMetrics.padding_16;
+        icon: AppIcons.add;
+        text: @tr("New habit");
+
+        clicked => {
+            form.open(0, "", "", App.mode_identity, "");
+        }
+    }
+
+    check_in := CheckInDialog { }
+
+    form := HabitFormDialog { }
+}

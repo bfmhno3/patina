@@ -1,0 +1,354 @@
+// Data contract between Rust view models and the UI. Ids are UUID strings ("" is none);
+// -1 is none for numbers. Presentation only: no logic lives here.
+
+export enum CardKind { item, break_down, review, triage, empty }
+
+export enum ReasonKind {
+    deadline,
+    scheduled,
+    unlocks,
+    downstream,
+    focus,
+    important,
+    small,
+    recently_skipped,
+    first_step,
+}
+
+export struct ReasonData {
+    kind: ReasonKind,
+    value: int,
+    size: string,
+}
+
+export struct ItemRow {
+    id: string,
+    short: string,
+    title: string,
+    path: string,
+    identity: string,
+    status: string,
+    defer: string,
+    scheduled: string,
+    deadline: string,
+    follow_up: string,
+    waiting_for: string,
+    tags: string,
+    tracked_minutes: int,
+    estimate_minutes: int,
+    open_children: int,
+    children: int,
+    depth: int,
+    estimate: string,
+    important: bool,
+    over_estimate: bool,
+    wrap_up: bool,
+    repeat: bool,
+}
+
+export struct CountRow {
+    label: string,
+    count: int,
+}
+
+export struct CardData {
+    kind: CardKind,
+    item: ItemRow,
+    reasons: [ReasonData],
+    inbox: int,
+    since: string,
+    elsewhere: [CountRow],
+}
+
+export enum HabitKindUi { check, count, duration }
+
+export enum FrequencyUi { daily, weekly, weekdays }
+
+export struct HabitRow {
+    id: string,
+    name: string,
+    identity: string,
+    cue: string,
+    kind: HabitKindUi,
+    target: int,
+    frequency: FrequencyUi,
+    times: int,
+    days: [string],
+    paused: bool,
+    due: bool,
+    strength: float,
+    value: float,
+    week_value: float,
+    count: int,
+    minutes: int,
+    week_target: int,
+}
+
+export struct DecisionRow {
+    item: ItemRow,
+    abandoned: [ItemRow],
+}
+
+export struct InboxRow {
+    id: string,
+    text: string,
+    captured: string,
+    identity_hint: string,
+}
+
+export struct TimerData {
+    running: bool,
+    label: string,
+    target_id: string,
+    is_habit: bool,
+    minutes: int,
+    started: string,
+}
+
+export enum RhythmModeUi { fixed, flowtime, off }
+
+export enum BreakKindUi { short, long, flow }
+
+export struct RhythmData {
+    mode: RhythmModeUi,
+    focus_minutes: int,
+    round: int,
+    due: bool,
+    due_kind: BreakKindUi,
+    due_minutes: int,
+    on_break: bool,
+    break_kind: BreakKindUi,
+    break_ends: string,
+    resume_label: string,
+    resume_id: string,
+    resume_is_habit: bool,
+}
+
+export struct TodayData {
+    today: string,
+    scope_label: string,
+    habits: [HabitRow],
+    follow_ups: [ItemRow],
+    deadlines: [ItemRow],
+    scheduled: [ItemRow],
+    actionable: [ItemRow],
+    needs_decision: [DecisionRow],
+    inbox: int,
+    warnings: int,
+    review_due: bool,
+    has_identities: bool,
+    banner_items: [ItemRow],
+    banner_habits: [HabitRow],
+}
+
+export struct NoteRow {
+    day: string,
+    kind: string,
+    subject: string,
+    text: string,
+}
+
+export struct DetailData {
+    item: ItemRow,
+    parent_id: string,
+    tags_raw: string,
+    waiting_for: string,
+    follow_up: string,
+    defer: string,
+    settled: string,
+    completion_note: string,
+    abandon_reason: string,
+    abandon_note: string,
+    left_off: string,
+    size: int,
+    repeat_kind: int,
+    repeat_n: int,
+    repeat_unit: int,
+    children_estimate_minutes: int,
+    is_external: bool,
+    notes: [NoteRow],
+    prerequisites: [ItemRow],
+    dependents: [ItemRow],
+    children: [ItemRow],
+}
+
+export struct GroupRow {
+    label: string,
+    items: [ItemRow],
+}
+
+export struct ProjectRow {
+    item: ItemRow,
+    completed: int,
+    done: int,
+    open: int,
+    open_change: int,
+}
+
+export struct TimeRow {
+    identity: string,
+    tracked: int,
+    target: int,
+    deviation: int,
+    mode: int,
+}
+
+export struct InterruptRow {
+    day: string,
+    title: string,
+    identity: string,
+    handled_now: bool,
+}
+
+export struct TrendRow {
+    habit: HabitRow,
+    start: float,
+    change: float,
+    curve: [float],
+}
+
+export struct WeekPoint {
+    label: string,
+    error: float,
+    samples: int,
+}
+
+export struct TagRow {
+    tag: string,
+    error: float,
+    samples: int,
+}
+
+export struct ConvRow {
+    tag: string,
+    size: string,
+    minutes: int,
+    default_minutes: int,
+    samples: int,
+}
+
+export struct PostponedRow {
+    item: ItemRow,
+    count: int,
+}
+
+export struct WaitRow {
+    item: ItemRow,
+    days: int,
+}
+
+export struct FocusGroup {
+    identity: string,
+    titles: [string],
+    ids: [string],
+}
+
+export struct ReviewData {
+    since: string,
+    due: bool,
+    completed: [GroupRow],
+    projects: [ProjectRow],
+    open_projects: [ProjectRow],
+    time: [TimeRow],
+    interruptions: int,
+    sources: [CountRow],
+    interrupt_items: [InterruptRow],
+    habits: [TrendRow],
+    calib_error: float,
+    calib_samples: int,
+    calib_weeks: [WeekPoint],
+    calib_tags: [TagRow],
+    conversions: [ConvRow],
+    postponed: [PostponedRow],
+    waiting: [WaitRow],
+    inbox: [InboxRow],
+    notes: [NoteRow],
+    focus_current: [ItemRow],
+    focus_groups: [FocusGroup],
+}
+
+export struct ItemForm {
+    title: string,
+    identity: string,
+    parent_id: string,
+    tags: string,
+    defer: string,
+    scheduled: string,
+    deadline: string,
+    waiting_for: string,
+    follow_up: string,
+    size: int,
+    repeat_kind: int,
+    repeat_n: int,
+    repeat_unit: int,
+    important: bool,
+}
+
+export struct HabitForm {
+    name: string,
+    identity: string,
+    cue: string,
+    kind: int,
+    target: int,
+    frequency: int,
+    times: int,
+    days: [bool],
+}
+
+export struct IdentityRow {
+    name: string,
+    target: string,
+    open_items: int,
+    habits: int,
+}
+
+export struct SettingsData {
+    identities: [IdentityRow],
+    root: string,
+    device: string,
+    version: string,
+    focus_minutes: int,
+    short_break: int,
+    long_break: int,
+    rounds: int,
+    flow_ratio: int,
+    snooze: int,
+}
+
+export enum PromptKind { none, timer_idle, mode_idle, break_due }
+
+export struct PromptData {
+    seq: int,
+    kind: PromptKind,
+    label: string,
+    since: string,
+    default_time: string,
+    minutes: int,
+    focus_minutes: int,
+    break_kind: BreakKindUi,
+}
+
+export enum NoticeKind {
+    saved,
+    undone,
+    error,
+    left_off,
+    over_estimate,
+    break_over,
+    needs_decision,
+}
+
+export struct NoticeData {
+    seq: int,
+    kind: NoticeKind,
+    text: string,
+    target_id: string,
+}
+
+export enum PickerPurpose { parent, merge_into, link }
+
+export struct PickerRow {
+    id: string,
+    title: string,
+    path: string,
+}

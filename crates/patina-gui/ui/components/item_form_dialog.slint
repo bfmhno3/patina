@@ -1,0 +1,265 @@
+import {
+    FullscreenDialog,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+    Switch,
+    TextButton,
+    TextField,
+} from "@material";
+import { App } from "../app.slint";
+import { ItemForm, PickerPurpose } from "../types.slint";
+import { ChoiceRow } from "choice_row.slint";
+import { ItemPicker } from "item_picker.slint";
+
+// Create, add a child, triage, or edit an item. `mode`: 0 create, 1 child, 2 triage, 3 edit.
+export component ItemFormDialog inherits Rectangle {
+    property <int> mode;
+    property <string> target_id;
+    property <string> error;
+    property <bool> picking;
+    property <string> picker_filter;
+    property <string> title_value;
+    property <string> identity_value;
+    property <string> parent_id;
+    property <string> parent_title;
+    property <string> tags_value;
+    property <string> defer_value;
+    property <string> scheduled_value;
+    property <string> deadline_value;
+    property <string> waiting_value;
+    property <string> follow_up_value;
+    property <string> repeat_n_value;
+    property <int> size_value;
+    property <int> repeat_kind_value;
+    property <int> repeat_unit_value;
+    property <bool> important_value;
+
+    width: 0;
+    height: 0;
+
+    // `id` is the inbox entry (triage) or item (edit); `parent_title` labels the parent.
+    public function open(mode: int, id: string, form: ItemForm, parent_title: string) {
+        root.mode = mode;
+        root.target_id = id;
+        root.error = "";
+        root.picking = false;
+        root.title_value = form.title;
+        root.identity_value = form.identity != "" ? form.identity : App.identities[0];
+        root.parent_id = form.parent_id;
+        root.parent_title = parent_title;
+        root.tags_value = form.tags;
+        root.defer_value = form.defer;
+        root.scheduled_value = form.scheduled;
+        root.deadline_value = form.deadline;
+        root.waiting_value = form.waiting_for;
+        root.follow_up_value = form.follow_up;
+        root.size_value = form.size;
+        root.repeat_kind_value = form.repeat_kind;
+        root.repeat_n_value = form.repeat_n > 0 ? "\{form.repeat_n}" : "1";
+        root.repeat_unit_value = form.repeat_unit;
+        root.important_value = form.important;
+        dlg.show();
+    }
+
+    function form() -> ItemForm {
+        return {
+            title: root.title_value,
+            identity: root.identity_value,
+            parent_id: root.parent_id,
+            tags: root.tags_value,
+            defer: root.defer_value,
+            scheduled: root.scheduled_value,
+            deadline: root.deadline_value,
+            waiting_for: root.waiting_value,
+            follow_up: root.follow_up_value,
+            size: root.size_value,
+            repeat_kind: root.repeat_kind_value,
+            repeat_n: Math.round(root.repeat_n_value.to_float()),
+            repeat_unit: root.repeat_unit_value,
+            important: root.important_value,
+        };
+    }
+
+    function submit() {
+        if root.mode == 2 {
+            root.error = App.triage(root.target_id, root.form());
+        } else if root.mode == 3 {
+            root.error = App.edit_item(root.target_id, root.form());
+        } else {
+            root.error = App.add_item(root.form());
+        }
+        if root.error == "" {
+            dlg.close();
+        }
+    }
+
+    dlg := FullscreenDialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.mode == 0 ? @tr("New item") : root.mode == 1 ? @tr("New sub-item") : root.mode == 2 ? @tr("Triage") : @tr("Edit item");
+        actions: [@tr("Save")];
+
+        action_clicked(index) => {
+            root.submit();
+        }
+
+        ScrollView {
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                padding_top: 0;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                if root.error != "": MaterialText {
+                    text: root.error;
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.error;
+                }
+
+                TextField {
+                    text <=> root.title_value;
+                    label: @tr("Title");
+                }
+
+                ChoiceRow {
+                    options: App.identities;
+                    by_value: true;
+                    value <=> root.identity_value;
+                }
+
+                if root.mode == 0: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: root.parent_id == "" ? @tr("Top level") : @tr("Under {}", root.parent_title);
+                        vertical_alignment: center;
+                        style: MaterialTypography.body_large;
+                    }
+
+                    TextButton {
+                        text: @tr("Choose parent…");
+
+                        clicked => {
+                            root.picking = !root.picking;
+                            root.picker_filter = "";
+                            App.picker_query(PickerPurpose.parent, "", "");
+                        }
+                    }
+
+                    if root.parent_id != "": TextButton {
+                        text: @tr("Clear");
+
+                        clicked => {
+                            root.parent_id = "";
+                            root.picking = false;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: root.mode == 0 && root.picking;
+                    min_height: root.mode == 0 && root.picking ? MaterialStyleMetrics.size_256 : 0;
+                    max_height: self.min_height;
+
+                    ItemPicker {
+                        filter <=> root.picker_filter;
+                        purpose: PickerPurpose.parent;
+                        context_id: "";
+
+                        picked(id, title) => {
+                            root.parent_id = id;
+                            root.parent_title = title;
+                            root.picking = false;
+                        }
+                    }
+                }
+
+                TextField {
+                    text <=> root.tags_value;
+                    label: @tr("Tags");
+                    supporting_text: @tr("Separated by spaces or commas");
+                }
+
+                MaterialText {
+                    text: @tr("Size");
+                    style: MaterialTypography.label_large;
+                }
+
+                ChoiceRow {
+                    options: [@tr("–"), @tr("S"), @tr("M"), @tr("L")];
+                    current <=> root.size_value;
+                }
+
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: MaterialStyleMetrics.spacing_16;
+
+                    MaterialText {
+                        text: @tr("Important");
+                        vertical_alignment: center;
+                        style: MaterialTypography.body_large;
+                    }
+
+                    Switch {
+                        checked <=> root.important_value;
+                    }
+                }
+
+                TextField {
+                    text <=> root.defer_value;
+                    label: @tr("Hidden until");
+                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                }
+
+                TextField {
+                    text <=> root.scheduled_value;
+                    label: @tr("Planned for");
+                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                }
+
+                TextField {
+                    text <=> root.deadline_value;
+                    label: @tr("Deadline");
+                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                }
+
+                TextField {
+                    text <=> root.waiting_value;
+                    label: @tr("Waiting for");
+                }
+
+                TextField {
+                    text <=> root.follow_up_value;
+                    label: @tr("Follow up on");
+                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                }
+
+                MaterialText {
+                    text: @tr("Repeat");
+                    style: MaterialTypography.label_large;
+                }
+
+                ChoiceRow {
+                    options: [@tr("Never"), @tr("Every"), @tr("After completion")];
+                    current <=> root.repeat_kind_value;
+                }
+
+                if root.repeat_kind_value != 0: TextField {
+                    text <=> root.repeat_n_value;
+                    label: root.repeat_kind_value == 1 ? @tr("Every how many") : @tr("Days after completion");
+                    input_type: number;
+                }
+
+                if root.repeat_kind_value == 1: ChoiceRow {
+                    options: [@tr("Days"), @tr("Weeks"), @tr("Months")];
+                    current <=> root.repeat_unit_value;
+                }
+            }
+        }
+    }
+}

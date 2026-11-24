@@ -1,0 +1,197 @@
+import { AboutSlint } from "std-widgets.slint";
+import {
+    FilledButton,
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+    TextField,
+    TonalButton,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { ChoiceRow } from "../components/choice_row.slint";
+import { SectionHeader } from "../components/section_header.slint";
+import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
+import { RhythmModeUi } from "../types.slint";
+import { Tile } from "../components/tile.slint";
+
+export component SettingsPage inherits Rectangle {
+    property <string> identity_error;
+    property <string> new_identity;
+    property <string> target_for;
+    property <string> rhythm_value: Labels.rhythm_mode(App.rhythm.mode);
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            HorizontalLayout {
+                alignment: start;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                IconButton {
+                    icon: AppIcons.arrow_back;
+                    tooltip: @tr("Back");
+
+                    clicked => {
+                        App.close_settings();
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Settings");
+                    vertical_alignment: center;
+                    style: MaterialTypography.headline_small;
+                }
+            }
+
+            SectionHeader {
+                text: @tr("Identities");
+            }
+
+            for identity in App.settings.identities: Tile {
+                text: identity.name;
+                supporting_text: (identity.target != "" ? @tr("target {} h/week", identity.target) + " · " : "") + @tr("{} open items, {} habits", identity.open_items, identity.habits);
+
+                IconButton {
+                    icon: AppIcons.edit;
+                    tooltip: @tr("Rename");
+
+                    clicked => {
+                        root.target_for = identity.name;
+                        rename.open(identity.name);
+                    }
+                }
+
+                IconButton {
+                    icon: AppIcons.star;
+                    tooltip: @tr("Weekly target");
+
+                    clicked => {
+                        root.target_for = identity.name;
+                        target.open(identity.target);
+                    }
+                }
+            }
+
+            if root.identity_error != "": MaterialText {
+                text: root.identity_error;
+                color: MaterialPalette.error;
+                style: MaterialTypography.body_medium;
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                TextField {
+                    text <=> root.new_identity;
+                    label: @tr("New identity");
+                }
+
+                IconButton {
+                    icon: AppIcons.add;
+                    tooltip: @tr("Add identity");
+
+                    clicked => {
+                        root.identity_error = App.add_identity(root.new_identity);
+                        if root.identity_error == "" {
+                            root.new_identity = "";
+                        }
+                    }
+                }
+            }
+
+            SectionHeader {
+                text: @tr("Break reminders");
+            }
+
+            ChoiceRow {
+                options: [
+                    Labels.rhythm_mode(RhythmModeUi.fixed),
+                    Labels.rhythm_mode(RhythmModeUi.flowtime),
+                    Labels.rhythm_mode(RhythmModeUi.off)
+                ];
+                by_value: true;
+                value <=> root.rhythm_value;
+
+                chosen(index) => {
+                    App.set_rhythm(index == 0 ? RhythmModeUi.fixed : index == 1 ? RhythmModeUi.flowtime : RhythmModeUi.off);
+                }
+            }
+
+            MaterialText {
+                text: @tr("Focus {} min, short break {} min, long break {} min after {} rounds. Flowtime: one break minute per {} focus minutes. Snooze {} min. Edit config.toml to change these.", App.settings.focus_minutes, App.settings.short_break, App.settings.long_break, App.settings.rounds, App.settings.flow_ratio, App.settings.snooze);
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+            }
+
+            SectionHeader {
+                text: @tr("Data");
+            }
+
+            MaterialText {
+                text: @tr("Location: {}", App.settings.root);
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+            }
+
+            MaterialText {
+                text: @tr("Device: {}", App.settings.device);
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+            }
+
+            TonalButton {
+                text: @tr("Undo last command");
+                icon: AppIcons.undo;
+
+                clicked => {
+                    App.undo();
+                }
+            }
+
+            SectionHeader {
+                text: @tr("About");
+            }
+
+            MaterialText {
+                text: @tr("Patina {}", App.settings.version);
+                style: MaterialTypography.body_large;
+            }
+
+            // Slint Royalty-free License attribution; never remove.
+            AboutSlint { }
+        }
+    }
+
+    rename := TextPromptDialog {
+        title: @tr("Rename identity");
+        label: @tr("Name");
+
+        submitted(text) => {
+            return App.rename_identity(root.target_for, text);
+        }
+    }
+
+    target := TextPromptDialog {
+        title: @tr("Weekly target");
+        label: @tr("Hours per week");
+        hint: @tr("A number like 20 or 7.5, or none");
+
+        submitted(text) => {
+            return App.set_target(root.target_for, text);
+        }
+    }
+}

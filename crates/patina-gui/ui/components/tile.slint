@@ -1,0 +1,54 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    StateLayerArea,
+} from "@material";
+
+// A list row: title, one supporting line, trailing children. Material's own list tile
+// sizes itself from its content, which loops inside scroll views, so the height is fixed.
+export component Tile inherits Rectangle {
+    in property <string> text;
+    in property <string> supporting_text;
+
+    callback clicked();
+
+    min_height: MaterialStyleMetrics.size_72;
+
+    StateLayerArea {
+        color: MaterialPalette.on_surface;
+
+        clicked => {
+            root.clicked();
+        }
+
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_16;
+            padding_right: MaterialStyleMetrics.padding_8;
+            padding_top: MaterialStyleMetrics.padding_8;
+            padding_bottom: MaterialStyleMetrics.padding_8;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            VerticalLayout {
+                alignment: center;
+                horizontal_stretch: 1;
+
+                MaterialText {
+                    text: root.text;
+                    overflow: elide;
+                    style: MaterialTypography.body_large;
+                }
+
+                if root.supporting_text != "": MaterialText {
+                    text: root.supporting_text;
+                    overflow: elide;
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_medium;
+                }
+            }
+
+            @children
+        }
+    }
+}

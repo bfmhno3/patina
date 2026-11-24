@@ -1,0 +1,50 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+// A single-choice row of labelled options.
+export component ChoiceRow inherits Rectangle {
+    in property <[string]> options;
+    // Selection by position, or by text when `by_value` is set.
+    in_out property <int> current;
+    in_out property <string> value;
+    in property <bool> by_value;
+    callback chosen(index: int);
+
+    min_height: MaterialStyleMetrics.size_48;
+
+    pure function is_selected(index: int, option: string) -> bool {
+        return root.by_value ? option == root.value || (root.value == "" && index == 0) : index == root.current;
+    }
+
+    HorizontalLayout {
+        spacing: MaterialStyleMetrics.spacing_8;
+
+        for option[index] in root.options: Rectangle {
+            min_width: MaterialStyleMetrics.size_48;
+            border_radius: MaterialStyleMetrics.border_radius_8;
+            border_width: MaterialStyleMetrics.size_1;
+            border_color: root.is_selected(index, option) ? MaterialPalette.secondary_container : MaterialPalette.outline;
+            background: root.is_selected(index, option) ? MaterialPalette.secondary_container : transparent;
+
+            MaterialText {
+                text: option;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                style: MaterialTypography.label_large;
+                color: root.is_selected(index, option) ? MaterialPalette.on_secondary_container : MaterialPalette.on_surface;
+            }
+
+            TouchArea {
+                clicked => {
+                    root.current = index;
+                    root.value = option;
+                    root.chosen(index);
+                }
+            }
+        }
+    }
+}

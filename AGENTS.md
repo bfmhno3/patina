@@ -7,8 +7,10 @@ Patina is the owner's personal task system (identity × form model, project DAGs
 - `.cargo/config.toml`: Windows MSVC stack size for debug builds.
 - `crates/patina-core/`: domain library: commands, queries, event log, projections. Pure; see invariants.
 - `crates/patina-cli/`: `patina` binary; thin adapter; human-readable and JSON output.
+- `crates/patina-mcp/`: `patina-mcp` binary; read-only MCP server over stdio; only identities in `[mcp] visible_identities` are visible (`patina_core::visibility`).
 - `crates/patina-gui/`: Slint GUI; `lib` + `cdylib` (Android) + `patina-gui` bin; `build.rs` compiles `ui/` via `slint-project.json`.
-  - `ui/main.slint`, and when needed `ui/pages/`, `ui/components/`, `ui/icons/` + `ui/icons.slint`.
+  - Rust: `controller.rs` (commands, queries, refresh into the `App` global), `convert.rs` (pure view-model and form conversions), `wire.rs` (callbacks), `notify.rs` (OS notifications), `tests.rs` (headless end-to-end).
+  - `ui/main.slint` (only `MainWindow`), `ui/types.slint` (data contract), `ui/app.slint` (the `App` global), `ui/labels.slint` (stable keys to `@tr` text), `ui/pages/`, `ui/components/`, `ui/icons/` + `ui/icons.slint`.
 - `docs/design.md`: product design (Chinese), the source of truth for behavior.
 - `docs/code-style.md`: code and Markdown style.
 - `vendor/slint-material/`: unmodified Slint Material Components 1.1.0 (MIT). Never edit; upgrade with `just vendor-material <version>` and check its Slint minimum.
@@ -21,7 +23,7 @@ Read the relevant section of `docs/design.md` before changing domain behavior. I
 
 - `## 实现约束` overrides earlier sections.
 - Items marked `[建议]` are proposals the owner has not confirmed: follow them by default, and ask before building something expensive to reverse on top of one.
-- Respect the phase table in `### 分阶段范围`: do not build later-phase features unless asked (the GUI crate exists now only for platform plumbing).
+- Respect the phase table in `### 分阶段范围`: do not build later-phase features unless asked (phase 2 is built: GUI, full weekly review with gauges, calibration, break reminders, read-only MCP).
 - `## 开放问题` items are undecided; ask instead of picking.
 
 ## Architecture Invariants
@@ -64,8 +66,10 @@ just vendor-material <version> # Replace vendor/slint-material with an upstream 
 - If the Slint agent plugin from `slint-ui/ai-plugins` is available, use it for `.slint` work; otherwise check APIs against the Slint 1.19 docs (https://docs.slint.dev) and https://material.slint.dev. Never guess properties.
 - Follow the Slint and Material rules in [`docs/code-style.md#slint`](docs/code-style.md#slint).
 - The root window inherits `MaterialWindow`. Use `std-widgets.slint` only for `AboutSlint`.
-- `AboutSlint` must stay visible somewhere in the app (Slint Royalty-free License attribution); currently in `MainWindow`, later the About page.
+- `AboutSlint` must stay visible somewhere in the app (Slint Royalty-free License attribution); currently in the Settings page.
 - A custom color scheme, when added, is set once through `MaterialPalette.schemes` (generated with Material Theme Builder) and nowhere else.
+- Popups (`Dialog`, `FullscreenDialog`, `SnackBar`) can only be driven through properties of their owning component, not through elements inside them; each dialog component is a zero-size anchor that sizes the popup to the window with `App.window_width/height`.
+- Material `ListTile` loops inside scroll views; use `components/tile.slint`. `RadioButtonTile` loops inside dialogs; use `components/radio_row.slint`.
 - Icons: the Material library has no public icon set. Use only Material Symbols Outlined 24 px: `just icon <name>` downloads to `crates/patina-gui/ui/icons/<name>.svg`; register it as an `out property <image>` in `export global AppIcons` in `ui/icons.slint` (create the file with the first icon); render with Material `Icon`.
 - Layouts must work from a 360 px wide phone in portrait to a desktop window; touch targets are at least 48 px.
 - Android: entry point `android_main` in `src/lib.rs` (`cdylib`), min SDK 26, hover disabled through `MaterialWindowAdapter`. Keep Slint's default FemtoVG renderer; enabling `renderer-skia*` downloads prebuilt Skia that needs NDK r30 or newer (`FORCE_SKIA_BUILD=1` builds from source).

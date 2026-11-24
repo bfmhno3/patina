@@ -1,0 +1,28 @@
+import { MaterialStyleMetrics, TextField } from "@material";
+import { App } from "../app.slint";
+
+export component CaptureBar inherits Rectangle {
+    property <string> error;
+
+    min_height: root.error != "" ? MaterialStyleMetrics.size_90 : MaterialStyleMetrics.size_72;
+    max_height: self.min_height;
+
+    HorizontalLayout {
+        padding: MaterialStyleMetrics.padding_8;
+
+        field := TextField {
+            label: @tr("Capture a thought");
+            supporting_text: root.error;
+            has_error: root.error != "";
+
+            accepted(text) => {
+                if text != "" {
+                    root.error = App.capture(text);
+                    if root.error == "" {
+                        self.text = "";
+                    }
+                }
+            }
+        }
+    }
+}

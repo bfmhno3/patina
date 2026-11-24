@@ -1,0 +1,133 @@
+// The one global shared by Rust and the UI: view models in, intents out.
+// Callbacks returning string return "" on success or the error text to show.
+
+import {
+    BreakKindUi,
+    CardData,
+    DetailData,
+    HabitForm,
+    HabitRow,
+    InboxRow,
+    ItemForm,
+    ItemRow,
+    NoticeData,
+    PickerPurpose,
+    PickerRow,
+    PromptData,
+    ReviewData,
+    RhythmData,
+    RhythmModeUi,
+    SettingsData,
+    TimerData,
+    TodayData,
+} from "types.slint";
+
+export global App {
+    // Navigation: 0 Today, 1 Inbox, 2 Projects, 3 Habits, 4 Review.
+    in_out property <int> page;
+    in_out property <bool> detail_open;
+    in_out property <bool> settings_open;
+    in_out property <bool> show_settled;
+    in_out property <bool> review_minimal;
+    // Window size, mirrored from MainWindow so popups can cover the whole window.
+    in_out property <length> window_width;
+    in_out property <length> window_height;
+
+    in property <[string]> identities;
+    in property <string> mode_label;
+    in property <string> mode_identity;
+    in property <TimerData> timer;
+    in property <RhythmData> rhythm;
+    in property <CardData> card;
+    in property <TodayData> today;
+    in property <[InboxRow]> inbox;
+    in property <[ItemRow]> tree;
+    in property <[HabitRow]> habits;
+    in property <DetailData> detail;
+    in property <ReviewData> review;
+    in property <SettingsData> settings;
+    in property <[PickerRow]> picker_rows;
+    in property <PromptData> prompt;
+    in property <NoticeData> notice;
+
+    // An item form with only the given fields filled in.
+    public pure function blank_form(title: string, identity: string, parent_id: string) -> ItemForm {
+        return {
+            title: title,
+            identity: identity,
+            parent_id: parent_id,
+            tags: "",
+            defer: "",
+            scheduled: "",
+            deadline: "",
+            waiting_for: "",
+            follow_up: "",
+            size: 0,
+            repeat_kind: 0,
+            repeat_n: 1,
+            repeat_unit: 0,
+            important: false,
+        };
+    }
+
+    callback capture(string) -> string;
+    callback switch_mode(string);
+    callback set_scope(int, string);
+    callback navigate(int);
+    callback open_item(string);
+    callback close_detail();
+    callback open_settings();
+    callback close_settings();
+    callback undo();
+    callback notice_action(NoticeData);
+
+    callback card_start();
+    callback card_skip();
+    callback card_split(string) -> string;
+
+    callback start_timer(string);
+    callback start_habit_timer(string);
+    callback stop_timer();
+    callback stuck(string, string, string) -> string;
+    callback interrupt(string, bool, string, string) -> string;
+    callback start_break();
+    callback snooze_break();
+    callback set_rhythm(RhythmModeUi);
+    callback resume();
+    callback correct_timer(string) -> string;
+    callback keep_timer();
+    callback correct_mode(string) -> string;
+    callback keep_mode();
+
+    callback mark_started(string);
+    callback complete(string, string) -> string;
+    callback abandon(string, int, string) -> string;
+    callback add_item(ItemForm) -> string;
+    callback edit_item(string, ItemForm) -> string;
+    callback add_note(string, string) -> string;
+    callback move_item(string, string) -> string;
+    callback link(string, string) -> string;
+    callback unlink(string, string);
+    callback unlink_abandoned(string);
+    callback picker_query(PickerPurpose, string, string);
+
+    callback triage(string, ItemForm) -> string;
+    callback discard(string);
+    callback merge(string, string) -> string;
+
+    callback check_in(string, int, int, string) -> string;
+    callback skip_habit(string, int) -> string;
+    callback pause_habit(string);
+    callback resume_habit(string);
+    callback add_habit(HabitForm) -> string;
+    callback edit_habit(string, string, string, string) -> string;
+
+    callback set_show_settled(bool);
+    callback set_scheduled(string, string) -> string;
+    callback set_follow_up(string, string) -> string;
+    callback review_finish(string, [string], bool) -> string;
+    callback init_identities();
+    callback add_identity(string) -> string;
+    callback rename_identity(string, string) -> string;
+    callback set_target(string, string) -> string;
+}

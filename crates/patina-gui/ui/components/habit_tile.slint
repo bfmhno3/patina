@@ -1,0 +1,117 @@
+import {
+    FilledButton,
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    PopupMenu,
+    TonalButton,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { HabitKindUi, HabitRow } from "../types.slint";
+import { Tile } from "tile.slint";
+
+// One habit: strength bar, today's progress, primary action by kind, overflow menu.
+export component HabitTile inherits Rectangle {
+    in property <HabitRow> data;
+
+    callback check_in_requested(kind: HabitKindUi);
+    callback skip_requested(kind: HabitKindUi);
+    callback edit_requested();
+
+    min_height: MaterialStyleMetrics.size_72;
+
+    function progress() -> string {
+        if root.data.kind == HabitKindUi.count {
+            return @tr("{} / {}", root.data.count, root.data.target);
+        }
+        if root.data.kind == HabitKindUi.duration {
+            return @tr("{} / {} min", root.data.minutes, root.data.target);
+        }
+        if root.data.week_target > 0 {
+            return @tr("{} / {} this week", Math.round(root.data.week_value), root.data.week_target);
+        }
+        return root.data.value >= 1 ? @tr("done") : @tr("to do");
+    }
+
+    HorizontalLayout {
+        tile := Tile {
+            text: root.data.name;
+            supporting_text: root.data.identity + " · " + root.progress() + " · " + @tr("strength {}%", Math.round(root.data.strength * 100)) + (root.data.paused ? " · " + @tr("paused") : "");
+
+            if !root.data.paused && root.data.kind == HabitKindUi.check && root.data.value < 1: IconButton {
+                icon: AppIcons.check;
+                tooltip: @tr("Check in");
+
+                clicked => {
+                    App.check_in(root.data.id, 0, -1, "");
+                }
+            }
+
+            if !root.data.paused && root.data.kind == HabitKindUi.count: IconButton {
+                icon: AppIcons.add;
+                tooltip: @tr("Check in");
+
+                clicked => {
+                    root.check_in_requested(root.data.kind);
+                }
+            }
+
+            if !root.data.paused && root.data.kind == HabitKindUi.duration: IconButton {
+                icon: AppIcons.play_arrow;
+                tooltip: @tr("Start timer");
+
+                clicked => {
+                    App.start_habit_timer(root.data.id);
+                }
+            }
+
+            IconButton {
+                icon: AppIcons.more_vert;
+                tooltip: @tr("More");
+
+                clicked => {
+                    menu.show();
+                }
+            }
+        }
+    }
+
+    // Strength bar along the bottom edge of the row.
+    Rectangle {
+        y: parent.height - self.height;
+        height: MaterialStyleMetrics.size_2;
+        width: parent.width * root.data.strength;
+        x: 0;
+        background: MaterialPalette.primary;
+    }
+
+    menu := PopupMenu {
+        x: root.width - self.width;
+        y: root.height / 2;
+        items: [
+            { text: @tr("Check in…"), enabled: !root.data.paused },
+            { text: @tr("Skip…"), enabled: !root.data.paused },
+            { text: root.data.paused ? @tr("Resume") : @tr("Pause"), enabled: true },
+            { text: @tr("Edit…"), enabled: true },
+        ];
+
+        activated(index) => {
+            menu.close();
+            if index == 0 {
+                root.check_in_requested(root.data.kind);
+            } else if index == 1 {
+                root.skip_requested(root.data.kind);
+            } else if index == 2 {
+                if root.data.paused {
+                    App.resume_habit(root.data.id);
+                } else {
+                    App.pause_habit(root.data.id);
+                }
+            } else {
+                root.edit_requested();
+            }
+        }
+    }
+}

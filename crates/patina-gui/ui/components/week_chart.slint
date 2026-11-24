@@ -1,0 +1,38 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { WeekPoint } from "../types.slint";
+
+// Weekly error bars with the week label underneath; no samples draws an empty slot.
+export component WeekChart inherits Rectangle {
+    in property <[WeekPoint]> points;
+    in property <float> ceiling: 2.0;
+
+    min_height: MaterialStyleMetrics.size_90;
+
+    HorizontalLayout {
+        spacing: MaterialStyleMetrics.spacing_4;
+
+        for p in root.points: VerticalLayout {
+            Rectangle {
+                Rectangle {
+                    width: parent.width;
+                    height: p.samples == 0 || root.ceiling <= 0 ? MaterialStyleMetrics.size_2 : max(MaterialStyleMetrics.size_2, parent.height * min(p.error / root.ceiling, 1));
+                    y: parent.height - self.height;
+                    border_radius: MaterialStyleMetrics.border_radius_2;
+                    background: p.samples == 0 ? MaterialPalette.outline_variant : MaterialPalette.primary;
+                }
+            }
+
+            MaterialText {
+                text: p.label;
+                horizontal_alignment: center;
+                style: MaterialTypography.label_small;
+                color: MaterialPalette.on_surface_variant;
+            }
+        }
+    }
+}

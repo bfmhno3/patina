@@ -1,0 +1,54 @@
+import { SnackBar } from "@material";
+import { App } from "../app.slint";
+import { Labels } from "../labels.slint";
+import { NoticeKind } from "../types.slint";
+
+// Transient message with an optional action; closes by itself after six seconds.
+export component NoticeBar inherits Rectangle {
+    width: 0;
+    height: 0;
+
+    public function show() {
+        bar.show();
+        close_timer.running = true;
+    }
+
+    function action_text() -> string {
+        if App.notice.kind == NoticeKind.saved {
+            return @tr("Undo");
+        }
+        if App.notice.kind == NoticeKind.over_estimate {
+            return @tr("Open");
+        }
+        if App.notice.kind == NoticeKind.break_over {
+            return App.rhythm.resume_label != "" ? @tr("Resume") : "";
+        }
+        if App.notice.kind == NoticeKind.needs_decision {
+            return @tr("Show");
+        }
+        return "";
+    }
+
+    bar := SnackBar {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        text: Labels.notice(App.notice.kind, App.notice.text);
+        action_text: root.action_text();
+
+        action_clicked => {
+            App.notice_action(App.notice);
+        }
+    }
+
+    close_timer := Timer {
+        interval: 6s;
+        running: false;
+
+        triggered => {
+            self.running = false;
+            bar.close();
+        }
+    }
+}

@@ -1,0 +1,86 @@
+import {
+    IconButton,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
+import { PickerPurpose } from "../types.slint";
+import { Tile } from "../components/tile.slint";
+
+export component InboxPage inherits Rectangle {
+    property <string> merge_source;
+    property <string> error;
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            if App.inbox.length == 0: MaterialText {
+                text: @tr("The inbox is empty. Capture a thought above.");
+                style: MaterialTypography.body_large;
+            }
+
+            if root.error != "": MaterialText {
+                text: root.error;
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+            }
+
+            for entry in App.inbox: Tile {
+                text: entry.text;
+                supporting_text: entry.captured + (entry.identity_hint != "" ? " · " + entry.identity_hint : "");
+
+                IconButton {
+                    icon: AppIcons.edit;
+                    tooltip: @tr("Triage");
+
+                    clicked => {
+                        form.open(2, entry.id, App.blank_form(entry.text, entry.identity_hint != "" ? entry.identity_hint : App.mode_identity, ""), "");
+                    }
+                }
+
+                IconButton {
+                    icon: AppIcons.merge;
+                    tooltip: @tr("Merge into…");
+
+                    clicked => {
+                        root.merge_source = entry.id;
+                        picker.open();
+                    }
+                }
+
+                IconButton {
+                    icon: AppIcons.delete;
+                    tooltip: @tr("Discard");
+
+                    clicked => {
+                        App.discard(entry.id);
+                    }
+                }
+            }
+        }
+    }
+
+    form := ItemFormDialog { }
+
+    picker := ItemPickerDialog {
+        title: @tr("Merge into…");
+        purpose: PickerPurpose.merge_into;
+        context_id: root.merge_source;
+
+        picked(id) => {
+            root.error = App.merge(root.merge_source, id);
+        }
+    }
+}

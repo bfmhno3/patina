@@ -1,0 +1,60 @@
+import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import { App } from "../app.slint";
+
+// Block an item (or the running timer's item) on something external.
+export component StuckDialog inherits Rectangle {
+    property <string> item_id;
+    property <string> error;
+    property <string> waiting_value;
+    property <string> follow_up_value;
+
+    width: 0;
+    height: 0;
+
+    // An empty id means the item that is being timed.
+    public function open(id: string) {
+        root.item_id = id;
+        root.error = "";
+        root.waiting_value = "";
+        root.follow_up_value = "";
+        dlg.show();
+    }
+
+    dlg := Dialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: @tr("Stuck on something external");
+        actions: [@tr("Cancel")];
+        default_action_text: @tr("Save");
+
+        default_action_clicked => {
+            root.error = App.stuck(root.item_id, root.waiting_value, root.follow_up_value);
+            if root.error == "" {
+                dlg.close();
+            }
+        }
+        action_clicked(index) => {
+            dlg.close();
+        }
+
+        VerticalLayout {
+            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            TextField {
+                text <=> root.waiting_value;
+                label: @tr("Waiting for");
+                has_error: root.error != "";
+                supporting_text: root.error;
+            }
+
+            TextField {
+                text <=> root.follow_up_value;
+                label: @tr("Follow up on");
+                supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N; optional");
+            }
+        }
+    }
+}

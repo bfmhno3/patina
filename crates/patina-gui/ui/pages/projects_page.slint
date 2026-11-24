@@ -1,0 +1,66 @@
+import {
+    FloatingActionButton,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    ScrollView,
+    Switch,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { ItemTile } from "../components/item_tile.slint";
+
+export component ProjectsPage inherits Rectangle {
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: MaterialStyleMetrics.padding_16;
+            padding_bottom: MaterialStyleMetrics.size_90;
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            HorizontalLayout {
+                alignment: start;
+                spacing: MaterialStyleMetrics.spacing_16;
+
+                MaterialText {
+                    text: @tr("Show settled");
+                    vertical_alignment: center;
+                    style: MaterialTypography.body_large;
+                }
+
+                Switch {
+                    checked: App.show_settled;
+
+                    checked_state_changed(checked) => {
+                        App.set_show_settled(checked);
+                    }
+                }
+            }
+
+            for r in App.tree: ItemTile {
+                data: r;
+
+                clicked => {
+                    App.open_item(r.id);
+                }
+            }
+        }
+    }
+
+    FloatingActionButton {
+        x: root.width - self.width - MaterialStyleMetrics.padding_16;
+        y: root.height - self.height - MaterialStyleMetrics.padding_16;
+        icon: AppIcons.add;
+        text: @tr("New item");
+
+        clicked => {
+            form.open(0, "", App.blank_form("", App.mode_identity, ""), "");
+        }
+    }
+
+    form := ItemFormDialog { }
+}

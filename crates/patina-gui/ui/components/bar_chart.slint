@@ -1,0 +1,23 @@
+import { MaterialPalette, MaterialStyleMetrics } from "@material";
+
+// Vertical bars scaled to `max`; a negative value is drawn as an empty slot.
+export component BarChart inherits Rectangle {
+    in property <[float]> values;
+    in property <float> ceiling: 1.0;
+
+    min_height: MaterialStyleMetrics.size_80;
+
+    HorizontalLayout {
+        spacing: MaterialStyleMetrics.spacing_4;
+
+        for v in root.values: Rectangle {
+            Rectangle {
+                width: parent.width;
+                height: v < 0 || root.ceiling <= 0 ? MaterialStyleMetrics.size_2 : max(MaterialStyleMetrics.size_2, parent.height * min(v / root.ceiling, 1));
+                y: parent.height - self.height;
+                border_radius: MaterialStyleMetrics.border_radius_2;
+                background: v < 0 ? MaterialPalette.outline_variant : MaterialPalette.primary;
+            }
+        }
+    }
+}
