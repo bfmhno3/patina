@@ -130,6 +130,8 @@ pub struct ItemView {
     pub short: String,
     /// Title.
     pub title: String,
+    /// The parent item, when nested.
+    pub parent: Option<Uuid>,
     /// Identity name.
     pub identity: Option<String>,
     /// Display status.
@@ -654,6 +656,7 @@ impl<'a> View<'a> {
             id: item.id.as_uuid(),
             short: ids::short(&item.id.as_uuid(), self.item_len),
             title: item.title.clone(),
+            parent: item.parent.map(|p| p.as_uuid()),
             identity: self.identity_name(item.identity),
             status: self.view_status(item),
             path,
