@@ -1,5 +1,7 @@
 //! Habit strength and today status. Pure: `today` and settings are parameters.
 
+use std::collections::BTreeMap;
+
 use jiff::Span;
 use jiff::civil::Date;
 
@@ -8,6 +10,8 @@ use crate::event::{Frequency, HabitKind};
 use crate::state::Habit;
 use crate::time::{BACKFILL_DAYS, Settings, Weekday, week_start_of};
 
+/// Tracked seconds per logical day for a duration habit (empty for other habits).
+pub type Timed = BTreeMap<Date, i64>;
 /// Today's standing of one habit.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HabitToday {
@@ -17,22 +21,30 @@ pub struct HabitToday {
     pub value: f64,
     /// Today's count, for count habits.
     pub count: Option<u32>,
+    /// Tracked minutes today, for duration habits.
+    pub minutes: Option<i64>,
     /// Weekly habits: check-in value so far this week.
     pub week_value: Option<f64>,
     /// Weekly habits: times per week.
     pub week_target: Option<u8>,
 }
 
-/// Completion of `day`: check habits 1.0 or 0.0, count habits `count / target` capped at 1.
-pub fn day_value(habit: &Habit, day: Date) -> f64 {
-    match habit.checkins.get(&day) {
-        None => 0.0,
-        Some(c) => match habit.kind {
-            HabitKind::Check => 1.0,
-            HabitKind::Count { target } => {
-                (f64::from(c.count.unwrap_or(0)) / f64::from(target.max(1))).min(1.0)
+/// Completion of `day`: check habits 1.0 or 0.0, count habits `count / target` capped at 1,
+/// duration habits tracked time over target capped at 1 (or 1.0 with a manual check-in).
+pub fn day_value(habit: &Habit, day: Date, timed: &Timed) -> f64 {
+    let checked = habit.checkins.get(&day);
+    match habit.kind {
+        HabitKind::Check => f64::from(u8::from(checked.is_some())),
+        HabitKind::Count { target } => checked.map_or(0.0, |c| {
+            (f64::from(c.count.unwrap_or(0)) / f64::from(target.max(1))).min(1.0)
+        }),
+        HabitKind::Duration { minutes } => {
+            if checked.is_some() {
+                return 1.0;
             }
-        },
+            let secs = timed.get(&day).copied().unwrap_or(0).max(0);
+            (secs as f64 / (f64::from(minutes.max(1)) * 60.0)).min(1.0)
+        }
     }
 }
 
@@ -59,11 +71,11 @@ struct Unit {
     delta: f64,
 }
 
-fn week_sum(habit: &Habit, from: Date, to: Date) -> Result<f64, TimeError> {
+fn week_sum(habit: &Habit, from: Date, to: Date, timed: &Timed) -> Result<f64, TimeError> {
     let mut sum = 0.0;
     let mut d = from;
     while d <= to {
-        sum += day_value(habit, d);
+        sum += day_value(habit, d, timed);
         d = d.tomorrow()?;
     }
     Ok(sum)
@@ -73,7 +85,12 @@ fn week_sum(habit: &Habit, from: Date, to: Date) -> Result<f64, TimeError> {
 ///
 /// # Errors
 /// Returns [`TimeError`] on date arithmetic overflow.
-pub fn strength(habit: &Habit, today: Date, settings: &Settings) -> Result<f64, TimeError> {
+pub fn strength(
+    habit: &Habit,
+    today: Date,
+    settings: &Settings,
+    timed: &Timed,
+) -> Result<f64, TimeError> {
     let mut units = Vec::new();
     match &habit.frequency {
         Frequency::Daily | Frequency::Weekdays { .. } => {
@@ -90,7 +107,7 @@ pub fn strength(habit: &Habit, today: Date, settings: &Settings) -> Result<f64, 
                 if counts && !is_paused(habit, d) && !habit.skips.contains(&d) {
                     units.push(Unit {
                         last_day: d,
-                        x: day_value(habit, d),
+                        x: day_value(habit, d, timed),
                         delta,
                     });
                 }
@@ -115,7 +132,7 @@ pub fn strength(habit: &Habit, today: Date, settings: &Settings) -> Result<f64, 
                 }
                 let target = (*times).min(available);
                 if !skipped && target > 0 {
-                    let sum = week_sum(habit, from, we.min(today))?;
+                    let sum = week_sum(habit, from, we.min(today), timed)?;
                     units.push(Unit {
                         last_day: we,
                         x: (sum / f64::from(target)).min(1.0),
@@ -146,8 +163,9 @@ pub fn today_status(
     habit: &Habit,
     today: Date,
     settings: &Settings,
+    timed: &Timed,
 ) -> Result<HabitToday, TimeError> {
-    let value = day_value(habit, today);
+    let value = day_value(habit, today, timed);
     let count = habit.checkins.get(&today).and_then(|c| c.count);
     let off = is_paused(habit, today) || habit.skips.contains(&today);
     let mut week_value = None;
@@ -164,7 +182,7 @@ pub fn today_status(
                 skipped |= habit.skips.contains(&d);
                 d = d.tomorrow()?;
             }
-            let sum = week_sum(habit, ws.max(habit.start), today)?;
+            let sum = week_sum(habit, ws.max(habit.start), today, timed)?;
             week_value = Some(sum);
             week_target = Some(*times);
             !skipped && !is_paused(habit, today) && sum < f64::from(*times)
@@ -174,6 +192,8 @@ pub fn today_status(
         due,
         value,
         count,
+        minutes: matches!(habit.kind, HabitKind::Duration { .. })
+            .then(|| timed.get(&today).copied().unwrap_or(0) / 60),
         week_value,
         week_target,
     })
@@ -199,7 +219,13 @@ mod tests {
     }
 
     fn strength_at(log: &TestLog, h: crate::ids::HabitId, today: &str) -> f64 {
-        strength(&log.state().habits[&h], date(today), &Settings::default()).unwrap()
+        strength(
+            &log.state().habits[&h],
+            date(today),
+            &Settings::default(),
+            &Timed::new(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -261,7 +287,13 @@ mod tests {
         let (mut log, h) = setup(Frequency::Weekly { times: 2 }, "2026-11-23");
         let today = date("2026-11-25");
         let st = |log: &TestLog| {
-            today_status(&log.state().habits[&h], today, &Settings::default()).unwrap()
+            today_status(
+                &log.state().habits[&h],
+                today,
+                &Settings::default(),
+                &Timed::new(),
+            )
+            .unwrap()
         };
         assert!(st(&log).due);
         log.check(h, "2026-11-24");
@@ -269,5 +301,32 @@ mod tests {
         let s = st(&log);
         assert!(!s.due);
         assert_eq!((s.week_value, s.week_target), (Some(2.0), Some(2)));
+    }
+
+    #[test]
+    fn duration_habit_scores_tracked_time_and_manual_check_in() {
+        let mut log = TestLog::new();
+        let id = log.identity("study");
+        let h = log.habit_of(
+            "read",
+            id,
+            HabitKind::Duration { minutes: 30 },
+            Frequency::Daily,
+            "2026-11-24",
+        );
+        let day = date("2026-11-24");
+        let settings = Settings::default();
+        let status = |log: &TestLog, secs: i64| {
+            let timed = Timed::from([(day, secs)]);
+            today_status(&log.state().habits[&h], day, &settings, &timed).unwrap()
+        };
+        assert_eq!(status(&log, 0).value, 0.0);
+        let half = status(&log, 15 * 60);
+        assert_eq!((half.value, half.minutes), (0.5, Some(15)));
+        assert!(half.due);
+        assert_eq!(status(&log, 30 * 60).value, 1.0);
+        assert_eq!(status(&log, 45 * 60).value, 1.0);
+        log.check(h, "2026-11-24");
+        assert_eq!(status(&log, 0).value, 1.0);
     }
 }

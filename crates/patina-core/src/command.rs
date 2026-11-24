@@ -9,10 +9,10 @@ use uuid::{ContextV7, Uuid};
 
 use crate::error::TimeError;
 use crate::event::*;
-use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, new_v7};
+use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId, new_v7};
 use crate::mode;
 use crate::resolve::{self, ResolveError};
-use crate::state::{Habit, Item, ItemStatus, Rejection, State, project};
+use crate::state::{Habit, Item, ItemStatus, Rejection, Segment, State, project};
 use crate::time::{BACKFILL_DAYS, Settings, logical_day, week_start_of};
 
 /// Set or clear an optional field.
@@ -23,6 +23,16 @@ pub enum Update<T> {
     Set(T),
     /// Clear the field.
     Clear,
+}
+
+/// What a timer command refers to.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimerRef {
+    /// A task reference.
+    Item(String),
+    /// A duration habit reference.
+    Habit(String),
 }
 
 /// Why a command was refused.
@@ -114,6 +124,12 @@ pub enum CommandError {
     /// A backdated mode switch precedes the latest switch.
     #[error("mode switch is earlier than the latest switch")]
     BeforeLastModeSwitch,
+    /// The timer already runs on this target.
+    #[error("a timer is already running on this target")]
+    AlreadyTiming,
+    /// No timer runs.
+    #[error("no timer is running")]
+    NoRunningTimer,
 }
 
 macro_rules! cmd_structs {
@@ -223,6 +239,10 @@ cmd_structs! {
     pub struct ResumeHabit { pub habit: String, pub from: Option<Date>, }
     /// Switch identity mode (no identity means away), optionally backdated.
     pub struct SwitchMode { pub identity: Option<String>, pub at: Option<jiff::Timestamp>, }
+    /// Start timing (stopping any running timer), optionally backdated.
+    pub struct StartTimer { pub target: TimerRef, pub at: Option<jiff::Timestamp>, }
+    /// Stop the running timer, optionally at an earlier time.
+    pub struct StopTimer { pub at: Option<jiff::Timestamp>, }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -277,6 +297,10 @@ pub enum Command {
     Undo,
     /// Switch identity mode.
     SwitchMode(SwitchMode),
+    /// Start a timer.
+    StartTimer(StartTimer),
+    /// Stop the running timer.
+    StopTimer(StopTimer),
 }
 
 /// Everything a command needs besides state.
@@ -337,6 +361,10 @@ fn check_not_future(at: jiff::Timestamp, now: jiff::Timestamp) -> Result<(), Com
     } else {
         Ok(())
     }
+}
+
+fn running_segment(state: &State) -> Option<&Segment> {
+    state.running.and_then(|id| state.segments.get(&id))
 }
 
 fn upd<T: PartialEq + Clone>(
@@ -716,10 +744,20 @@ fn build(
             }
             vec![EventData::ItemStarted(ItemStarted { item: item.id })]
         }
-        Command::Complete(c) => vec![EventData::ItemCompleted(ItemCompleted {
-            item: item_ref(state, &c.item)?.id,
-            note: opt_text(&c.note)?,
-        })],
+        Command::Complete(c) => {
+            let item = item_ref(state, &c.item)?;
+            let mut out = Vec::new();
+            if let Some(seg) = running_segment(state)
+                && seg.target == TimerTarget::Item(item.id)
+            {
+                out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+            }
+            out.push(EventData::ItemCompleted(ItemCompleted {
+                item: item.id,
+                note: opt_text(&c.note)?,
+            }));
+            out
+        }
         Command::Abandon(c) => {
             let item = item_ref(state, &c.item)?;
             let note = opt_text(&c.note)?;
@@ -729,15 +767,21 @@ fn build(
             if ids.last() != Some(&item.id) {
                 ids.push(item.id);
             }
-            ids.into_iter()
-                .map(|id| {
-                    EventData::ItemAbandoned(ItemAbandoned {
-                        item: id,
-                        reason: c.reason,
-                        note: note.clone(),
-                    })
+            let mut out = Vec::new();
+            if let Some(seg) = running_segment(state)
+                && let TimerTarget::Item(t) = seg.target
+                && ids.contains(&t)
+            {
+                out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+            }
+            out.extend(ids.into_iter().map(|id| {
+                EventData::ItemAbandoned(ItemAbandoned {
+                    item: id,
+                    reason: c.reason,
+                    note: note.clone(),
                 })
-                .collect()
+            }));
+            out
         }
         Command::Move(c) => {
             let item = item_ref(state, &c.item)?;
@@ -822,7 +866,7 @@ fn build(
             if crate::habit::is_paused(habit, day) {
                 return Err(CommandError::HabitPaused { day });
             }
-            if matches!(habit.kind, HabitKind::Check) && habit.checkins.contains_key(&day) {
+            if !matches!(habit.kind, HabitKind::Count { .. }) && habit.checkins.contains_key(&day) {
                 return Err(CommandError::AlreadyCheckedIn { day });
             }
             vec![EventData::HabitCheckedIn(HabitCheckedIn {
@@ -912,6 +956,36 @@ fn build(
                 }
             }
             vec![EventData::ModeSwitched(ModeSwitched { identity })]
+        }
+        Command::StartTimer(c) => {
+            let target = match &c.target {
+                TimerRef::Item(r) => TimerTarget::Item(item_ref(state, r)?.id),
+                TimerRef::Habit(r) => TimerTarget::Habit(habit_ref(state, r)?.id),
+            };
+            if let Some(at) = c.at {
+                check_not_future(at, ctx.now.timestamp())?;
+                effective_at = Some(at);
+            }
+            let mut out = Vec::new();
+            if let Some(seg) = running_segment(state) {
+                if seg.target == target {
+                    return Err(CommandError::AlreadyTiming);
+                }
+                out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+            }
+            out.push(EventData::TimerStarted(TimerStarted {
+                segment: SegmentId::from_uuid(gen_.uuid()),
+                target,
+            }));
+            out
+        }
+        Command::StopTimer(c) => {
+            let seg = running_segment(state).ok_or(CommandError::NoRunningTimer)?;
+            if let Some(at) = c.at {
+                check_not_future(at, ctx.now.timestamp())?;
+                effective_at = Some(at);
+            }
+            vec![EventData::TimerStopped(TimerStopped { segment: seg.id })]
         }
     };
     Ok(Built { datas, effective_at })

@@ -82,7 +82,7 @@ pub fn is_in_progress(state: &State, id: ItemId) -> bool {
     let Some(item) = state.items.get(&id) else {
         return false;
     };
-    if item.started {
+    if item.started || item.timed {
         return true;
     }
     let mut seen = HashSet::from([id]);
@@ -99,6 +99,23 @@ pub fn is_in_progress(state: &State, id: ItemId) -> bool {
         }
     }
     false
+}
+
+/// `id` and all its descendants, loop-safe, parents before children.
+pub fn subtree(state: &State, id: ItemId) -> Vec<ItemId> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut stack = vec![id];
+    while let Some(i) = stack.pop() {
+        if !seen.insert(i) {
+            continue;
+        }
+        out.push(i);
+        if let Some(item) = state.items.get(&i) {
+            stack.extend(item.children.iter().rev().copied());
+        }
+    }
+    out
 }
 
 /// Open, non-external items that can be worked on now.

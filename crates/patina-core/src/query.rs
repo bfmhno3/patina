@@ -1,14 +1,14 @@
 //! Read-only queries and their serializable views.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::dag;
-use crate::engine::{Error, Subject};
-use crate::event::{AbandonReason, Frequency, HabitKind};
+use crate::engine::{Error, Subject, SubjectKind};
+use crate::event::{AbandonReason, Frequency, HabitKind, TimerTarget};
 use crate::habit;
 use crate::ids::{self, IdentityId};
 use crate::mode;
@@ -131,6 +131,8 @@ pub struct ItemView {
     pub open_children: usize,
     /// Creation time.
     pub created_at: Timestamp,
+    /// Tracked minutes on this item and its descendants.
+    pub tracked_minutes: i64,
 }
 
 /// An item with an abandoned prerequisite.
@@ -173,6 +175,8 @@ pub struct HabitView {
     pub week_value: Option<f64>,
     /// Weekly: target this week.
     pub week_target: Option<u8>,
+    /// Duration habits: tracked minutes today.
+    pub minutes: Option<i64>,
 }
 
 /// The today view.
@@ -369,6 +373,7 @@ pub(crate) struct View<'a> {
     now: &'a ZonedDateTime,
     cur: mode::Current,
     item_len: usize,
+    item_secs: HashMap<ids::ItemId, i64>,
     habit_len: usize,
 }
 
@@ -402,6 +407,7 @@ impl<'a> View<'a> {
             today,
             now,
             cur: mode::current(state, now.timestamp(), settings),
+            item_secs: timer::item_seconds(state, now.timestamp()),
             item_len,
             habit_len,
         }
@@ -422,8 +428,49 @@ impl<'a> View<'a> {
         }
     }
 
+    pub(crate) fn target_subject(&self, target: TimerTarget) -> Subject {
+        match target {
+            TimerTarget::Item(id) => {
+                let uuid = id.as_uuid();
+                Subject {
+                    kind: SubjectKind::Item,
+                    id: uuid,
+                    short: Some(ids::short(&uuid, self.item_len)),
+                    label: self
+                        .state
+                        .items
+                        .get(&id)
+                        .map_or_else(|| uuid.to_string(), |i| i.title.clone()),
+                }
+            }
+            TimerTarget::Habit(id) => {
+                let uuid = id.as_uuid();
+                Subject {
+                    kind: SubjectKind::Habit,
+                    id: uuid,
+                    short: Some(ids::short(&uuid, self.habit_len)),
+                    label: self
+                        .state
+                        .habits
+                        .get(&id)
+                        .map_or_else(|| uuid.to_string(), |h| h.name.clone()),
+                }
+            }
+        }
+    }
+
     pub(crate) fn timer_view(&self) -> Option<TimerView> {
-        None
+        let seg = self
+            .state
+            .running
+            .and_then(|id| self.state.segments.get(&id))?;
+        Some(TimerView {
+            segment: seg.id.as_uuid(),
+            target: self.target_subject(seg.target),
+            started_at: seg.start,
+            minutes: timer::seconds(seg, self.now.timestamp()) / 60,
+            idle: self.cur.idle,
+        })
     }
 
     /// Other identities' urgent items; empty when no identity is in scope.
@@ -531,6 +578,7 @@ impl<'a> View<'a> {
                 .filter(|c| self.state.items.get(c).is_some_and(|c| !c.is_settled()))
                 .count(),
             created_at: item.created_at,
+            tracked_minutes: timer::subtree_seconds(self.state, item.id, &self.item_secs) / 60,
         }
     }
 
@@ -541,8 +589,23 @@ impl<'a> View<'a> {
             .collect()
     }
 
+    fn habit_timed(&self, h: &Habit) -> Result<habit::Timed, Error> {
+        if matches!(h.kind, HabitKind::Duration { .. }) {
+            Ok(timer::habit_seconds(
+                self.state,
+                h.id,
+                self.now.time_zone(),
+                self.settings,
+                self.now.timestamp(),
+            )?)
+        } else {
+            Ok(habit::Timed::new())
+        }
+    }
+
     fn habit(&self, h: &Habit) -> Result<HabitView, Error> {
-        let st = habit::today_status(h, self.today, self.settings)?;
+        let timed = self.habit_timed(h)?;
+        let st = habit::today_status(h, self.today, self.settings, &timed)?;
         Ok(HabitView {
             id: h.id.as_uuid(),
             short: ids::short(&h.id.as_uuid(), self.habit_len),
@@ -552,12 +615,13 @@ impl<'a> View<'a> {
             frequency: h.frequency.clone(),
             cue: h.cue.clone(),
             paused: habit::is_paused(h, self.today),
-            strength: habit::strength(h, self.today, self.settings)?,
+            strength: habit::strength(h, self.today, self.settings, &timed)?,
             due: st.due,
             value: st.value,
             count: st.count,
             week_value: st.week_value,
             week_target: st.week_target,
+            minutes: st.minutes,
         })
     }
 
@@ -792,7 +856,7 @@ pub fn run(
         Query::Status => {
             let mut habits_left = 0;
             for h in state.habits.values() {
-                let st = habit::today_status(h, today, settings)?;
+                let st = habit::today_status(h, today, settings, &v.habit_timed(h)?)?;
                 if st.due && st.value < 1.0 {
                     habits_left += 1;
                 }

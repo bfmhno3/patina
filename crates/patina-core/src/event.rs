@@ -6,7 +6,7 @@ use jiff::Timestamp;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId};
+use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
 use crate::time::Weekday;
 
 /// One immutable log entry with its full envelope.
@@ -133,6 +133,21 @@ pub enum HabitKind {
         /// Count that makes a day complete.
         target: u32,
     },
+    /// Tracked time toward a daily target in minutes; a check-in also completes the day.
+    Duration {
+        /// Minutes that make a day complete.
+        minutes: u32,
+    },
+}
+
+/// What a timer segment times.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimerTarget {
+    /// A task.
+    Item(ItemId),
+    /// A duration habit.
+    Habit(HabitId),
 }
 
 /// How often a habit is due.
@@ -279,6 +294,10 @@ payloads! {
     }
     /// `habit.skipped`
     pub struct HabitSkipped { pub habit: HabitId, pub day: Date, }
+    /// `timer.started`; the segment starts at the envelope effective time.
+    pub struct TimerStarted { pub segment: SegmentId, pub target: TimerTarget, }
+    /// `timer.stopped`; the segment ends at the envelope effective time.
+    pub struct TimerStopped { pub segment: SegmentId, }
     /// `habit.paused`
     pub struct HabitPaused { pub habit: HabitId, pub from: Date, }
     /// `habit.resumed`
@@ -350,6 +369,12 @@ pub enum EventData {
     /// Habit day skipped.
     #[serde(rename = "habit.skipped")]
     HabitSkipped(HabitSkipped),
+    /// Timer segment started.
+    #[serde(rename = "timer.started")]
+    TimerStarted(TimerStarted),
+    /// Timer segment stopped.
+    #[serde(rename = "timer.stopped")]
+    TimerStopped(TimerStopped),
     /// Habit paused.
     #[serde(rename = "habit.paused")]
     HabitPaused(HabitPaused),
@@ -383,6 +408,8 @@ const KINDS: &[&str] = &[
     "habit.edited",
     "habit.checked_in",
     "habit.skipped",
+    "timer.started",
+    "timer.stopped",
     "habit.paused",
     "habit.resumed",
     "command.undone",
@@ -411,6 +438,8 @@ impl EventData {
             EventData::HabitEdited(_) => "habit.edited",
             EventData::HabitCheckedIn(_) => "habit.checked_in",
             EventData::HabitSkipped(_) => "habit.skipped",
+            EventData::TimerStarted(_) => "timer.started",
+            EventData::TimerStopped(_) => "timer.stopped",
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
@@ -439,6 +468,8 @@ impl EventData {
             | EventData::HabitEdited(_)
             | EventData::HabitCheckedIn(_)
             | EventData::HabitSkipped(_)
+            | EventData::TimerStarted(_)
+            | EventData::TimerStopped(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)

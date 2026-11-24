@@ -58,6 +58,17 @@ pub struct Subject {
     pub label: String,
 }
 
+/// A timer segment that ended with a command.
+#[derive(Clone, Debug, Serialize)]
+pub struct StoppedView {
+    /// What was timed.
+    pub subject: Subject,
+    /// Length of the segment in whole minutes.
+    pub minutes: i64,
+    /// Total tracked minutes: the item with its descendants, or the habit on that day.
+    pub total_minutes: i64,
+}
+
 /// Result of a successful command.
 #[derive(Debug, Serialize)]
 pub struct CommandOutcome {
@@ -73,6 +84,8 @@ pub struct CommandOutcome {
     pub undone: Vec<String>,
     /// Load and projection warnings.
     pub warnings: usize,
+    /// A timer segment ended with this command.
+    pub stopped: Option<StoppedView>,
 }
 
 /// Entry point for every front end.
@@ -81,7 +94,7 @@ pub struct Patina {
     store: Store,
 }
 
-fn referenced(data: &EventData) -> Vec<(SubjectKind, Uuid)> {
+fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
     use SubjectKind::{Habit, Identity, Item};
     match data {
         EventData::IdentityCreated(d) => vec![(Identity, d.identity.as_uuid())],
@@ -110,8 +123,58 @@ fn referenced(data: &EventData) -> Vec<(SubjectKind, Uuid)> {
             .identity
             .map(|i| vec![(Identity, i.as_uuid())])
             .unwrap_or_default(),
+        EventData::TimerStarted(d) => vec![target_ref(d.target)],
+        EventData::TimerStopped(d) => state
+            .segments
+            .get(&d.segment)
+            .map(|s| vec![target_ref(s.target)])
+            .unwrap_or_default(),
         EventData::CommandUndone(_) => Vec::new(),
     }
+}
+
+fn target_ref(target: TimerTarget) -> (SubjectKind, Uuid) {
+    match target {
+        TimerTarget::Item(id) => (SubjectKind::Item, id.as_uuid()),
+        TimerTarget::Habit(id) => (SubjectKind::Habit, id.as_uuid()),
+    }
+}
+
+/// The segment that ended with `events`, labelled from post-command `state`.
+fn stopped_view(
+    state: &State,
+    events: &[Event],
+    now: &ZonedDateTime,
+    settings: &Settings,
+) -> Result<Option<StoppedView>, Error> {
+    let Some(seg) = events.iter().find_map(|e| match &e.data {
+        EventData::TimerStopped(d) => state.segments.get(&d.segment),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+    let today = crate::time::logical_day(now, settings)?;
+    let view = query::View::new(state, settings, today, now);
+    let ts = now.timestamp();
+    let total_secs = match seg.target {
+        TimerTarget::Item(id) => {
+            let direct = crate::timer::item_seconds(state, ts);
+            crate::timer::subtree_seconds(state, id, &direct)
+        }
+        TimerTarget::Habit(id) => {
+            let by_day = crate::timer::habit_seconds(state, id, now.time_zone(), settings, ts)?;
+            let day = crate::time::logical_day(
+                &seg.start.to_zoned_datetime(now.time_zone().clone()),
+                settings,
+            )?;
+            by_day.get(&day).copied().unwrap_or(0)
+        }
+    };
+    Ok(Some(StoppedView {
+        subject: view.target_subject(seg.target),
+        minutes: crate::timer::seconds(seg, ts) / 60,
+        total_minutes: total_secs / 60,
+    }))
 }
 
 /// Builds labelled subjects for the given references, looking names up in `state`.
@@ -214,6 +277,7 @@ impl Patina {
                 needs_decision: Vec::new(),
                 undone: Vec::new(),
                 warnings: 0,
+                stopped: None,
             });
         }
 
@@ -236,7 +300,7 @@ impl Patina {
                 .events
                 .iter()
                 .filter(|e| e.command == target)
-                .flat_map(|e| referenced(&e.data))
+                .flat_map(|e| referenced(&state, &e.data))
                 .collect();
             undone = log
                 .events
@@ -252,12 +316,20 @@ impl Patina {
             for e in &events {
                 state.apply(e).map_err(CommandError::from)?;
             }
-            let refs: Vec<_> = events.iter().flat_map(|e| referenced(&e.data)).collect();
+            let refs: Vec<_> = events
+                .iter()
+                .flat_map(|e| referenced(&state, &e.data))
+                .collect();
             let warnings = state.warnings.len();
             (state, refs, warnings)
         };
 
         let subjects = subjects_for(&label_state, &refs);
+        let stopped = if matches!(cmd, Command::Undo) {
+            None
+        } else {
+            stopped_view(&label_state, &events, &ctx.now, &ctx.settings)?
+        };
         let mut needs_decision = Vec::new();
         if matches!(cmd, Command::Abandon(_)) {
             let abandoned: HashSet<_> = events
@@ -285,6 +357,7 @@ impl Patina {
             needs_decision,
             undone,
             warnings: log.warnings.len() + projection_warnings,
+            stopped,
         })
     }
 

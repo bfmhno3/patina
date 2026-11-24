@@ -59,8 +59,14 @@ enum Cmd {
         #[arg(required = true, num_args = 1..)]
         text: Vec<String>,
     },
-    /// Mark an item as started.
-    Start { item: String },
+    /// Start timing an item or habit (or just mark an item started with --no-timer).
+    Start(StartArgs),
+    /// Stop the running timer.
+    Stop {
+        /// When you actually stopped (HH:MM or YYYY-MM-DD HH:MM).
+        #[arg(long)]
+        at: Option<String>,
+    },
     /// Complete an item.
     Done {
         item: String,
@@ -233,6 +239,21 @@ struct EditArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(group(ArgGroup::new("what").required(true).args(["item", "habit"])))]
+struct StartArgs {
+    /// The item to time.
+    item: Option<String>,
+    /// A duration habit to time instead.
+    #[arg(long)]
+    habit: Option<String>,
+    /// When you actually started (HH:MM or YYYY-MM-DD HH:MM).
+    #[arg(long)]
+    at: Option<String>,
+    /// Only mark the item started; no timer.
+    #[arg(long, conflicts_with_all = ["habit", "at"])]
+    no_timer: bool,
+}
+#[derive(Debug, Args)]
 #[command(group(ArgGroup::new("dest").required(true).args(["parent", "top"])))]
 struct MoveArgs {
     item: String,
@@ -268,8 +289,11 @@ enum HabitCmd {
         #[arg(short, long)]
         identity: String,
         /// Count habit with this daily target.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "minutes")]
         count: Option<u32>,
+        /// Duration habit: tracked minutes per day.
+        #[arg(long)]
+        minutes: Option<u32>,
         #[arg(long)]
         daily: bool,
         /// Times per week.
@@ -400,7 +424,24 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
             item,
             text: text.join(" "),
         })),
-        Cmd::Start { item } => Action::Run(Command::Start(c::Start { item })),
+        Cmd::Start(a) => {
+            let at = a.at.as_deref().map(|s| parse_time(s, now)).transpose()?;
+            match (a.item, a.habit) {
+                (Some(item), None) if a.no_timer => Action::Run(Command::Start(c::Start { item })),
+                (Some(item), None) => Action::Run(Command::StartTimer(c::StartTimer {
+                    target: c::TimerRef::Item(item),
+                    at,
+                })),
+                (None, Some(habit)) => Action::Run(Command::StartTimer(c::StartTimer {
+                    target: c::TimerRef::Habit(habit),
+                    at,
+                })),
+                _ => anyhow::bail!("give either an item or --habit"),
+            }
+        }
+        Cmd::Stop { at } => Action::Run(Command::StopTimer(c::StopTimer {
+            at: at.as_deref().map(|s| parse_time(s, now)).transpose()?,
+        })),
         Cmd::Done { item, note } => Action::Run(Command::Complete(c::Complete { item, note })),
         Cmd::Abandon { item, reason, note } => Action::Run(Command::Abandon(c::Abandon {
             item,
@@ -424,6 +465,7 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
                 name,
                 identity,
                 count,
+                minutes,
                 daily: _,
                 weekly,
                 days,
@@ -436,9 +478,10 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
                 } else {
                     Frequency::Daily
                 };
-                let kind = match count {
-                    Some(target) => HabitKind::Count { target },
-                    None => HabitKind::Check,
+                let kind = match (count, minutes) {
+                    (Some(target), _) => HabitKind::Count { target },
+                    (None, Some(minutes)) => HabitKind::Duration { minutes },
+                    (None, None) => HabitKind::Check,
                 };
                 Action::Run(Command::AddHabit(c::AddHabit {
                     name,

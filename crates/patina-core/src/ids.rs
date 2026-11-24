@@ -58,6 +58,10 @@ id_type!(
     /// Identifier of an identity.
     IdentityId
 );
+id_type!(
+    /// Identifier of one timer segment.
+    SegmentId
+);
 
 /// Creates a UUIDv7 for `now`; ids made with one context sort in creation order.
 pub(crate) fn new_v7(now: jiff::Timestamp, ctx: &uuid::ContextV7) -> Uuid {

@@ -6,7 +6,7 @@ use jiff::tz::TimeZone;
 use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::Command;
 use patina_core::engine::{CommandOutcome, Subject};
-use patina_core::event::{EventData, Frequency, HabitKind};
+use patina_core::event::{EventData, Frequency, HabitKind, TimerTarget};
 use patina_core::ids;
 use patina_core::query::{
     Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, TimerView, TodayView, TreeNode,
@@ -31,6 +31,20 @@ fn weekday_name(w: Weekday) -> &'static str {
         Weekday::Fri => "fri",
         Weekday::Sat => "sat",
         Weekday::Sun => "sun",
+    }
+}
+
+/// `stopped <ref> <label> after <N>m (total <T>m)` when the command ended a segment.
+fn stopped_line(o: &CommandOutcome, out: &mut String) {
+    if let Some(st) = &o.stopped {
+        let _ = writeln!(
+            out,
+            "stopped {} {} after {}m (total {}m)",
+            sref(Some(&st.subject)),
+            st.subject.label,
+            st.minutes,
+            st.total_minutes
+        );
     }
 }
 
@@ -68,6 +82,7 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
         }
         Command::Complete(_) => {
             let _ = writeln!(out, "done {s} {l}");
+            stopped_line(o, &mut out);
         }
         Command::Abandon(_) => {
             for sub in &o.subjects {
@@ -82,7 +97,21 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
                     "  resolve with 'patina unlink <ref> --on <ref>' or 'patina abandon <ref>'\n",
                 );
             }
+            stopped_line(o, &mut out);
         }
+        Command::StartTimer(_) => {
+            stopped_line(o, &mut out);
+            let started = o.events.iter().find_map(|e| match &e.data {
+                EventData::TimerStarted(d) => Some(match d.target {
+                    TimerTarget::Item(i) => i.as_uuid(),
+                    TimerTarget::Habit(h) => h.as_uuid(),
+                }),
+                _ => None,
+            });
+            let sub = started.and_then(|id| o.subjects.iter().find(|s| s.id == id));
+            let _ = writeln!(out, "started timer on {} {}", sref(sub), label(sub));
+        }
+        Command::StopTimer(_) => stopped_line(o, &mut out),
         Command::Move(_) => {
             let _ = writeln!(out, "moved {s}");
         }
@@ -209,6 +238,8 @@ fn habit_line(h: &HabitView) -> String {
         "done".to_string()
     } else if let HabitKind::Count { target } = h.kind {
         format!("{}/{target}", h.count.unwrap_or(0))
+    } else if let HabitKind::Duration { minutes } = h.kind {
+        format!("{}/{minutes} min", h.minutes.unwrap_or(0))
     } else {
         "todo".to_string()
     };

@@ -10,8 +10,8 @@ use jiff::civil::Date;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::event::{AbandonReason, Category, Event, EventData, Frequency, HabitKind};
-use crate::ids::{CommandId, EventId, HabitId, IdentityId, ItemId};
+use crate::event::{AbandonReason, Category, Event, EventData, Frequency, HabitKind, TimerTarget};
+use crate::ids::{CommandId, EventId, HabitId, IdentityId, ItemId, SegmentId};
 
 /// An event that cannot be applied to the current state.
 #[derive(Clone, Debug, PartialEq, thiserror::Error, Serialize)]
@@ -126,6 +126,27 @@ pub enum Rejection {
     /// Command already undone.
     #[error("command {0} is already undone")]
     AlreadyUndone(CommandId),
+    /// A second timer cannot start while one runs.
+    #[error("timer segment {0} is still running")]
+    TimerRunning(SegmentId),
+    /// External nodes cannot be timed.
+    #[error("item {0} is an external node and cannot be timed")]
+    TimerOnExternal(ItemId),
+    /// Only duration habits can be timed.
+    #[error("habit {0} is not a duration habit")]
+    NotDurationHabit(HabitId),
+    /// A segment starts before an earlier one ended.
+    #[error("segment overlaps segment {0}")]
+    SegmentOverlap(SegmentId),
+    /// No such segment.
+    #[error("unknown segment {0}")]
+    UnknownSegment(SegmentId),
+    /// The segment is not the running one.
+    #[error("segment {0} is not running")]
+    SegmentNotRunning(SegmentId),
+    /// A segment would end before it started.
+    #[error("segment {0} would end before it started")]
+    SegmentEndBeforeStart(SegmentId),
 }
 
 /// An identity (a way of being: work, life, study).
@@ -203,6 +224,8 @@ pub struct Item {
     pub completion_note: Option<String>,
     /// Abandon reason and note.
     pub abandon: Option<(AbandonReason, Option<String>)>,
+    /// Some timer segment targets this item.
+    pub timed: bool,
 }
 
 impl Item {
@@ -265,6 +288,19 @@ pub struct Warning {
     pub rejection: Rejection,
 }
 
+/// One timer segment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Segment {
+    /// Id.
+    pub id: SegmentId,
+    /// What it times.
+    pub target: TimerTarget,
+    /// Start time.
+    pub start: Timestamp,
+    /// End time; none while running.
+    pub end: Option<Timestamp>,
+}
+
 /// One identity-mode switch (`None` is away).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModeSwitch {
@@ -289,10 +325,17 @@ pub struct State {
     pub activity: Vec<Timestamp>,
     /// Mode switches sorted by effective time.
     pub modes: Vec<ModeSwitch>,
+    /// Timer segments.
+    pub segments: BTreeMap<SegmentId, Segment>,
+    /// The running segment.
+    pub running: Option<SegmentId>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
-    let kind_ok = !matches!(kind, HabitKind::Count { target: 0 });
+    let kind_ok = !matches!(
+        kind,
+        HabitKind::Count { target: 0 } | HabitKind::Duration { minutes: 0 }
+    );
     let freq_ok = match frequency {
         Frequency::Daily => true,
         Frequency::Weekly { times } => (1..=7).contains(times),
@@ -812,6 +855,66 @@ impl State {
                     },
                 );
             }
+            EventData::TimerStarted(d) => {
+                if self.segments.contains_key(&d.segment) {
+                    return Err(Rejection::DuplicateId(d.segment.as_uuid()));
+                }
+                if let Some(running) = self.running {
+                    return Err(Rejection::TimerRunning(running));
+                }
+                match d.target {
+                    TimerTarget::Item(id) => {
+                        if self.open_item(id)?.is_external() {
+                            return Err(Rejection::TimerOnExternal(id));
+                        }
+                    }
+                    TimerTarget::Habit(id) => {
+                        if !matches!(self.habit_ok(id)?.kind, HabitKind::Duration { .. }) {
+                            return Err(Rejection::NotDurationHabit(id));
+                        }
+                    }
+                }
+                let start = event.effective_at;
+                if let Some(latest) = self
+                    .segments
+                    .values()
+                    .filter(|s| s.end.is_some_and(|end| start < end))
+                    .max_by_key(|s| s.end)
+                {
+                    return Err(Rejection::SegmentOverlap(latest.id));
+                }
+                self.segments.insert(
+                    d.segment,
+                    Segment {
+                        id: d.segment,
+                        target: d.target,
+                        start,
+                        end: None,
+                    },
+                );
+                self.running = Some(d.segment);
+                if let TimerTarget::Item(id) = d.target
+                    && let Some(i) = self.items.get_mut(&id)
+                {
+                    i.timed = true;
+                }
+            }
+            EventData::TimerStopped(d) => {
+                let seg = self
+                    .segments
+                    .get(&d.segment)
+                    .ok_or(Rejection::UnknownSegment(d.segment))?;
+                if self.running != Some(d.segment) {
+                    return Err(Rejection::SegmentNotRunning(d.segment));
+                }
+                if event.effective_at < seg.start {
+                    return Err(Rejection::SegmentEndBeforeStart(d.segment));
+                }
+                if let Some(seg) = self.segments.get_mut(&d.segment) {
+                    seg.end = Some(event.effective_at);
+                }
+                self.running = None;
+            }
             EventData::CommandUndone(_) => {}
         }
         Ok(())
@@ -839,6 +942,7 @@ fn new_item(id: ItemId, title: String, created_at: Timestamp) -> Item {
         settled_at: None,
         completion_note: None,
         abandon: None,
+        timed: false,
     }
 }
 
@@ -930,5 +1034,26 @@ mod tests {
             Rejection::Cycle { .. }
         ));
         assert_eq!(state.items.len(), 2);
+    }
+
+    #[test]
+    fn merged_log_with_two_running_timers_warns_once() {
+        let mut log = TestLog::new();
+        let id = log.identity("work");
+        let a = log.item("a", id, None);
+        let b = log.item("b", id, None);
+        let s1 = SegmentId::from_uuid(log.uuid());
+        let s2 = SegmentId::from_uuid(log.uuid());
+        for (segment, item) in [(s1, a), (s2, b)] {
+            log.push(EventData::TimerStarted(TimerStarted {
+                segment,
+                target: TimerTarget::Item(item),
+            }));
+        }
+        let state = log.state();
+        assert_eq!(state.warnings.len(), 1);
+        assert_eq!(state.warnings[0].rejection, Rejection::TimerRunning(s1));
+        assert_eq!(state.running, Some(s1));
+        assert!(!state.items[&b].timed);
     }
 }

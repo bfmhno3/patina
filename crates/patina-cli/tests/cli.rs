@@ -161,3 +161,33 @@ fn undo_removes_the_capture() {
     s.ok(&["undo"]);
     assert!(s.status().contains(" inbox:1 "));
 }
+
+#[test]
+fn forgotten_timer_is_flagged_and_stop_at_corrects_it() {
+    let s = Sandbox::new();
+    let at = |day: &str, hm: &str| format!("2026-11-{day}T{hm}:00+08:00[Asia/Shanghai]");
+    s.ok_at(&at("24", "08:50"), &["init"]);
+    s.ok_at(&at("24", "08:51"), &["new", "write parser", "-i", "work"]);
+    s.ok_at(&at("24", "08:52"), &["mode", "work"]);
+    let started = s.ok_at(&at("24", "09:00"), &["start", "write parser"]);
+    assert!(started.starts_with("started timer on "), "{started}");
+    let status = s.ok_at(&at("24", "09:30"), &["status"]);
+    assert!(
+        status.starts_with("mode:work timer:") && status.contains("+30m inbox:0"),
+        "{status}"
+    );
+    let today = s.ok_at(&at("24", "23:50"), &["today"]);
+    assert!(
+        today.contains("started 09:00, no activity since 09:00; if you stopped earlier: 'patina stop --at 09:00'"),
+        "{today}"
+    );
+    let stopped = s.ok_at(&at("25", "08:00"), &["stop", "--at", "09:40"]);
+    assert!(
+        stopped.contains("write parser after 40m (total 40m)"),
+        "{stopped}"
+    );
+    assert!(
+        s.ok_at(&at("25", "08:01"), &["status"])
+            .starts_with("mode:work inbox:0")
+    );
+}

@@ -49,7 +49,7 @@ pub fn current(state: &State, now: Timestamp, settings: &Settings) -> Current {
         identity,
         since: last.map(|m| m.at),
         idle,
-        auto_away: idle && identity.is_some(),
+        auto_away: idle && identity.is_some() && state.running.is_none(),
         last_activity,
     }
 }

@@ -117,12 +117,23 @@ impl TestLog {
         frequency: Frequency,
         start: &str,
     ) -> HabitId {
+        self.habit_of(name, identity, HabitKind::Check, frequency, start)
+    }
+
+    pub fn habit_of(
+        &mut self,
+        name: &str,
+        identity: IdentityId,
+        kind: HabitKind,
+        frequency: Frequency,
+        start: &str,
+    ) -> HabitId {
         let id = HabitId::from_uuid(self.uuid());
         self.push(EventData::HabitCreated(HabitCreated {
             habit: id,
             name: name.into(),
             identity,
-            kind: HabitKind::Check,
+            kind,
             frequency,
             cue: None,
             start: date(start),
