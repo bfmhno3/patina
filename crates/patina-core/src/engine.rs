@@ -132,6 +132,7 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
             .unwrap_or_default(),
         EventData::TimerStarted(d) => vec![target_ref(d.target)],
         EventData::TimerInterrupted(d) => vec![(Item, d.item.as_uuid())],
+        EventData::ReviewCompleted(d) => d.focus.iter().map(|i| (Item, i.as_uuid())).collect(),
         EventData::TimerStopped(d) => state
             .segments
             .get(&d.segment)

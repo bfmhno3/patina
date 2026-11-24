@@ -391,6 +391,13 @@ payloads! {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub left_off: Option<String>,
     }
+    /// `review.completed`
+    pub struct ReviewCompleted {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub conclusion: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub focus: Vec<ItemId>,
+    }
     /// `habit.paused`
     pub struct HabitPaused { pub habit: HabitId, pub from: Date, }
     /// `habit.resumed`
@@ -471,6 +478,9 @@ pub enum EventData {
     /// A running timer was interrupted.
     #[serde(rename = "timer.interrupted")]
     TimerInterrupted(TimerInterrupted),
+    /// A weekly review was recorded.
+    #[serde(rename = "review.completed")]
+    ReviewCompleted(ReviewCompleted),
     /// Habit paused.
     #[serde(rename = "habit.paused")]
     HabitPaused(HabitPaused),
@@ -507,6 +517,7 @@ const KINDS: &[&str] = &[
     "timer.started",
     "timer.stopped",
     "timer.interrupted",
+    "review.completed",
     "habit.paused",
     "habit.resumed",
     "command.undone",
@@ -538,6 +549,7 @@ impl EventData {
             EventData::TimerStarted(_) => "timer.started",
             EventData::TimerStopped(_) => "timer.stopped",
             EventData::TimerInterrupted(_) => "timer.interrupted",
+            EventData::ReviewCompleted(_) => "review.completed",
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
@@ -569,6 +581,7 @@ impl EventData {
             | EventData::TimerStarted(_)
             | EventData::TimerStopped(_)
             | EventData::TimerInterrupted(_)
+            | EventData::ReviewCompleted(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)

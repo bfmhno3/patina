@@ -313,6 +313,17 @@ pub struct Warning {
     pub rejection: Rejection,
 }
 
+/// A recorded weekly review.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Review {
+    /// Effective time.
+    pub at: Timestamp,
+    /// Conclusion in the owner's words.
+    pub conclusion: Option<String>,
+    /// Items chosen as the coming week's focus.
+    pub focus: Vec<ItemId>,
+}
+
 /// One timer segment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Segment {
@@ -354,6 +365,8 @@ pub struct State {
     pub segments: BTreeMap<SegmentId, Segment>,
     /// The running segment.
     pub running: Option<SegmentId>,
+    /// Weekly reviews sorted by effective time.
+    pub reviews: Vec<Review>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -1001,6 +1014,24 @@ impl State {
                 {
                     i.left_off = d.left_off.clone();
                 }
+            }
+            EventData::ReviewCompleted(d) => {
+                if let Some(c) = &d.conclusion {
+                    clean(c)?;
+                }
+                for f in &d.focus {
+                    self.item_ok(*f)?;
+                }
+                let at = event.effective_at;
+                let pos = self.reviews.partition_point(|r| r.at <= at);
+                self.reviews.insert(
+                    pos,
+                    Review {
+                        at,
+                        conclusion: d.conclusion.clone(),
+                        focus: d.focus.clone(),
+                    },
+                );
             }
             EventData::CommandUndone(_) => {}
         }

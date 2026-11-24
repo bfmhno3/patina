@@ -15,6 +15,7 @@ pub mod habit;
 pub mod ids;
 pub mod query;
 pub mod resolve;
+pub mod review;
 pub mod state;
 pub mod store;
 #[cfg(test)]

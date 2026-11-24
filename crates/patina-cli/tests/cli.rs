@@ -225,3 +225,40 @@ fn recurring_chore_and_over_estimate_hint() {
     let bad = s.run_as(None, &["new", "x", "-i", "work", "--every", "0d"]);
     assert!(!bad.status.success());
 }
+
+#[test]
+fn weekly_review_shows_sections_and_records_focus() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&["new", "send invoice", "-i", "work"]);
+    s.ok(&["new", "plan trip", "-i", "life"]);
+    s.ok(&["add", "loose thought"]);
+    s.ok(&["done", "send invoice"]);
+    let r = s.ok(&["review"]);
+    assert!(
+        r.starts_with("Since the beginning\nDone\n  [work]\n"),
+        "{r}"
+    );
+    assert!(r.contains("send invoice"), "{r}");
+    assert!(r.contains("Inbox\n") && r.contains("loose thought"), "{r}");
+    assert!(
+        r.ends_with("finish with: patina review done --conclusion \"...\" [--focus <ref>]...\n"),
+        "{r}"
+    );
+    let done = s.ok(&[
+        "review",
+        "done",
+        "--conclusion",
+        "ok week",
+        "--focus",
+        "plan trip",
+    ]);
+    assert!(done.starts_with("review recorded\n  focus: "), "{done}");
+    let r = s.ok(&["review"]);
+    assert!(r.starts_with("Since 2026-11-24\n"), "{r}");
+    assert!(
+        r.contains("Current focus\n") && r.contains("plan trip"),
+        "{r}"
+    );
+    assert!(!r.contains("Done\n"), "{r}");
+}

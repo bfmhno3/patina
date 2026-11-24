@@ -223,6 +223,18 @@ pub fn week_start_of(
     Ok(day.checked_sub(jiff::Span::new().days(offset))?)
 }
 
+/// The latest day on or before `day` that falls on weekday `w`.
+///
+/// # Errors
+/// Returns [`TimeError`] on date arithmetic overflow.
+pub fn last_on_or_before(
+    day: jiff::civil::Date,
+    w: Weekday,
+) -> Result<jiff::civil::Date, TimeError> {
+    let back = (i64::from(day.weekday().to_monday_zero_offset()) - w.offset()).rem_euclid(7);
+    Ok(day.checked_sub(jiff::Span::new().days(back))?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

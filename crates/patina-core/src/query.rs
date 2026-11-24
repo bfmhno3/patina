@@ -17,6 +17,8 @@ use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
 use crate::store::LoadWarning;
 use crate::time::{Settings, logical_day};
 
+pub use crate::review::{CompletedGroup, PostponedView, ProjectProgress, ReviewView, WaitingView};
+
 /// A read request.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "query", rename_all = "snake_case")]
@@ -31,6 +33,8 @@ pub enum Query {
     },
     /// The current identity mode.
     Mode,
+    /// Weekly review summary.
+    Review,
     /// Untriaged captures.
     Inbox,
     /// The actionable frontier.
@@ -376,14 +380,16 @@ pub enum QueryOutput {
     Doctor(DoctorView),
     /// [`Query::Mode`]
     Mode(Box<ModeOutput>),
+    /// [`Query::Review`]
+    Review(Box<ReviewView>),
 }
 
 pub(crate) struct View<'a> {
-    state: &'a State,
-    settings: &'a Settings,
-    today: Date,
-    now: &'a ZonedDateTime,
-    cur: mode::Current,
+    pub(crate) state: &'a State,
+    pub(crate) settings: &'a Settings,
+    pub(crate) today: Date,
+    pub(crate) now: &'a ZonedDateTime,
+    pub(crate) cur: mode::Current,
     item_len: usize,
     item_secs: HashMap<ids::ItemId, i64>,
     habit_len: usize,
@@ -425,7 +431,7 @@ impl<'a> View<'a> {
         }
     }
 
-    fn identity_name(&self, id: Option<IdentityId>) -> Option<String> {
+    pub(crate) fn identity_name(&self, id: Option<IdentityId>) -> Option<String> {
         id.and_then(|i| self.state.identities.get(&i))
             .map(|i| i.name.clone())
     }
@@ -486,7 +492,7 @@ impl<'a> View<'a> {
     }
 
     /// Other identities' urgent items; empty when no identity is in scope.
-    fn banner(&self, scope: Option<IdentityId>) -> Result<Banner, Error> {
+    pub(crate) fn banner(&self, scope: Option<IdentityId>) -> Result<Banner, Error> {
         let Some(scope) = scope else {
             return Ok(Banner::default());
         };
@@ -558,7 +564,7 @@ impl<'a> View<'a> {
         }
     }
 
-    fn item(&self, item: &Item) -> ItemView {
+    pub(crate) fn item(&self, item: &Item) -> ItemView {
         let path = dag::ancestors(self.state, item.id)
             .into_iter()
             .rev()
@@ -601,10 +607,24 @@ impl<'a> View<'a> {
         }
     }
 
-    fn items(&self, ids: impl IntoIterator<Item = ids::ItemId>) -> Vec<ItemView> {
+    pub(crate) fn items(&self, ids: impl IntoIterator<Item = ids::ItemId>) -> Vec<ItemView> {
         ids.into_iter()
             .filter_map(|i| self.state.items.get(&i))
             .map(|i| self.item(i))
+            .collect()
+    }
+
+    pub(crate) fn inbox_entries(&self) -> Vec<InboxEntry> {
+        self.state
+            .items
+            .values()
+            .filter(|i| i.status == ItemStatus::Inbox)
+            .map(|i| InboxEntry {
+                id: i.id.as_uuid(),
+                short: ids::short(&i.id.as_uuid(), self.item_len),
+                text: i.title.clone(),
+                captured_at: i.created_at,
+            })
             .collect()
     }
 
@@ -622,7 +642,7 @@ impl<'a> View<'a> {
         }
     }
 
-    fn habit(&self, h: &Habit) -> Result<HabitView, Error> {
+    pub(crate) fn habit(&self, h: &Habit) -> Result<HabitView, Error> {
         let timed = self.habit_timed(h)?;
         let st = habit::today_status(h, self.today, self.settings, &timed)?;
         Ok(HabitView {
@@ -644,11 +664,11 @@ impl<'a> View<'a> {
         })
     }
 
-    fn visible(&self, item: &Item) -> bool {
+    pub(crate) fn visible(&self, item: &Item) -> bool {
         item.status == ItemStatus::Todo && !dag::hidden_by_defer(self.state, item.id, self.today)
     }
 
-    fn follow_ups(&self, filter: Option<IdentityId>) -> Vec<&Item> {
+    pub(crate) fn follow_ups(&self, filter: Option<IdentityId>) -> Vec<&Item> {
         let mut v: Vec<&Item> = self
             .state
             .items
@@ -661,7 +681,7 @@ impl<'a> View<'a> {
         v
     }
 
-    fn actionable(&self, filter: Option<IdentityId>) -> Vec<&Item> {
+    pub(crate) fn actionable(&self, filter: Option<IdentityId>) -> Vec<&Item> {
         let mut v: Vec<&Item> = dag::frontier(self.state, self.today)
             .into_iter()
             .filter_map(|i| self.state.items.get(&i))
@@ -778,19 +798,7 @@ pub fn run(
                 timer: v.timer_view(),
             }))
         }
-        Query::Inbox => QueryOutput::Inbox(
-            state
-                .items
-                .values()
-                .filter(|i| i.status == ItemStatus::Inbox)
-                .map(|i| InboxEntry {
-                    id: i.id.as_uuid(),
-                    short: ids::short(&i.id.as_uuid(), v.item_len),
-                    text: i.title.clone(),
-                    captured_at: i.created_at,
-                })
-                .collect(),
-        ),
+        Query::Inbox => QueryOutput::Inbox(v.inbox_entries()),
         Query::List { identity } => {
             let f = filter(identity)?;
             QueryOutput::List(v.actionable(f).into_iter().map(|i| v.item(i)).collect())
@@ -914,5 +922,6 @@ pub fn run(
             mode: v.mode_view(),
             timer: v.timer_view(),
         })),
+        Query::Review => QueryOutput::Review(Box::new(crate::review::view(&v)?)),
     })
 }

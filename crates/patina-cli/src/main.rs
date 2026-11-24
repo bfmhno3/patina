@@ -146,6 +146,11 @@ enum Cmd {
         #[arg(long, requires = "target")]
         at: Option<String>,
     },
+    /// Show the weekly review, or record it with `review done`.
+    Review {
+        #[command(subcommand)]
+        cmd: Option<ReviewCmd>,
+    },
     /// List untriaged captures.
     Inbox,
     /// List actionable items.
@@ -460,6 +465,19 @@ enum HabitCmd {
 }
 
 #[derive(Debug, Subcommand)]
+enum ReviewCmd {
+    /// Record the review.
+    Done {
+        /// What you conclude from this week.
+        #[arg(long)]
+        conclusion: Option<String>,
+        /// A focus item for the coming week (at most one per identity).
+        #[arg(long)]
+        focus: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum IdentityCmd {
     /// Add an identity.
     Add { name: String },
@@ -704,6 +722,15 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
                 },
                 at: at.as_deref().map(|s| parse_time(s, now)).transpose()?,
             })),
+        },
+        Cmd::Review { cmd } => match cmd {
+            None => Action::Ask(Query::Review),
+            Some(ReviewCmd::Done { conclusion, focus }) => {
+                Action::Run(Command::CompleteReview(c::CompleteReview {
+                    conclusion,
+                    focus,
+                }))
+            }
         },
         Cmd::Inbox => Action::Ask(Query::Inbox),
         Cmd::List { identity } => Action::Ask(Query::List { identity }),

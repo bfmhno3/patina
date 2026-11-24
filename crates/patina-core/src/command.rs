@@ -146,6 +146,12 @@ pub enum CommandError {
     /// The item is already an external node.
     #[error("the item is already waiting on something external")]
     AlreadyWaiting,
+    /// Two weekly-focus items share an identity.
+    #[error("more than one focus item for identity {identity}")]
+    DuplicateFocus {
+        /// The identity with two focus items.
+        identity: IdentityId,
+    },
 }
 
 macro_rules! cmd_structs {
@@ -284,6 +290,12 @@ cmd_structs! {
         pub waiting_for: String,
         pub follow_up: Option<Date>,
     }
+    /// Record the weekly review with at most one focus item per identity.
+    pub struct CompleteReview {
+        pub conclusion: Option<String>,
+        #[serde(default)]
+        pub focus: Vec<String>,
+    }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -346,6 +358,8 @@ pub enum Command {
     Interrupt(Interrupt),
     /// Mark an item as stuck on something external.
     Stuck(Stuck),
+    /// Record the weekly review.
+    CompleteReview(CompleteReview),
 }
 
 /// Everything a command needs besides state.
@@ -1243,6 +1257,34 @@ fn build(
                 depends_on: blocker,
             }));
             out
+        }
+        Command::CompleteReview(c) => {
+            let mut focus: Vec<ItemId> = Vec::new();
+            let mut identities: Vec<IdentityId> = Vec::new();
+            for r in &c.focus {
+                let item = item_ref(state, r)?;
+                if item.status != ItemStatus::Todo {
+                    return Err(Rejection::WrongStatus {
+                        item: item.id,
+                        status: item.status,
+                    }
+                    .into());
+                }
+                if focus.contains(&item.id) {
+                    continue;
+                }
+                if let Some(identity) = item.identity {
+                    if identities.contains(&identity) {
+                        return Err(CommandError::DuplicateFocus { identity });
+                    }
+                    identities.push(identity);
+                }
+                focus.push(item.id);
+            }
+            vec![EventData::ReviewCompleted(ReviewCompleted {
+                conclusion: opt_text(&c.conclusion)?,
+                focus,
+            })]
         }
     };
     Ok(Built { datas, effective_at })

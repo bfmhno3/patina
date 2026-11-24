@@ -11,8 +11,8 @@ use patina_core::event::{
 };
 use patina_core::ids;
 use patina_core::query::{
-    Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, TimerView, TodayView, TreeNode,
-    ViewStatus,
+    Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, ReviewView, TimerView,
+    TodayView, TreeNode, ViewStatus,
 };
 use patina_core::time::Weekday;
 
@@ -249,6 +249,12 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
             }
             out.push('\n');
         }
+        Command::CompleteReview(_) => {
+            out.push_str("review recorded\n");
+            for sub in &o.subjects {
+                let _ = writeln!(out, "  focus: {} {}", sref(Some(sub)), sub.label);
+            }
+        }
     }
     out
 }
@@ -371,6 +377,70 @@ fn hints(mode: &ModeView, timer: Option<&TimerView>, now: &ZonedDateTime) -> Str
             stamp(last, now),
         );
     }
+    out
+}
+
+fn review(r: &ReviewView, now: &ZonedDateTime) -> String {
+    let mut out = String::new();
+    match r.since {
+        Some(s) => {
+            let day = s.to_zoned_datetime(now.time_zone().clone()).date();
+            let _ = writeln!(out, "Since {day}");
+        }
+        None => out.push_str("Since the beginning\n"),
+    }
+    if !r.completed.is_empty() {
+        out.push_str("Done\n");
+        for g in &r.completed {
+            let _ = writeln!(out, "  [{}]", g.identity);
+            for i in &g.items {
+                let _ = writeln!(out, "    {}", item_line(i, false));
+            }
+        }
+    }
+    if !r.projects.is_empty() {
+        out.push_str("Projects\n");
+        for p in &r.projects {
+            let _ = writeln!(
+                out,
+                "  {} {}: +{} ({} done, {} open)",
+                p.project.short, p.project.title, p.completed, p.done, p.open
+            );
+        }
+    }
+    if !r.postponed.is_empty() {
+        out.push_str("Postponed\n");
+        for p in &r.postponed {
+            let _ = writeln!(
+                out,
+                "  {} (postponed {}x)",
+                item_line(&p.item, true),
+                p.count
+            );
+        }
+        out.push_str(
+            "  decide: patina new ... --parent <ref> | patina abandon <ref> --reason ... | patina edit <ref> --scheduled <date>\n",
+        );
+    }
+    if !r.waiting.is_empty() {
+        out.push_str("Waiting\n");
+        for w in &r.waiting {
+            let _ = writeln!(out, "  {} ({} days)", item_line(&w.item, true), w.days);
+        }
+    }
+    if !r.inbox.is_empty() {
+        out.push_str("Inbox\n");
+        for e in &r.inbox {
+            let _ = writeln!(out, "  {}  {}", e.short, e.text);
+        }
+    }
+    if !r.focus.is_empty() {
+        out.push_str("Current focus\n");
+        for i in &r.focus {
+            let _ = writeln!(out, "  {}", item_line(i, true));
+        }
+    }
+    out.push_str("finish with: patina review done --conclusion \"...\" [--focus <ref>]...\n");
     out
 }
 
@@ -596,6 +666,7 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
     let mut out = String::new();
     match o {
         QueryOutput::Today(t) => return today(t, now),
+        QueryOutput::Review(r) => return review(r, now),
         QueryOutput::Mode(m) => {
             let name = m.mode.identity.as_deref().unwrap_or("away");
             if m.mode.auto_away {
