@@ -69,6 +69,8 @@ pub struct CommandOutcome {
     pub subjects: Vec<Subject>,
     /// Abandon only: open dependents of abandoned items.
     pub needs_decision: Vec<Subject>,
+    /// Undo only: event type keys of the undone command.
+    pub undone: Vec<String>,
     /// Load and projection warnings.
     pub warnings: usize,
 }
@@ -206,6 +208,7 @@ impl Patina {
                 events: vec![event],
                 subjects,
                 needs_decision: Vec::new(),
+                undone: Vec::new(),
                 warnings: 0,
             });
         }
@@ -219,6 +222,7 @@ impl Patina {
             .map(|e| e.command)
             .ok_or(CommandError::NoChanges)?;
 
+        let mut undone = Vec::new();
         let (label_state, refs, projection_warnings) = if matches!(cmd, Command::Undo) {
             let target = match events.first().map(|e| &e.data) {
                 Some(EventData::CommandUndone(u)) => u.command,
@@ -229,6 +233,12 @@ impl Patina {
                 .iter()
                 .filter(|e| e.command == target)
                 .flat_map(|e| referenced(&e.data))
+                .collect();
+            undone = log
+                .events
+                .iter()
+                .filter(|e| e.command == target)
+                .map(|e| e.data.kind().to_string())
                 .collect();
             let mut all = log.events.clone();
             all.extend(events.iter().cloned());
@@ -269,6 +279,7 @@ impl Patina {
             events,
             subjects,
             needs_decision,
+            undone,
             warnings: log.warnings.len() + projection_warnings,
         })
     }

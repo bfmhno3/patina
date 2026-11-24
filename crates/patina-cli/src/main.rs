@@ -1,14 +1,556 @@
 //! `patina`: the command-line adapter over `patina-core`.
 #![forbid(unsafe_code)]
 
-use clap::Parser;
+mod env;
+mod render;
+
+use std::process::ExitCode;
+
+use anyhow::Result;
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+use jiff::civil::Date;
+use patina_core::command::{self, Command, Update};
+use patina_core::engine::Patina;
+use patina_core::event::{AbandonReason, Frequency, HabitKind};
+use patina_core::query::{Query, QueryOutput};
+use patina_core::store::Store;
+use patina_core::time::{Weekday, logical_day};
+
+use crate::env::{Env, parse_date, parse_update};
 
 /// Identity-driven personal task system.
 #[derive(Debug, Parser)]
 #[command(name = "patina", version, about)]
-struct Cli {}
+struct Cli {
+    /// Print JSON instead of text.
+    #[arg(long, global = true)]
+    json: bool,
+    #[command(subcommand)]
+    command: Cmd,
+}
 
-fn main() {
-    // No subcommands yet: parsing handles `--help` and `--version`.
-    let _cli = Cli::parse();
+#[derive(Debug, Subcommand)]
+enum Cmd {
+    /// Create the default identities (work, life, study).
+    Init,
+    /// Capture a thought into the inbox.
+    Add {
+        #[arg(required = true, num_args = 1..)]
+        text: Vec<String>,
+    },
+    /// Create a task directly.
+    New(NewArgs),
+    /// Turn an inbox entry into a task.
+    Triage(TriageArgs),
+    /// Discard an inbox entry.
+    Discard { item: String },
+    /// Merge an inbox entry into another item's notes.
+    Merge {
+        item: String,
+        #[arg(long)]
+        into: String,
+    },
+    /// Edit an item.
+    Edit(EditArgs),
+    /// Add a note to an item.
+    Note {
+        item: String,
+        #[arg(required = true, num_args = 1..)]
+        text: Vec<String>,
+    },
+    /// Mark an item as started.
+    Start { item: String },
+    /// Complete an item.
+    Done {
+        item: String,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Abandon an item and its open descendants.
+    Abandon {
+        item: String,
+        #[arg(long, value_enum)]
+        reason: Reason,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Reparent an item.
+    Move(MoveArgs),
+    /// Make an item depend on a sibling.
+    Link {
+        item: String,
+        /// The prerequisite.
+        #[arg(long)]
+        on: String,
+    },
+    /// Remove a dependency.
+    Unlink {
+        item: String,
+        /// The prerequisite.
+        #[arg(long)]
+        on: String,
+    },
+    /// Habits.
+    Habit {
+        #[command(subcommand)]
+        cmd: HabitCmd,
+    },
+    /// Identities.
+    Identity {
+        #[command(subcommand)]
+        cmd: IdentityCmd,
+    },
+    /// What to do today.
+    Today {
+        #[arg(short, long)]
+        identity: Option<String>,
+    },
+    /// List untriaged captures.
+    Inbox,
+    /// List actionable items.
+    List {
+        #[arg(short, long)]
+        identity: Option<String>,
+    },
+    /// Show the hierarchy.
+    Tree {
+        root: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// Show one item.
+    Show { item: String },
+    /// One-line status.
+    Status,
+    /// Report problems in the event log.
+    Doctor,
+    /// Undo this device's latest command.
+    Undo,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Reason {
+    NoLongerImportant,
+    Superseded,
+    TooHard,
+    Other,
+}
+
+impl From<Reason> for AbandonReason {
+    fn from(r: Reason) -> Self {
+        match r {
+            Reason::NoLongerImportant => AbandonReason::NoLongerImportant,
+            Reason::Superseded => AbandonReason::Superseded,
+            Reason::TooHard => AbandonReason::TooHard,
+            Reason::Other => AbandonReason::Other,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct NewArgs {
+    title: String,
+    #[arg(short, long)]
+    identity: Option<String>,
+    #[arg(short, long)]
+    parent: Option<String>,
+    #[arg(short = 't', long = "tag")]
+    tags: Vec<String>,
+    #[arg(long)]
+    defer: Option<String>,
+    #[arg(long)]
+    scheduled: Option<String>,
+    #[arg(long)]
+    deadline: Option<String>,
+    #[arg(long)]
+    waiting_for: Option<String>,
+    #[arg(long)]
+    follow_up: Option<String>,
+}
+
+#[derive(Debug, Args)]
+struct TriageArgs {
+    item: String,
+    #[arg(short, long)]
+    identity: Option<String>,
+    #[arg(long)]
+    title: Option<String>,
+    #[arg(short, long)]
+    parent: Option<String>,
+    #[arg(short = 't', long = "tag")]
+    tags: Vec<String>,
+    #[arg(long)]
+    defer: Option<String>,
+    #[arg(long)]
+    scheduled: Option<String>,
+    #[arg(long)]
+    deadline: Option<String>,
+    #[arg(long)]
+    waiting_for: Option<String>,
+    #[arg(long)]
+    follow_up: Option<String>,
+}
+
+#[derive(Debug, Args)]
+struct EditArgs {
+    item: String,
+    #[arg(long)]
+    title: Option<String>,
+    #[arg(short, long)]
+    identity: Option<String>,
+    #[arg(short = 't', long = "tag")]
+    tags: Vec<String>,
+    #[arg(long)]
+    untag: Vec<String>,
+    /// A date or `none`.
+    #[arg(long)]
+    defer: Option<String>,
+    /// A date or `none`.
+    #[arg(long)]
+    scheduled: Option<String>,
+    /// A date or `none`.
+    #[arg(long)]
+    deadline: Option<String>,
+    /// A date or `none`.
+    #[arg(long)]
+    follow_up: Option<String>,
+    #[arg(long, conflicts_with = "not_waiting")]
+    waiting_for: Option<String>,
+    #[arg(long)]
+    not_waiting: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(group(ArgGroup::new("dest").required(true).args(["parent", "top"])))]
+struct MoveArgs {
+    item: String,
+    #[arg(long)]
+    parent: Option<String>,
+    #[arg(long)]
+    top: bool,
+}
+
+fn parse_weekday(s: &str) -> Result<Weekday, String> {
+    Ok(match s.to_ascii_lowercase().as_str() {
+        "mon" => Weekday::Mon,
+        "tue" => Weekday::Tue,
+        "wed" => Weekday::Wed,
+        "thu" => Weekday::Thu,
+        "fri" => Weekday::Fri,
+        "sat" => Weekday::Sat,
+        "sun" => Weekday::Sun,
+        _ => {
+            return Err(format!(
+                "unknown weekday {s:?} (use mon, tue, wed, thu, fri, sat, sun)"
+            ));
+        }
+    })
+}
+
+#[derive(Debug, Subcommand)]
+enum HabitCmd {
+    /// Create a habit.
+    #[command(group(ArgGroup::new("freq").multiple(false).args(["daily", "weekly", "days"])))]
+    Add {
+        name: String,
+        #[arg(short, long)]
+        identity: String,
+        /// Count habit with this daily target.
+        #[arg(long)]
+        count: Option<u32>,
+        #[arg(long)]
+        daily: bool,
+        /// Times per week.
+        #[arg(long)]
+        weekly: Option<u8>,
+        /// Comma-separated weekdays.
+        #[arg(long, value_delimiter = ',', value_parser = parse_weekday)]
+        days: Vec<Weekday>,
+        #[arg(long)]
+        cue: Option<String>,
+    },
+    /// Edit a habit.
+    Edit {
+        habit: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(short, long)]
+        identity: Option<String>,
+        #[arg(long, conflicts_with = "no_cue")]
+        cue: Option<String>,
+        #[arg(long)]
+        no_cue: bool,
+    },
+    /// Check in.
+    Check {
+        habit: String,
+        #[arg(long)]
+        day: Option<String>,
+        #[arg(long)]
+        count: Option<u32>,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Skip a day.
+    Skip {
+        habit: String,
+        #[arg(long)]
+        day: Option<String>,
+    },
+    /// Pause a habit.
+    Pause {
+        habit: String,
+        #[arg(long)]
+        from: Option<String>,
+    },
+    /// Resume a habit.
+    Resume {
+        habit: String,
+        #[arg(long)]
+        from: Option<String>,
+    },
+    /// List habits.
+    List,
+}
+
+#[derive(Debug, Subcommand)]
+enum IdentityCmd {
+    /// Add an identity.
+    Add { name: String },
+    /// Rename an identity.
+    Rename { name: String, new: String },
+    /// List identities.
+    List,
+}
+
+enum Action {
+    Run(Command),
+    Ask(Query),
+}
+
+fn opt_date(s: &Option<String>, today: Date) -> Result<Option<Date>> {
+    s.as_deref().map(|s| parse_date(s, today)).transpose()
+}
+
+fn opt_update(s: &Option<String>, today: Date) -> Result<Option<Update<Date>>> {
+    s.as_deref().map(|s| parse_update(s, today)).transpose()
+}
+
+fn action(cmd: Cmd, today: Date) -> Result<Action> {
+    use command as c;
+    Ok(match cmd {
+        Cmd::Init => Action::Run(Command::Init),
+        Cmd::Add { text } => Action::Run(Command::Capture(c::Capture {
+            text: text.join(" "),
+        })),
+        Cmd::New(a) => Action::Run(Command::AddItem(Box::new(c::AddItem {
+            title: a.title,
+            identity: a.identity,
+            parent: a.parent,
+            tags: a.tags,
+            defer: opt_date(&a.defer, today)?,
+            scheduled: opt_date(&a.scheduled, today)?,
+            deadline: opt_date(&a.deadline, today)?,
+            waiting_for: a.waiting_for,
+            follow_up: opt_date(&a.follow_up, today)?,
+        }))),
+        Cmd::Triage(a) => Action::Run(Command::Triage(Box::new(c::Triage {
+            item: a.item,
+            identity: a.identity,
+            title: a.title,
+            parent: a.parent,
+            tags: a.tags,
+            defer: opt_date(&a.defer, today)?,
+            scheduled: opt_date(&a.scheduled, today)?,
+            deadline: opt_date(&a.deadline, today)?,
+            waiting_for: a.waiting_for,
+            follow_up: opt_date(&a.follow_up, today)?,
+        }))),
+        Cmd::Discard { item } => Action::Run(Command::Discard(c::Discard { item })),
+        Cmd::Merge { item, into } => Action::Run(Command::Merge(c::Merge { item, into })),
+        Cmd::Edit(a) => Action::Run(Command::Edit(Box::new(c::Edit {
+            item: a.item,
+            title: a.title,
+            identity: a.identity,
+            add_tags: a.tags,
+            remove_tags: a.untag,
+            defer: opt_update(&a.defer, today)?,
+            scheduled: opt_update(&a.scheduled, today)?,
+            deadline: opt_update(&a.deadline, today)?,
+            follow_up: opt_update(&a.follow_up, today)?,
+            waiting_for: if a.not_waiting {
+                Some(Update::Clear)
+            } else {
+                a.waiting_for.map(Update::Set)
+            },
+        }))),
+        Cmd::Note { item, text } => Action::Run(Command::Note(c::Note {
+            item,
+            text: text.join(" "),
+        })),
+        Cmd::Start { item } => Action::Run(Command::Start(c::Start { item })),
+        Cmd::Done { item, note } => Action::Run(Command::Complete(c::Complete { item, note })),
+        Cmd::Abandon { item, reason, note } => Action::Run(Command::Abandon(c::Abandon {
+            item,
+            reason: reason.into(),
+            note,
+        })),
+        Cmd::Move(a) => Action::Run(Command::Move(c::Move {
+            item: a.item,
+            parent: a.parent,
+        })),
+        Cmd::Link { item, on } => Action::Run(Command::Link(c::Link {
+            item,
+            depends_on: on,
+        })),
+        Cmd::Unlink { item, on } => Action::Run(Command::Unlink(c::Unlink {
+            item,
+            depends_on: on,
+        })),
+        Cmd::Habit { cmd } => match cmd {
+            HabitCmd::Add {
+                name,
+                identity,
+                count,
+                daily: _,
+                weekly,
+                days,
+                cue,
+            } => {
+                let frequency = if let Some(times) = weekly {
+                    Frequency::Weekly { times }
+                } else if !days.is_empty() {
+                    Frequency::Weekdays { days }
+                } else {
+                    Frequency::Daily
+                };
+                let kind = match count {
+                    Some(target) => HabitKind::Count { target },
+                    None => HabitKind::Check,
+                };
+                Action::Run(Command::AddHabit(c::AddHabit {
+                    name,
+                    identity,
+                    kind,
+                    frequency,
+                    cue,
+                }))
+            }
+            HabitCmd::Edit {
+                habit,
+                name,
+                identity,
+                cue,
+                no_cue,
+            } => Action::Run(Command::EditHabit(c::EditHabit {
+                habit,
+                name,
+                identity,
+                cue: if no_cue {
+                    Some(Update::Clear)
+                } else {
+                    cue.map(Update::Set)
+                },
+            })),
+            HabitCmd::Check {
+                habit,
+                day,
+                count,
+                note,
+            } => Action::Run(Command::CheckIn(c::CheckIn {
+                habit,
+                day: opt_date(&day, today)?,
+                count,
+                note,
+            })),
+            HabitCmd::Skip { habit, day } => Action::Run(Command::SkipHabit(c::SkipHabit {
+                habit,
+                day: opt_date(&day, today)?,
+            })),
+            HabitCmd::Pause { habit, from } => Action::Run(Command::PauseHabit(c::PauseHabit {
+                habit,
+                from: opt_date(&from, today)?,
+            })),
+            HabitCmd::Resume { habit, from } => Action::Run(Command::ResumeHabit(c::ResumeHabit {
+                habit,
+                from: opt_date(&from, today)?,
+            })),
+            HabitCmd::List => Action::Ask(Query::Habits),
+        },
+        Cmd::Identity { cmd } => match cmd {
+            IdentityCmd::Add { name } => Action::Run(Command::AddIdentity(c::AddIdentity { name })),
+            IdentityCmd::Rename { name, new } => {
+                Action::Run(Command::RenameIdentity(c::RenameIdentity {
+                    identity: name,
+                    name: new,
+                }))
+            }
+            IdentityCmd::List => Action::Ask(Query::Identities),
+        },
+        Cmd::Today { identity } => Action::Ask(Query::Today { identity }),
+        Cmd::Inbox => Action::Ask(Query::Inbox),
+        Cmd::List { identity } => Action::Ask(Query::List { identity }),
+        Cmd::Tree { root, all } => Action::Ask(Query::Tree { root, all }),
+        Cmd::Show { item } => Action::Ask(Query::Show { item }),
+        Cmd::Status => Action::Ask(Query::Status),
+        Cmd::Doctor => Action::Ask(Query::Doctor),
+        Cmd::Undo => Action::Run(Command::Undo),
+    })
+}
+
+fn warn(n: usize) {
+    if n > 0 {
+        eprintln!("warning: {n} log problem(s); run 'patina doctor'");
+    }
+}
+
+fn run(cli: Cli) -> Result<()> {
+    let env = Env::load()?;
+    let patina = Patina::new(Store::new(env.root.clone(), env.device));
+    let settings = patina.settings()?;
+    let today = logical_day(&env.now, &settings)?;
+    let action = action(cli.command, today)?;
+    match action {
+        Action::Run(cmd) => {
+            let outcome = patina.run(cmd.clone(), env.now.clone(), env.source.clone())?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&outcome)?);
+            } else {
+                print!("{}", render::outcome(&cmd, &outcome));
+            }
+            warn(outcome.warnings);
+        }
+        Action::Ask(q) => {
+            let out = patina.query(q, env.now.clone())?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&out)?);
+            } else {
+                print!("{}", render::query(&out, env.now.time_zone()));
+            }
+            if let QueryOutput::Today(t) = &out {
+                warn(t.warnings);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    let json = cli.json;
+    match run(cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            if json {
+                let value = match e.downcast_ref::<patina_core::engine::Error>() {
+                    Some(err) => serde_json::to_value(err).unwrap_or_default(),
+                    None => serde_json::json!({"kind": "other", "detail": e.to_string()}),
+                };
+                println!("{}", serde_json::json!({ "error": value }));
+            } else {
+                eprintln!("error: {e}");
+            }
+            ExitCode::FAILURE
+        }
+    }
 }
