@@ -36,4 +36,7 @@ pub enum SettingsError {
     /// `habit_half_life_days` not a positive finite number.
     #[error("habit_half_life_days must be a positive number, got {0}")]
     HalfLife(f64),
+    /// `evening_hour` above 23.
+    #[error("evening_hour must be 0..=23, got {0}")]
+    EveningHour(u8),
 }

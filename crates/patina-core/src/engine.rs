@@ -106,6 +106,10 @@ fn referenced(data: &EventData) -> Vec<(SubjectKind, Uuid)> {
         EventData::HabitSkipped(d) => vec![(Habit, d.habit.as_uuid())],
         EventData::HabitPaused(d) => vec![(Habit, d.habit.as_uuid())],
         EventData::HabitResumed(d) => vec![(Habit, d.habit.as_uuid())],
+        EventData::ModeSwitched(d) => d
+            .identity
+            .map(|i| vec![(Identity, i.as_uuid())])
+            .unwrap_or_default(),
         EventData::CommandUndone(_) => Vec::new(),
     }
 }

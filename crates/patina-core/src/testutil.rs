@@ -34,14 +34,35 @@ impl TestLog {
 
     /// Pushes one event as its own command on `device`.
     pub fn push_on(&mut self, device: DeviceId, data: EventData) -> CommandId {
+        self.push_full(device, data, None)
+    }
+
+    /// Pushes one event with explicit effective and recorded times.
+    pub fn push_at(
+        &mut self,
+        data: EventData,
+        effective_at: Timestamp,
+        recorded_at: Timestamp,
+    ) -> CommandId {
+        let d = self.device;
+        self.push_full(d, data, Some((effective_at, recorded_at)))
+    }
+
+    fn push_full(
+        &mut self,
+        device: DeviceId,
+        data: EventData,
+        times: Option<(Timestamp, Timestamp)>,
+    ) -> CommandId {
         let id = self.uuid();
         let command = CommandId::from_uuid(self.uuid());
         let ts = Timestamp::from_second(1_800_000_000 + self.n as i64).unwrap();
+        let (effective_at, recorded_at) = times.unwrap_or((ts, ts));
         self.events.push(Event {
             id: EventId::from_uuid(id),
             device,
-            effective_at: ts,
-            recorded_at: ts,
+            effective_at,
+            recorded_at,
             source: Source::Cli,
             command,
             category: Category::Domain,

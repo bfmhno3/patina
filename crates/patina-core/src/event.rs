@@ -285,6 +285,11 @@ payloads! {
     pub struct HabitResumed { pub habit: HabitId, pub from: Date, }
     /// `command.undone`
     pub struct CommandUndone { pub command: CommandId, }
+    /// `mode.switched`; no identity means away.
+    pub struct ModeSwitched {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub identity: Option<IdentityId>,
+    }
 }
 
 /// Typed event payload; serialized as `{"type": ..., "data": ...}`.
@@ -354,6 +359,9 @@ pub enum EventData {
     /// A command was undone.
     #[serde(rename = "command.undone")]
     CommandUndone(CommandUndone),
+    /// Identity mode switched (or set to away).
+    #[serde(rename = "mode.switched")]
+    ModeSwitched(ModeSwitched),
 }
 
 const KINDS: &[&str] = &[
@@ -378,6 +386,7 @@ const KINDS: &[&str] = &[
     "habit.paused",
     "habit.resumed",
     "command.undone",
+    "mode.switched",
 ];
 
 impl EventData {
@@ -405,6 +414,7 @@ impl EventData {
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
+            EventData::ModeSwitched(_) => "mode.switched",
         }
     }
 
@@ -431,6 +441,7 @@ impl EventData {
             | EventData::HabitSkipped(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
+            | EventData::ModeSwitched(_)
             | EventData::CommandUndone(_) => 1,
         }
     }

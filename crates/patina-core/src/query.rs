@@ -2,16 +2,16 @@
 
 use std::collections::HashSet;
 
-use jiff::Timestamp;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::dag;
-use crate::engine::Error;
+use crate::engine::{Error, Subject};
 use crate::event::{AbandonReason, Frequency, HabitKind};
 use crate::habit;
 use crate::ids::{self, IdentityId};
+use crate::mode;
 use crate::resolve;
 use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
 use crate::store::LoadWarning;
@@ -23,9 +23,14 @@ use crate::time::{Settings, logical_day};
 pub enum Query {
     /// What to do today.
     Today {
-        /// Restrict to one identity.
+        /// Restrict to one identity (overrides the mode).
         identity: Option<String>,
+        /// Ignore the identity mode and show everything.
+        #[serde(default)]
+        all: bool,
     },
+    /// The current identity mode.
+    Mode,
     /// Untriaged captures.
     Inbox,
     /// The actionable frontier.
@@ -191,6 +196,14 @@ pub struct TodayView {
     pub inbox: usize,
     /// Log problems.
     pub warnings: usize,
+    /// The identity the view is scoped to, if any.
+    pub scope: Option<String>,
+    /// Urgent items of the other identities.
+    pub banner: Banner,
+    /// Current identity mode.
+    pub mode: ModeView,
+    /// The running timer.
+    pub timer: Option<TimerView>,
 }
 
 /// A node in the tree view.
@@ -258,6 +271,60 @@ pub struct StatusLine {
     pub follow_ups: usize,
     /// Log problems.
     pub warnings: usize,
+    /// Current identity mode.
+    pub mode: ModeView,
+    /// The running timer.
+    pub timer: Option<TimerView>,
+}
+
+/// The identity mode as shown to users.
+#[derive(Clone, Debug, Serialize)]
+pub struct ModeView {
+    /// Explicit identity name; none is away.
+    pub identity: Option<String>,
+    /// When the mode was set.
+    pub since: Option<Timestamp>,
+    /// Idle with a mode set and nothing timing.
+    pub auto_away: bool,
+    /// No activity for longer than the idle limit.
+    pub idle: bool,
+    /// Latest recorded activity.
+    pub last_activity: Option<Timestamp>,
+}
+
+/// A running timer segment.
+#[derive(Clone, Debug, Serialize)]
+pub struct TimerView {
+    /// Segment id.
+    pub segment: Uuid,
+    /// What is being timed.
+    pub target: Subject,
+    /// Start time.
+    pub started_at: Timestamp,
+    /// Minutes so far.
+    pub minutes: i64,
+    /// No activity for longer than the idle limit.
+    pub idle: bool,
+}
+
+/// Urgent items of identities other than the scoped one.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct Banner {
+    /// Other identities' items due.
+    pub deadlines: Vec<ItemView>,
+    /// Other identities' follow-ups due.
+    pub follow_ups: Vec<ItemView>,
+    /// Other identities' unfinished habits, shown in the evening.
+    pub habits: Vec<HabitView>,
+}
+
+/// Result of [`Query::Mode`].
+#[derive(Clone, Debug, Serialize)]
+pub struct ModeOutput {
+    /// Current identity mode.
+    pub mode: ModeView,
+    /// The running timer.
+    pub timer: Option<TimerView>,
 }
 
 /// Log problems.
@@ -291,18 +358,27 @@ pub enum QueryOutput {
     Status(StatusLine),
     /// [`Query::Doctor`]
     Doctor(DoctorView),
+    /// [`Query::Mode`]
+    Mode(Box<ModeOutput>),
 }
 
-struct View<'a> {
+pub(crate) struct View<'a> {
     state: &'a State,
     settings: &'a Settings,
     today: Date,
+    now: &'a ZonedDateTime,
+    cur: mode::Current,
     item_len: usize,
     habit_len: usize,
 }
 
 impl<'a> View<'a> {
-    fn new(state: &'a State, settings: &'a Settings, today: Date) -> Self {
+    pub(crate) fn new(
+        state: &'a State,
+        settings: &'a Settings,
+        today: Date,
+        now: &'a ZonedDateTime,
+    ) -> Self {
         let item_len = ids::short_len(
             state
                 .items
@@ -324,6 +400,8 @@ impl<'a> View<'a> {
             state,
             settings,
             today,
+            now,
+            cur: mode::current(state, now.timestamp(), settings),
             item_len,
             habit_len,
         }
@@ -332,6 +410,74 @@ impl<'a> View<'a> {
     fn identity_name(&self, id: Option<IdentityId>) -> Option<String> {
         id.and_then(|i| self.state.identities.get(&i))
             .map(|i| i.name.clone())
+    }
+
+    pub(crate) fn mode_view(&self) -> ModeView {
+        ModeView {
+            identity: self.identity_name(self.cur.identity),
+            since: self.cur.since,
+            auto_away: self.cur.auto_away,
+            idle: self.cur.idle,
+            last_activity: self.cur.last_activity,
+        }
+    }
+
+    pub(crate) fn timer_view(&self) -> Option<TimerView> {
+        None
+    }
+
+    /// Other identities' urgent items; empty when no identity is in scope.
+    fn banner(&self, scope: Option<IdentityId>) -> Result<Banner, Error> {
+        let Some(scope) = scope else {
+            return Ok(Banner::default());
+        };
+        let other = |i: &&Item| i.identity.is_some() && i.identity != Some(scope);
+        let mut deadlines: Vec<&Item> = self
+            .state
+            .items
+            .values()
+            .filter(|i| self.visible(i) && i.deadline.is_some_and(|d| d <= self.today))
+            .filter(other)
+            .collect();
+        deadlines.sort_by_key(|i| (i.deadline, i.created_at));
+        let follow_ups = self
+            .follow_ups(None)
+            .into_iter()
+            .filter(other)
+            .map(|i| self.item(i))
+            .collect();
+        let hour = i64::from(self.now.hour());
+        let evening = hour >= i64::from(self.settings.evening_hour)
+            || hour < i64::from(self.settings.day_start_hour);
+        let mut habits = Vec::new();
+        if evening {
+            for h in self.state.habits.values().filter(|h| h.identity != scope) {
+                let hv = self.habit(h)?;
+                if hv.due && hv.value < 1.0 {
+                    habits.push(hv);
+                }
+            }
+        }
+        Ok(Banner {
+            deadlines: deadlines.into_iter().map(|i| self.item(i)).collect(),
+            follow_ups,
+            habits,
+        })
+    }
+
+    /// Scope of a view: an explicit identity, none with `all`, else the effective mode.
+    pub(crate) fn scope(
+        &self,
+        identity: &Option<String>,
+        all: bool,
+    ) -> Result<Option<IdentityId>, Error> {
+        if let Some(name) = identity {
+            Ok(Some(resolve::identity(self.state, name)?))
+        } else if all {
+            Ok(None)
+        } else {
+            Ok(self.cur.effective())
+        }
     }
 
     fn view_status(&self, item: &Item) -> ViewStatus {
@@ -477,7 +623,7 @@ pub fn run(
     settings: &Settings,
 ) -> Result<QueryOutput, Error> {
     let today = logical_day(now, settings)?;
-    let v = View::new(state, settings, today);
+    let v = View::new(state, settings, today, now);
     let warnings = load_warnings.len() + state.warnings.len();
     let filter = |name: &Option<String>| -> Result<Option<IdentityId>, Error> {
         Ok(name
@@ -491,8 +637,8 @@ pub fn run(
         .filter(|i| i.status == ItemStatus::Inbox)
         .count();
     Ok(match q {
-        Query::Today { identity } => {
-            let f = filter(identity)?;
+        Query::Today { identity, all } => {
+            let f = v.scope(identity, *all)?;
             let mut habits = Vec::new();
             for h in state
                 .habits
@@ -543,6 +689,10 @@ pub fn run(
                 actionable: v.actionable(f).into_iter().map(|i| v.item(i)).collect(),
                 inbox: inbox_count,
                 warnings,
+                scope: v.identity_name(f),
+                banner: v.banner(f)?,
+                mode: v.mode_view(),
+                timer: v.timer_view(),
             }))
         }
         Query::Inbox => QueryOutput::Inbox(
@@ -659,11 +809,17 @@ pub fn run(
                     .count(),
                 follow_ups: v.follow_ups(None).len(),
                 warnings,
+                mode: v.mode_view(),
+                timer: v.timer_view(),
             })
         }
         Query::Doctor => QueryOutput::Doctor(DoctorView {
             load: load_warnings.to_vec(),
             projection: state.warnings.clone(),
         }),
+        Query::Mode => QueryOutput::Mode(Box::new(ModeOutput {
+            mode: v.mode_view(),
+            timer: v.timer_view(),
+        })),
     })
 }

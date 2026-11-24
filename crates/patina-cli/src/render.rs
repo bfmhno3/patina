@@ -3,12 +3,14 @@
 use std::fmt::Write as _;
 
 use jiff::tz::TimeZone;
+use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::Command;
 use patina_core::engine::{CommandOutcome, Subject};
 use patina_core::event::{EventData, Frequency, HabitKind};
 use patina_core::ids;
 use patina_core::query::{
-    HabitView, ItemDetail, ItemView, QueryOutput, TodayView, TreeNode, ViewStatus,
+    Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, TimerView, TodayView, TreeNode,
+    ViewStatus,
 };
 use patina_core::time::Weekday;
 
@@ -33,7 +35,7 @@ fn weekday_name(w: Weekday) -> &'static str {
 }
 
 /// Confirmation text for a command.
-pub fn outcome(cmd: &Command, o: &CommandOutcome) -> String {
+pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String {
     let first = o.subjects.first();
     let (s, l) = (sref(first), label(first));
     let mut out = String::new();
@@ -137,6 +139,14 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome) -> String {
                 let _ = writeln!(out, "  {} {}", sref(Some(sub)), sub.label);
             }
         }
+        Command::SwitchMode(c) => {
+            let name = o.subjects.first().map_or("away", |s| s.label.as_str());
+            let _ = write!(out, "mode: {name}");
+            if let Some(at) = c.at {
+                let _ = write!(out, " from {}", stamp(at, now));
+            }
+            out.push('\n');
+        }
     }
     out
 }
@@ -211,9 +221,72 @@ fn habit_line(h: &HabitView) -> String {
     )
 }
 
-fn today(t: &TodayView) -> String {
+/// `HH:MM` for a time on `now`'s date, else `YYYY-MM-DD HH:MM` (both accepted by `--at`).
+fn stamp(ts: Timestamp, now: &ZonedDateTime) -> String {
+    let z = ts.to_zoned_datetime(now.time_zone().clone());
+    let fmt = if z.date() == now.date() {
+        "%H:%M"
+    } else {
+        "%Y-%m-%d %H:%M"
+    };
+    z.strftime(fmt).to_string()
+}
+
+/// Hints about a forgotten mode or a forgotten timer.
+fn hints(mode: &ModeView, timer: Option<&TimerView>, now: &ZonedDateTime) -> String {
+    let mut out = String::new();
+    if mode.auto_away
+        && let (Some(name), Some(last)) = (&mode.identity, mode.last_activity)
+    {
+        let t = stamp(last, now);
+        let _ = writeln!(
+            out,
+            "hint: no activity since {t}; '{name}' mode may have been left on. Correct with 'patina mode away --at {t}' or continue with 'patina mode {name}'."
+        );
+    }
+    if let Some(timer) = timer
+        && timer.idle
+        && let Some(last) = mode.last_activity
+    {
+        let short = timer.target.short.as_deref().unwrap_or("-");
+        let _ = writeln!(
+            out,
+            "hint: timer on {short} {} started {}, no activity since {}; if you stopped earlier: 'patina stop --at {}'.",
+            timer.target.label,
+            stamp(timer.started_at, now),
+            stamp(last, now),
+            stamp(last, now),
+        );
+    }
+    out
+}
+
+fn banner(b: &Banner, out: &mut String) -> bool {
+    if b.deadlines.is_empty() && b.follow_ups.is_empty() && b.habits.is_empty() {
+        return false;
+    }
+    out.push_str("Elsewhere\n");
+    for i in &b.deadlines {
+        let _ = writeln!(out, "  {}", item_line(i, true));
+    }
+    for i in &b.follow_ups {
+        let _ = writeln!(out, "  {}", item_line(i, true));
+    }
+    for h in &b.habits {
+        let _ = writeln!(out, "  {}", habit_line(h));
+    }
+    true
+}
+
+fn today(t: &TodayView, now: &ZonedDateTime) -> String {
     let mut out = String::new();
     let mut sections = 0;
+    if let Some(scope) = &t.scope {
+        let _ = writeln!(out, "[{scope}]");
+    }
+    if banner(&t.banner, &mut out) {
+        sections += 1;
+    }
     if !t.habits.is_empty() {
         sections += 1;
         out.push_str("Habits\n");
@@ -277,11 +350,12 @@ fn today(t: &TodayView) -> String {
         }
     }
     if sections == 0 && t.inbox == 0 {
-        return "nothing to do today\n".into();
+        out.push_str("nothing to do today\n");
     }
     if t.inbox > 0 {
         let _ = writeln!(out, "inbox: {}", t.inbox);
     }
+    out.push_str(&hints(&t.mode, t.timer.as_ref(), now));
     out
 }
 
@@ -385,10 +459,28 @@ fn status_key(s: ViewStatus) -> &'static str {
 }
 
 /// Text for a query result.
-pub fn query(o: &QueryOutput, tz: &TimeZone) -> String {
+pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
+    let tz = now.time_zone();
     let mut out = String::new();
     match o {
-        QueryOutput::Today(t) => return today(t),
+        QueryOutput::Today(t) => return today(t, now),
+        QueryOutput::Mode(m) => {
+            let name = m.mode.identity.as_deref().unwrap_or("away");
+            if m.mode.auto_away {
+                let _ = write!(out, "mode: away (idle, was {name})");
+            } else {
+                let _ = write!(out, "mode: {name}");
+            }
+            if let Some(since) = m.mode.since {
+                let _ = write!(out, " since {}", stamp(since, now));
+            }
+            out.push('\n');
+            if let Some(t) = &m.timer {
+                let short = t.target.short.as_deref().unwrap_or("-");
+                let _ = writeln!(out, "timer: {short} {} {}m", t.target.label, t.minutes);
+            }
+            out.push_str(&hints(&m.mode, m.timer.as_ref(), now));
+        }
         QueryOutput::Inbox(entries) => {
             if entries.is_empty() {
                 out.push_str("inbox is empty\n");
@@ -425,9 +517,17 @@ pub fn query(o: &QueryOutput, tz: &TimeZone) -> String {
             }
         }
         QueryOutput::Status(s) => {
+            let name = s.mode.identity.as_deref().unwrap_or("away");
+            let q = if s.mode.auto_away { "?" } else { "" };
+            let _ = write!(out, "mode:{name}{q}");
+            if let Some(t) = &s.timer {
+                let short = t.target.short.as_deref().unwrap_or("-");
+                let q = if t.idle { "?" } else { "" };
+                let _ = write!(out, " timer:{short}+{}m{q}", t.minutes);
+            }
             let _ = write!(
                 out,
-                "inbox:{} habits:{} due:{} follow-ups:{}",
+                " inbox:{} habits:{} due:{} follow-ups:{}",
                 s.inbox, s.habits_left, s.due, s.follow_ups
             );
             if s.warnings > 0 {

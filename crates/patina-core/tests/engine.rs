@@ -78,7 +78,13 @@ fn frontier_follows_dependencies_and_wrap_up() {
     assert_eq!(titles(l.clone()), ["P"]);
     assert!(l[0].wrap_up);
     match p
-        .query(Query::Today { identity: None }, NOW.parse().unwrap())
+        .query(
+            Query::Today {
+                identity: None,
+                all: false,
+            },
+            NOW.parse().unwrap(),
+        )
         .unwrap()
     {
         QueryOutput::Today(t) => assert_eq!(t.actionable.len(), 1),

@@ -10,6 +10,7 @@ use uuid::{ContextV7, Uuid};
 use crate::error::TimeError;
 use crate::event::*;
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, new_v7};
+use crate::mode;
 use crate::resolve::{self, ResolveError};
 use crate::state::{Habit, Item, ItemStatus, Rejection, State, project};
 use crate::time::{BACKFILL_DAYS, Settings, logical_day, week_start_of};
@@ -110,6 +111,9 @@ pub enum CommandError {
         /// The offending time.
         at: jiff::Timestamp,
     },
+    /// A backdated mode switch precedes the latest switch.
+    #[error("mode switch is earlier than the latest switch")]
+    BeforeLastModeSwitch,
 }
 
 macro_rules! cmd_structs {
@@ -217,6 +221,8 @@ cmd_structs! {
     pub struct PauseHabit { pub habit: String, pub from: Option<Date>, }
     /// Resume a habit.
     pub struct ResumeHabit { pub habit: String, pub from: Option<Date>, }
+    /// Switch identity mode (no identity means away), optionally backdated.
+    pub struct SwitchMode { pub identity: Option<String>, pub at: Option<jiff::Timestamp>, }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -269,6 +275,8 @@ pub enum Command {
     ResumeHabit(ResumeHabit),
     /// Undo this device's latest command.
     Undo,
+    /// Switch identity mode.
+    SwitchMode(SwitchMode),
 }
 
 /// Everything a command needs besides state.
@@ -323,6 +331,14 @@ fn add_days(day: Date, n: i64) -> Result<Date, CommandError> {
         .map_err(|e| TimeError::from(e).into())
 }
 
+fn check_not_future(at: jiff::Timestamp, now: jiff::Timestamp) -> Result<(), CommandError> {
+    if at > now {
+        Err(CommandError::FutureTime { at })
+    } else {
+        Ok(())
+    }
+}
+
 fn upd<T: PartialEq + Clone>(
     u: &Option<Update<T>>,
     current: &Option<T>,
@@ -357,12 +373,14 @@ fn identity_for(
     state: &State,
     given: &Option<String>,
     parent: Option<&Item>,
+    fallback: Option<IdentityId>,
 ) -> Result<IdentityId, CommandError> {
     if let Some(name) = given {
         return Ok(resolve::identity(state, name)?);
     }
     parent
         .and_then(|p| p.identity)
+        .or(fallback)
         .ok_or(CommandError::IdentityRequired)
 }
 
@@ -513,7 +531,7 @@ fn build(
                 .as_deref()
                 .map(|p| item_ref(state, p))
                 .transpose()?;
-            let identity = identity_for(state, &c.identity, parent)?;
+            let identity = identity_for(state, &c.identity, parent, None)?;
             let waiting_for = opt_text(&c.waiting_for)?;
             if c.follow_up.is_some() && waiting_for.is_none() {
                 return Err(CommandError::FollowUpWithoutWaiting);
@@ -538,7 +556,12 @@ fn build(
                 .as_deref()
                 .map(|p| item_ref(state, p))
                 .transpose()?;
-            let identity = identity_for(state, &c.identity, parent)?;
+            let identity = identity_for(
+                state,
+                &c.identity,
+                parent,
+                mode::mode_at(state, item.created_at),
+            )?;
             let waiting_for = opt_text(&c.waiting_for)?;
             if c.follow_up.is_some() && waiting_for.is_none() {
                 return Err(CommandError::FollowUpWithoutWaiting);
@@ -863,6 +886,33 @@ fn build(
         Command::Undo => vec![EventData::CommandUndone(CommandUndone {
             command: undo_target(log, device)?,
         })],
+        Command::SwitchMode(c) => {
+            let identity = c
+                .identity
+                .as_deref()
+                .map(|n| resolve::identity(state, n))
+                .transpose()?;
+            let now_ts = ctx.now.timestamp();
+            match c.at {
+                Some(at) => {
+                    check_not_future(at, now_ts)?;
+                    if state.modes.last().is_some_and(|m| at < m.at) {
+                        return Err(CommandError::BeforeLastModeSwitch);
+                    }
+                    if identity == mode::mode_at(state, at) {
+                        return Err(CommandError::NoChanges);
+                    }
+                    effective_at = Some(at);
+                }
+                None => {
+                    let cur = mode::current(state, now_ts, &ctx.settings);
+                    if identity == cur.identity && !cur.auto_away {
+                        return Err(CommandError::NoChanges);
+                    }
+                }
+            }
+            vec![EventData::ModeSwitched(ModeSwitched { identity })]
+        }
     };
     Ok(Built { datas, effective_at })
 }

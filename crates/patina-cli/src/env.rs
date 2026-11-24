@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use anyhow::{Context as _, Result, bail};
-use jiff::ZonedDateTime;
-use jiff::civil::Date;
+use jiff::civil::{Date, DateTime, Time};
+use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::Update;
 use patina_core::event::Source;
 use patina_core::ids::DeviceId;
@@ -108,5 +108,42 @@ pub fn parse_update(s: &str, today: Date) -> Result<Update<Date>> {
         Ok(Update::Clear)
     } else {
         Ok(Update::Set(parse_date(s, today)?))
+    }
+}
+
+/// Parses a past wall-clock time in `now`'s zone.
+///
+/// `HH:MM` is that time today, or yesterday when today's would be in the future;
+/// `YYYY-MM-DDTHH:MM` and `YYYY-MM-DD HH:MM` are explicit.
+pub fn parse_time(s: &str, now: &ZonedDateTime) -> Result<Timestamp> {
+    let s = s.trim();
+    let invalid = || anyhow::anyhow!("invalid time {s:?} (use HH:MM or YYYY-MM-DD HH:MM)");
+    let tz = now.time_zone().clone();
+    if let Ok(time) = Time::strptime("%H:%M", s) {
+        let at = now.date().to_datetime(time).to_zoned_datetime(tz)?;
+        if at.timestamp() > now.timestamp() {
+            return Ok(at.checked_sub(jiff::Span::new().days(1))?.timestamp());
+        }
+        return Ok(at.timestamp());
+    }
+    let dt = DateTime::strptime("%Y-%m-%dT%H:%M", s)
+        .or_else(|_| DateTime::strptime("%Y-%m-%d %H:%M", s))
+        .map_err(|_| invalid())?;
+    Ok(dt.to_zoned_datetime(tz)?.timestamp())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn time_of_day_rolls_back_past_now() {
+        let now: ZonedDateTime = "2026-11-24T09:00:00+08:00[Asia/Shanghai]".parse().unwrap();
+        let at = |s: &str| parse_time(s, &now).unwrap().to_string();
+        assert_eq!(at("08:30"), "2026-11-24T00:30:00Z");
+        assert_eq!(at("23:50"), "2026-11-23T15:50:00Z");
+        assert_eq!(at("2026-11-20 10:00"), "2026-11-20T02:00:00Z");
+        assert_eq!(at("2026-11-20T10:00"), "2026-11-20T02:00:00Z");
+        assert!(parse_time("noon", &now).is_err());
     }
 }

@@ -64,6 +64,10 @@ pub struct Settings {
     pub week_start: Weekday,
     /// Habit strength half-life in days.
     pub habit_half_life_days: f64,
+    /// Minutes without activity after which identity mode counts as away.
+    pub away_after_minutes: u32,
+    /// Local hour from which other identities' unfinished habits enter the banner.
+    pub evening_hour: u8,
 }
 
 impl Default for Settings {
@@ -72,6 +76,8 @@ impl Default for Settings {
             day_start_hour: 4,
             week_start: Weekday::Mon,
             habit_half_life_days: 14.0,
+            away_after_minutes: 120,
+            evening_hour: 20,
         }
     }
 }
@@ -87,6 +93,9 @@ impl Settings {
         }
         if !(self.habit_half_life_days.is_finite() && self.habit_half_life_days > 0.0) {
             return Err(SettingsError::HalfLife(self.habit_half_life_days));
+        }
+        if self.evening_hour > 23 {
+            return Err(SettingsError::EveningHour(self.evening_hour));
         }
         Ok(())
     }

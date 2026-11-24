@@ -8,6 +8,7 @@ use std::process::ExitCode;
 
 use anyhow::Result;
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+use jiff::ZonedDateTime;
 use jiff::civil::Date;
 use patina_core::command::{self, Command, Update};
 use patina_core::engine::Patina;
@@ -16,7 +17,7 @@ use patina_core::query::{Query, QueryOutput};
 use patina_core::store::Store;
 use patina_core::time::{Weekday, logical_day};
 
-use crate::env::{Env, parse_date, parse_update};
+use crate::env::{Env, parse_date, parse_time, parse_update};
 
 /// Identity-driven personal task system.
 #[derive(Debug, Parser)]
@@ -104,6 +105,17 @@ enum Cmd {
     Today {
         #[arg(short, long)]
         identity: Option<String>,
+        /// Ignore the identity mode.
+        #[arg(long, conflicts_with = "identity")]
+        all: bool,
+    },
+    /// Show or switch the identity mode.
+    Mode {
+        /// An identity name or `away`; omit to show the current mode.
+        target: Option<String>,
+        /// When the switch happened (HH:MM or YYYY-MM-DD HH:MM), to correct a forgotten switch.
+        #[arg(long, requires = "target")]
+        at: Option<String>,
     },
     /// List untriaged captures.
     Inbox,
@@ -336,7 +348,7 @@ fn opt_update(s: &Option<String>, today: Date) -> Result<Option<Update<Date>>> {
     s.as_deref().map(|s| parse_update(s, today)).transpose()
 }
 
-fn action(cmd: Cmd, today: Date) -> Result<Action> {
+fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
     use command as c;
     Ok(match cmd {
         Cmd::Init => Action::Run(Command::Init),
@@ -487,7 +499,18 @@ fn action(cmd: Cmd, today: Date) -> Result<Action> {
             }
             IdentityCmd::List => Action::Ask(Query::Identities),
         },
-        Cmd::Today { identity } => Action::Ask(Query::Today { identity }),
+        Cmd::Today { identity, all } => Action::Ask(Query::Today { identity, all }),
+        Cmd::Mode { target, at } => match target {
+            None => Action::Ask(Query::Mode),
+            Some(t) => Action::Run(Command::SwitchMode(c::SwitchMode {
+                identity: if t.eq_ignore_ascii_case("away") {
+                    None
+                } else {
+                    Some(t)
+                },
+                at: at.as_deref().map(|s| parse_time(s, now)).transpose()?,
+            })),
+        },
         Cmd::Inbox => Action::Ask(Query::Inbox),
         Cmd::List { identity } => Action::Ask(Query::List { identity }),
         Cmd::Tree { root, all } => Action::Ask(Query::Tree { root, all }),
@@ -509,14 +532,14 @@ fn run(cli: Cli) -> Result<()> {
     let patina = Patina::new(Store::new(env.root.clone(), env.device));
     let settings = patina.settings()?;
     let today = logical_day(&env.now, &settings)?;
-    let action = action(cli.command, today)?;
+    let action = action(cli.command, today, &env.now)?;
     match action {
         Action::Run(cmd) => {
             let outcome = patina.run(cmd.clone(), env.now.clone(), env.source.clone())?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&outcome)?);
             } else {
-                print!("{}", render::outcome(&cmd, &outcome));
+                print!("{}", render::outcome(&cmd, &outcome, &env.now));
             }
             warn(outcome.warnings);
         }
@@ -525,7 +548,7 @@ fn run(cli: Cli) -> Result<()> {
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&out)?);
             } else {
-                print!("{}", render::query(&out, env.now.time_zone()));
+                print!("{}", render::query(&out, &env.now));
             }
             if let QueryOutput::Today(t) = &out {
                 warn(t.warnings);

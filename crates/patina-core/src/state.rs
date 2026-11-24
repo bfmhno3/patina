@@ -265,6 +265,15 @@ pub struct Warning {
     pub rejection: Rejection,
 }
 
+/// One identity-mode switch (`None` is away).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModeSwitch {
+    /// Effective time of the switch.
+    pub at: Timestamp,
+    /// The identity switched to.
+    pub identity: Option<IdentityId>,
+}
+
 /// Projected state.
 #[derive(Clone, Debug, Default)]
 pub struct State {
@@ -278,6 +287,8 @@ pub struct State {
     pub warnings: Vec<Warning>,
     /// Recorded time of every event, in log order (idle detection and active days).
     pub activity: Vec<Timestamp>,
+    /// Mode switches sorted by effective time.
+    pub modes: Vec<ModeSwitch>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -786,6 +797,20 @@ impl State {
                 {
                     last.1 = Some(d.from);
                 }
+            }
+            EventData::ModeSwitched(d) => {
+                if let Some(id) = d.identity {
+                    self.identity_ok(id)?;
+                }
+                let at = event.effective_at;
+                let pos = self.modes.partition_point(|m| m.at <= at);
+                self.modes.insert(
+                    pos,
+                    ModeSwitch {
+                        at,
+                        identity: d.identity,
+                    },
+                );
             }
             EventData::CommandUndone(_) => {}
         }
