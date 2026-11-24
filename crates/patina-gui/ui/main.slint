@@ -1,0 +1,30 @@
+import { AboutSlint } from "std-widgets.slint";
+import {
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    MaterialWindow,
+} from "@material";
+
+export { MaterialWindowAdapter } from "@material";
+
+export component MainWindow inherits MaterialWindow {
+    title: @tr("Patina");
+    preferred_width: 400px;
+    preferred_height: 720px;
+
+    VerticalLayout {
+        alignment: center;
+        padding: MaterialStyleMetrics.padding_16;
+        spacing: MaterialStyleMetrics.spacing_16;
+
+        MaterialText {
+            text: @tr("Patina");
+            style: MaterialTypography.display_small;
+            horizontal_alignment: center;
+        }
+
+        // Slint Royalty-free License attribution. Move into the About page once it exists; never remove.
+        AboutSlint { }
+    }
+}

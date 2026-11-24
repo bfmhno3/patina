@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+authors = ["bfmhno3"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bfmhno3/patina"
+publish = false
+
+[workspace.dependencies]
+patina-core = { path = "crates/patina-core" }
+clap = { version = "4", features = ["derive"] }
+slint = { version = "1.19", features = ["backend-android-activity-06"] }
+slint-build = "1.19"
+
+[workspace.lints.rust]
+rust_2018_idioms = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
