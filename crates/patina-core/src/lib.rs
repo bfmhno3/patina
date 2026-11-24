@@ -5,3 +5,18 @@
 //! Projections are pure functions of the event log and an explicit `now`;
 //! nothing here reads the system clock or produces user-interface text.
 #![forbid(unsafe_code)]
+
+pub mod command;
+pub mod dag;
+pub mod engine;
+pub mod error;
+pub mod event;
+pub mod habit;
+pub mod ids;
+pub mod query;
+pub mod resolve;
+pub mod state;
+pub mod store;
+#[cfg(test)]
+mod testutil;
+pub mod time;
