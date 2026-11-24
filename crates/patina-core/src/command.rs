@@ -302,6 +302,8 @@ cmd_structs! {
         pub conclusion: Option<String>,
         #[serde(default)]
         pub focus: Vec<String>,
+        #[serde(default)]
+        pub minimal: bool,
     }
     /// Act on the recommendation card.
     pub struct NextCmd { pub action: NextAction, }
@@ -1424,6 +1426,7 @@ fn build(
             vec![EventData::ReviewCompleted(ReviewCompleted {
                 conclusion: opt_text(&c.conclusion)?,
                 focus,
+                minimal: c.minimal,
             })]
         }
         Command::Next(c) => match &c.action {

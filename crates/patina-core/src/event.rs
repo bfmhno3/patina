@@ -398,6 +398,8 @@ payloads! {
         pub conclusion: Option<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         pub focus: Vec<ItemId>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub minimal: bool,
     }
     /// `recommendation.shown` (observation)
     pub struct RecommendationShown {

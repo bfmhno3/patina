@@ -481,6 +481,127 @@ fn card(v: &NextView, now: &ZonedDateTime) -> String {
     out
 }
 
+/// `1h05`, `-0h30`.
+fn hm(minutes: i64) -> String {
+    let sign = if minutes < 0 { "-" } else { "" };
+    let m = minutes.abs();
+    format!("{sign}{}h{:02}", m / 60, m % 60)
+}
+
+fn signed(n: i64) -> String {
+    if n > 0 {
+        format!("+{n}")
+    } else {
+        n.to_string()
+    }
+}
+
+fn review_stats(r: &ReviewView, now: &ZonedDateTime, out: &mut String) {
+    if !r.open_projects.is_empty() {
+        out.push_str("Open projects\n");
+        for p in &r.open_projects {
+            let _ = writeln!(
+                out,
+                "  {} {}: {} done, {} open ({} open)",
+                p.project.short,
+                p.project.title,
+                p.done,
+                p.open,
+                signed(p.open_change)
+            );
+        }
+    }
+    if r.time
+        .iter()
+        .any(|t| t.tracked_minutes > 0 || t.target_minutes.is_some() || t.mode_minutes > 0)
+    {
+        out.push_str("Time\n");
+        for t in &r.time {
+            let _ = write!(out, "  [{}] tracked {}", t.identity, hm(t.tracked_minutes));
+            if let (Some(target), Some(dev)) = (t.target_minutes, t.deviation_minutes) {
+                let plus = if dev > 0 { "+" } else { "" };
+                let _ = write!(out, " / target {} ({plus}{})", hm(target), hm(dev));
+            }
+            let _ = writeln!(out, "  mode {}", hm(t.mode_minutes));
+        }
+    }
+    if !r.interruptions.is_empty() {
+        out.push_str("Interruptions\n");
+        let sources: Vec<String> = r
+            .interruption_sources
+            .iter()
+            .map(|s| format!("{} {}", s.identity.as_deref().unwrap_or("inbox"), s.count))
+            .collect();
+        let _ = writeln!(
+            out,
+            "  {} total: {}",
+            r.interruptions.len(),
+            sources.join(", ")
+        );
+        for i in &r.interruptions {
+            let day = i.at.to_zoned_datetime(now.time_zone().clone()).date();
+            let _ = writeln!(out, "    {day} {}", i.title);
+        }
+    }
+    if !r.habits.is_empty() {
+        out.push_str("Habits\n");
+        for h in &r.habits {
+            let _ = writeln!(
+                out,
+                "  {} [{}] {}% ({} points)",
+                h.habit.name,
+                h.habit.identity,
+                (h.habit.strength * 100.0).round(),
+                signed((h.change * 100.0).round() as i64)
+            );
+        }
+    }
+    let c = &r.calibration;
+    if c.samples > 0 || !c.conversions.is_empty() || c.weeks.iter().any(|w| w.samples > 0) {
+        out.push_str("Calibration\n");
+        match c.error {
+            Some(e) => {
+                let _ = writeln!(out, "  error {e:.2} over {}", c.samples);
+            }
+            None => out.push_str("  no timed estimates\n"),
+        }
+        if let Some(t) = c.by_tag.first() {
+            let _ = writeln!(out, "  worst: #{} {:.2}", t.tag, t.error);
+        }
+        let weeks: Vec<String> = c
+            .weeks
+            .iter()
+            .map(|w| {
+                let e = w
+                    .error
+                    .map_or_else(|| "-".to_string(), |e| format!("{e:.2}"));
+                format!("{} {e}", w.week_start)
+            })
+            .collect();
+        let _ = writeln!(out, "  weeks: {}", weeks.join(" "));
+        for k in &c.conversions {
+            let tag = k
+                .tag
+                .as_ref()
+                .map_or_else(|| "all".to_string(), |t| format!("#{t}"));
+            let _ = writeln!(
+                out,
+                "  {tag} {} ~{}m (default {}m, {} samples)",
+                size_name(k.size),
+                k.minutes,
+                k.default_minutes,
+                k.samples
+            );
+        }
+    }
+    if !r.notes.is_empty() {
+        out.push_str("Notes\n");
+        for n in &r.notes {
+            let _ = writeln!(out, "  {} {}: {}", n.day, n.subject, n.text);
+        }
+    }
+}
+
 fn review(r: &ReviewView, now: &ZonedDateTime) -> String {
     let mut out = String::new();
     match r.since {
@@ -509,6 +630,7 @@ fn review(r: &ReviewView, now: &ZonedDateTime) -> String {
             );
         }
     }
+    review_stats(r, now, &mut out);
     if !r.postponed.is_empty() {
         out.push_str("Postponed\n");
         for p in &r.postponed {

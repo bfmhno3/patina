@@ -12,6 +12,7 @@ pub mod dag;
 pub mod engine;
 pub mod error;
 pub mod event;
+pub mod gauges;
 pub mod habit;
 pub mod ids;
 pub mod mode;

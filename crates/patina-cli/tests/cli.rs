@@ -343,3 +343,19 @@ fn identity_target_shows_in_list() {
     let out = s.run_as(None, &["identity", "target", "work", "x"]);
     assert!(!out.status.success());
 }
+
+#[test]
+fn minimal_review_is_recorded_in_the_log() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&["review", "done", "--minimal"]);
+    let events = std::fs::read_dir(s.dir.path().join("events")).unwrap();
+    let text: String = events
+        .map(|e| std::fs::read_to_string(e.unwrap().path()).unwrap())
+        .collect();
+    let line = text
+        .lines()
+        .find(|l| l.contains("review.completed"))
+        .unwrap();
+    assert!(line.contains("\"minimal\":true"), "{line}");
+}

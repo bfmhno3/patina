@@ -19,6 +19,10 @@ use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
 use crate::store::LoadWarning;
 use crate::time::{Settings, logical_day};
 
+pub use crate::gauges::{
+    CalibrationView, HabitTrend, IdentityTime, InterruptionView, NoteKind, SourceCount,
+    StrengthPoint, TagError, WeekError, WeekNote,
+};
 pub use crate::recommend::{Card, ElsewhereCount, NextView};
 pub use crate::review::{CompletedGroup, PostponedView, ProjectProgress, ReviewView, WaitingView};
 use crate::timer;
@@ -108,6 +112,8 @@ pub struct InboxEntry {
     pub text: String,
     /// Capture time.
     pub captured_at: Timestamp,
+    /// Identity mode when it was captured (a prefill for triage).
+    pub identity_hint: Option<String>,
 }
 
 /// An item as shown in lists.
@@ -640,11 +646,12 @@ impl<'a> View<'a> {
                 short: ids::short(&i.id.as_uuid(), self.item_len),
                 text: i.title.clone(),
                 captured_at: i.created_at,
+                identity_hint: self.identity_name(mode::mode_at(self.state, i.created_at)),
             })
             .collect()
     }
 
-    fn habit_timed(&self, h: &Habit) -> Result<habit::Timed, TimeError> {
+    pub(crate) fn habit_timed(&self, h: &Habit) -> Result<habit::Timed, TimeError> {
         if matches!(h.kind, HabitKind::Duration { .. }) {
             Ok(timer::habit_seconds(
                 self.state,

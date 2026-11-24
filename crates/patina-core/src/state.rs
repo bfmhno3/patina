@@ -11,7 +11,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::event::{
-    AbandonReason, Category, Estimate, Event, EventData, Frequency, HabitKind, Repeat, TimerTarget,
+    AbandonReason, Category, Estimate, Event, EventData, Frequency, HabitKind, InterruptOutcome,
+    Repeat, TimerTarget,
 };
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
 use crate::recommend::CardKind;
@@ -343,6 +344,19 @@ pub struct Review {
     pub conclusion: Option<String>,
     /// Items chosen as the coming week's focus.
     pub focus: Vec<ItemId>,
+    /// The minimal (1/5/7) version of the review.
+    pub minimal: bool,
+}
+
+/// An interruption of a running timer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Interruption {
+    /// Effective time.
+    pub at: Timestamp,
+    /// The item made for the interruption.
+    pub item: ItemId,
+    /// What became of it.
+    pub outcome: InterruptOutcome,
 }
 
 /// One timer segment.
@@ -388,6 +402,8 @@ pub struct State {
     pub running: Option<SegmentId>,
     /// Weekly reviews sorted by effective time.
     pub reviews: Vec<Review>,
+    /// Interruptions sorted by effective time.
+    pub interruptions: Vec<Interruption>,
     /// Latest card shown per device.
     pub last_shown: BTreeMap<DeviceId, Shown>,
     /// Latest skip of the review and triage cards.
@@ -1052,6 +1068,16 @@ impl State {
                 {
                     i.left_off = d.left_off.clone();
                 }
+                let at = event.effective_at;
+                let pos = self.interruptions.partition_point(|i| i.at <= at);
+                self.interruptions.insert(
+                    pos,
+                    Interruption {
+                        at,
+                        item: d.item,
+                        outcome: d.outcome,
+                    },
+                );
             }
             EventData::ReviewCompleted(d) => {
                 if let Some(c) = &d.conclusion {
@@ -1068,6 +1094,7 @@ impl State {
                         at,
                         conclusion: d.conclusion.clone(),
                         focus: d.focus.clone(),
+                        minimal: d.minimal,
                     },
                 );
             }

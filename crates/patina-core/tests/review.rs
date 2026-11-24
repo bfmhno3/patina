@@ -69,6 +69,7 @@ fn finish(p: &Patina, day: &str, hhmm: &str, focus: &[&str]) -> Result<(), Error
         Command::CompleteReview(CompleteReview {
             conclusion: Some("steady".into()),
             focus: focus.iter().map(|s| s.to_string()).collect(),
+            minimal: false,
         }),
         at(day, hhmm),
         Source::Cli,
@@ -164,4 +165,153 @@ fn project_progress_counts_leaves_completed_in_the_window() {
         (pr.project.title.as_str(), pr.completed, pr.done, pr.open),
         ("thesis", 1, 2, 1)
     );
+}
+
+fn run(p: &Patina, day: &str, hhmm: &str, cmd: Command) {
+    p.run(cmd, at(day, hhmm), Source::Cli).unwrap();
+}
+
+fn child(p: &Patina, title: &str, parent: &str, day: &str, hhmm: &str) {
+    run(
+        p,
+        day,
+        hhmm,
+        Command::AddItem(Box::new(AddItem {
+            title: title.into(),
+            identity: None,
+            parent: Some(parent.into()),
+            tags: vec![],
+            defer: None,
+            scheduled: None,
+            deadline: None,
+            waiting_for: None,
+            follow_up: None,
+            important: false,
+            size: None,
+            repeat: None,
+        })),
+    );
+}
+
+#[test]
+fn review_statistics_cover_time_interruptions_notes_and_projects() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = patina(&dir);
+    add(&p, "proj", "work");
+    child(&p, "p1", "proj", "16", "08:02");
+    finish(&p, "18", "08:00", &[]).unwrap();
+
+    run(
+        &p,
+        "19",
+        "08:20",
+        Command::SetIdentityTarget(SetIdentityTarget {
+            identity: "work".into(),
+            weekly_minutes: Some(600),
+        }),
+    );
+    add(&p, "w", "work");
+    add(&p, "l", "life");
+    child(&p, "p2", "proj", "19", "08:25");
+    run(
+        &p,
+        "19",
+        "08:30",
+        Command::AddHabit(AddHabit {
+            name: "read".into(),
+            identity: "study".into(),
+            kind: patina_core::event::HabitKind::Check,
+            frequency: patina_core::event::Frequency::Daily,
+            cue: None,
+        }),
+    );
+    let mode = |id: &str| {
+        Command::SwitchMode(SwitchMode {
+            identity: Some(id.into()),
+            at: None,
+        })
+    };
+    let start = |item: &str| {
+        Command::StartTimer(StartTimer {
+            target: TimerRef::Item(item.into()),
+            at: None,
+        })
+    };
+    run(&p, "19", "09:00", mode("work"));
+    run(&p, "19", "10:00", start("w"));
+    run(
+        &p,
+        "19",
+        "10:30",
+        Command::Interrupt(Interrupt {
+            text: "call".into(),
+            now: true,
+            identity: Some("work".into()),
+            left_off: None,
+        }),
+    );
+    run(
+        &p,
+        "19",
+        "11:30",
+        Command::Complete(Complete {
+            item: "call".into(),
+            note: Some("nailed it".into()),
+        }),
+    );
+    run(
+        &p,
+        "19",
+        "14:30",
+        Command::Capture(Capture {
+            text: "idea".into(),
+        }),
+    );
+    run(
+        &p,
+        "19",
+        "14:31",
+        Command::CheckIn(CheckIn {
+            habit: "read".into(),
+            day: None,
+            count: None,
+            note: Some("two chapters".into()),
+        }),
+    );
+    run(&p, "19", "15:00", mode("life"));
+    run(&p, "19", "15:10", start("l"));
+    run(
+        &p,
+        "19",
+        "15:40",
+        Command::StopTimer(StopTimer { at: None }),
+    );
+
+    let r = review(&p, "25", "08:00");
+    let work = r.time.iter().find(|t| t.identity == "work").unwrap();
+    assert_eq!(work.tracked_minutes, 90);
+    assert_eq!(work.target_minutes, Some(600));
+    assert_eq!(work.deviation_minutes, Some(-510));
+    // 09:00-15:00 in work mode minus the 13:30-14:30 stretch with no activity or timer.
+    // Nothing happened between 11:30 and 14:30: the last hour of that gap is idle.
+    assert_eq!(work.mode_minutes, 360 - 60);
+    let life = r.time.iter().find(|t| t.identity == "life").unwrap();
+    assert_eq!(life.tracked_minutes, 30);
+    assert_eq!(life.target_minutes, None);
+    assert_eq!(r.interruption_sources.len(), 1);
+    assert_eq!(r.interruption_sources[0].identity.as_deref(), Some("work"));
+    assert_eq!(r.interruption_sources[0].count, 1);
+    let kinds: Vec<_> = r
+        .notes
+        .iter()
+        .map(|n| (n.subject.as_str(), n.kind))
+        .collect();
+    assert!(kinds.contains(&("call", patina_core::query::NoteKind::Completion)));
+    assert!(kinds.contains(&("read", patina_core::query::NoteKind::CheckIn)));
+    let proj = r
+        .open_projects
+        .iter()
+        .find(|pr| pr.project.title == "proj")
+        .unwrap();
+    assert_eq!(proj.open_change, 1);
 }

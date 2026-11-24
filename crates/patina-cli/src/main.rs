@@ -497,6 +497,9 @@ enum ReviewCmd {
         /// A focus item for the coming week (at most one per identity).
         #[arg(long)]
         focus: Vec<String>,
+        /// Record the minimal (steps 1, 5, 7) review.
+        #[arg(long)]
+        minimal: bool,
     },
 }
 
@@ -779,12 +782,15 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
         },
         Cmd::Review { cmd } => match cmd {
             None => Action::Ask(Query::Review),
-            Some(ReviewCmd::Done { conclusion, focus }) => {
-                Action::Run(Command::CompleteReview(c::CompleteReview {
-                    conclusion,
-                    focus,
-                }))
-            }
+            Some(ReviewCmd::Done {
+                conclusion,
+                focus,
+                minimal,
+            }) => Action::Run(Command::CompleteReview(c::CompleteReview {
+                conclusion,
+                focus,
+                minimal,
+            })),
         },
         Cmd::Inbox => Action::Ask(Query::Inbox),
         Cmd::List { identity } => Action::Ask(Query::List { identity }),

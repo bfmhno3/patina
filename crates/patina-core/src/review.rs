@@ -10,6 +10,9 @@ use serde::Serialize;
 use crate::dag;
 use crate::engine::Error;
 use crate::error::TimeError;
+use crate::gauges::{
+    self, CalibrationView, HabitTrend, IdentityTime, InterruptionView, SourceCount, WeekNote,
+};
 use crate::query::{InboxEntry, ItemView, View};
 use crate::state::{Item, ItemStatus, State};
 use crate::time::{Settings, last_on_or_before, logical_day};
@@ -117,6 +120,46 @@ pub struct ProjectProgress {
     pub done: usize,
     /// Leaves still open.
     pub open: usize,
+    /// Open leaves now minus open leaves at the window start.
+    pub open_change: i64,
+}
+
+/// Just before the earliest recorded activity, segment start, or mode switch, so that a
+/// strict "after the window start" test includes everything; `now` when there is none.
+fn first_activity(state: &State, now: Timestamp) -> Timestamp {
+    state
+        .activity
+        .iter()
+        .copied()
+        .chain(state.segments.values().map(|s| s.start))
+        .chain(state.modes.iter().map(|m| m.at))
+        .min()
+        .map_or(now, |t| t - jiff::SignedDuration::from_nanos(1))
+}
+
+/// Progress of `p`'s leaves relative to the window starting at `window_start`.
+pub(crate) fn progress(v: &View<'_>, p: &Item, window_start: Timestamp) -> ProjectProgress {
+    let now = v.now.timestamp();
+    let leaves: Vec<&Item> = dag::subtree(v.state, p.id)
+        .into_iter()
+        .filter(|id| *id != p.id)
+        .filter_map(|id| v.state.items.get(&id))
+        .filter(|i| i.children.is_empty() && i.status != ItemStatus::Discarded)
+        .collect();
+    let count = |f: &dyn Fn(&Item) -> bool| leaves.iter().filter(|i| f(i)).count();
+    let open = count(&|i| i.status == ItemStatus::Todo);
+    let open_at_start =
+        count(&|i| i.created_at <= window_start && i.settled_at.is_none_or(|s| s > window_start));
+    ProjectProgress {
+        project: v.item(p),
+        completed: count(&|i| {
+            i.status == ItemStatus::Done
+                && i.settled_at.is_some_and(|t| t > window_start && t <= now)
+        }),
+        done: count(&|i| i.status == ItemStatus::Done),
+        open,
+        open_change: open as i64 - open_at_start as i64,
+    }
 }
 
 /// An item postponed again and again.
@@ -158,6 +201,22 @@ pub struct ReviewView {
     pub inbox: Vec<InboxEntry>,
     /// Last review's focus items that are still open.
     pub focus: Vec<ItemView>,
+    /// Where the statistics window starts.
+    pub window_start: Timestamp,
+    /// Open projects with progress and open-count change.
+    pub open_projects: Vec<ProjectProgress>,
+    /// Time per identity against its target.
+    pub time: Vec<IdentityTime>,
+    /// Interruptions in the window.
+    pub interruptions: Vec<InterruptionView>,
+    /// Interruptions per source identity.
+    pub interruption_sources: Vec<SourceCount>,
+    /// Habit strength trends.
+    pub habits: Vec<HabitTrend>,
+    /// Estimate calibration.
+    pub calibration: CalibrationView,
+    /// Completion and check-in notes of the window.
+    pub notes: Vec<WeekNote>,
 }
 
 /// Builds the review summary.
@@ -169,8 +228,8 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
     let tz = v.now.time_zone();
     let now = v.now.timestamp();
     let since = since(state);
-    let in_window =
-        |t: Option<Timestamp>| t.is_some_and(|t| since.is_none_or(|s| t > s) && t <= now);
+    let window_start = since.unwrap_or_else(|| first_activity(state, now));
+    let in_window = |t: Option<Timestamp>| t.is_some_and(|t| t > window_start && t <= now);
 
     let mut done: Vec<&Item> = state
         .items
@@ -195,31 +254,10 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
         .filter(|i| i.parent.is_none() && !i.children.is_empty())
         .filter(|i| i.status != ItemStatus::Discarded)
     {
-        let leaves: Vec<&Item> = dag::subtree(state, p.id)
-            .into_iter()
-            .filter(|id| *id != p.id)
-            .filter_map(|id| state.items.get(&id))
-            .filter(|i| i.children.is_empty() && i.status != ItemStatus::Discarded)
-            .collect();
-        let completed = leaves
-            .iter()
-            .filter(|i| i.status == ItemStatus::Done && in_window(i.settled_at))
-            .count();
-        if completed == 0 {
-            continue;
+        let progress = progress(v, p, window_start);
+        if progress.completed > 0 {
+            projects.push(progress);
         }
-        projects.push(ProjectProgress {
-            project: v.item(p),
-            completed,
-            done: leaves
-                .iter()
-                .filter(|i| i.status == ItemStatus::Done)
-                .count(),
-            open: leaves
-                .iter()
-                .filter(|i| i.status == ItemStatus::Todo)
-                .count(),
-        });
     }
 
     let active = active_days(state, tz, settings)?;
@@ -276,6 +314,8 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
         }))
     });
 
+    let (interruptions, interruption_sources) = gauges::interruptions(v, window_start);
+
     Ok(ReviewView {
         today,
         since,
@@ -286,6 +326,14 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
         waiting,
         inbox: v.inbox_entries(),
         focus,
+        window_start,
+        open_projects: gauges::open_projects(v, window_start),
+        time: gauges::time(v, window_start),
+        interruptions,
+        interruption_sources,
+        habits: gauges::habits(v, window_start)?,
+        calibration: gauges::calibration(v, window_start)?,
+        notes: gauges::notes(v, window_start)?,
     })
 }
 
@@ -388,6 +436,7 @@ mod tests {
             EventData::ReviewCompleted(ReviewCompleted {
                 conclusion: None,
                 focus: vec![],
+                minimal: false,
             }),
             ts("2026-11-22T12:00:00Z"),
             ts("2026-11-22T12:00:00Z"),
