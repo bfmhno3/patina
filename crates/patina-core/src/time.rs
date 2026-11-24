@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{SettingsError, TimeError};
 use crate::event::Size;
+use crate::visibility::McpSettings;
 
 /// How many days back a habit may be backfilled (and skipped).
 pub const BACKFILL_DAYS: i64 = 2;
@@ -189,6 +190,8 @@ pub struct Settings {
     pub recommend: Weights,
     /// Break reminders.
     pub rhythm: RhythmSettings,
+    /// What MCP clients may read.
+    pub mcp: McpSettings,
 }
 
 impl Default for Settings {
@@ -207,6 +210,7 @@ impl Default for Settings {
             skip_cooldown_hours: 4,
             recommend: Weights::default(),
             rhythm: RhythmSettings::default(),
+            mcp: McpSettings::default(),
         }
     }
 }

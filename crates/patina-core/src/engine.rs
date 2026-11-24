@@ -14,6 +14,7 @@ use crate::query::{self, Query, QueryOutput};
 use crate::state::{ItemStatus, State, project};
 use crate::store::{Store, StoreError};
 use crate::time::Settings;
+use crate::visibility;
 
 /// Facade error.
 #[derive(Debug, thiserror::Error, Serialize)]
@@ -411,6 +412,20 @@ impl Patina {
         let settings = self.store.load_settings()?;
         let log = self.store.load()?;
         let state = project(&log.events);
+        query::run(&q, &state, &log.warnings, &now, &settings)
+    }
+
+    /// Like [`Patina::query`], but over the state redacted to the identities listed in
+    /// `[mcp] visible_identities` (what an MCP client may read).
+    ///
+    /// # Errors
+    /// Storage errors, unresolved references, or date overflow.
+    pub fn query_visible(&self, q: Query, now: ZonedDateTime) -> Result<QueryOutput, Error> {
+        let settings = self.store.load_settings()?;
+        let log = self.store.load()?;
+        let state = project(&log.events);
+        let visible = visibility::visible_ids(&state, &settings.mcp.visible_identities);
+        let state = visibility::redact(&state, &visible);
         query::run(&q, &state, &log.warnings, &now, &settings)
     }
 }

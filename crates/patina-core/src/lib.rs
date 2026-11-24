@@ -27,3 +27,4 @@ pub mod store;
 mod testutil;
 pub mod time;
 pub mod timer;
+pub mod visibility;
