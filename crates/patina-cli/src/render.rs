@@ -238,6 +238,32 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
                 let _ = writeln!(out, "target {l}: none");
             }
         },
+        Command::SetRhythm(c) => {
+            let _ = writeln!(out, "rhythm: {}", rhythm_name(c.mode));
+        }
+        Command::StartBreak => {
+            stopped_line(o, &mut out);
+            for e in &o.events {
+                if let EventData::BreakStarted(d) = &e.data {
+                    let until =
+                        e.effective_at + jiff::SignedDuration::from_mins(i64::from(d.minutes));
+                    let _ = writeln!(
+                        out,
+                        "break: {} {}m until {}",
+                        break_name(d.kind),
+                        d.minutes,
+                        stamp(until, now)
+                    );
+                }
+            }
+        }
+        Command::SnoozeBreak => {
+            for e in &o.events {
+                if let EventData::BreakSnoozed(d) = &e.data {
+                    let _ = writeln!(out, "snoozed {}m", d.minutes);
+                }
+            }
+        }
         Command::Undo => {
             let _ = writeln!(out, "undid: {}", o.undone.join(", "));
             for sub in &o.subjects {
@@ -260,6 +286,24 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
         }
     }
     out
+}
+
+fn rhythm_name(m: patina_core::event::RhythmMode) -> &'static str {
+    use patina_core::event::RhythmMode;
+    match m {
+        RhythmMode::Fixed => "fixed",
+        RhythmMode::Flowtime => "flowtime",
+        RhythmMode::Off => "off",
+    }
+}
+
+fn break_name(k: patina_core::event::BreakKind) -> &'static str {
+    use patina_core::event::BreakKind;
+    match k {
+        BreakKind::Short => "short",
+        BreakKind::Long => "long",
+        BreakKind::Flow => "flow",
+    }
 }
 
 /// Minutes as hours: `20h` when whole, else one decimal (`7.5h`).
@@ -516,7 +560,11 @@ fn review_stats(r: &ReviewView, now: &ZonedDateTime, out: &mut String) {
         .any(|t| t.tracked_minutes > 0 || t.target_minutes.is_some() || t.mode_minutes > 0)
     {
         out.push_str("Time\n");
-        for t in &r.time {
+        for t in r
+            .time
+            .iter()
+            .filter(|t| t.tracked_minutes > 0 || t.target_minutes.is_some() || t.mode_minutes > 0)
+        {
             let _ = write!(out, "  [{}] tracked {}", t.identity, hm(t.tracked_minutes));
             if let (Some(target), Some(dev)) = (t.target_minutes, t.deviation_minutes) {
                 let plus = if dev > 0 { "+" } else { "" };
@@ -891,6 +939,21 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
         QueryOutput::Today(t) => return today(t, now),
         QueryOutput::Review(r) => return review(r, now),
         QueryOutput::Next(n) => return card(n, now),
+        QueryOutput::Rhythm(r) => {
+            let _ = writeln!(
+                out,
+                "rhythm: {}  focus {}m  round {}",
+                rhythm_name(r.mode),
+                r.focus_minutes,
+                r.round
+            );
+            if let Some(d) = &r.due {
+                let _ = writeln!(out, "break due: {} {}m", break_name(d.kind), d.minutes);
+            }
+            if let Some(b) = &r.on_break {
+                let _ = writeln!(out, "on break until {}", stamp(b.ends_at, now));
+            }
+        }
         QueryOutput::Mode(m) => {
             let name = m.mode.identity.as_deref().unwrap_or("away");
             if m.mode.auto_away {

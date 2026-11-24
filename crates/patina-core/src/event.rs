@@ -123,6 +123,30 @@ pub enum AbandonReason {
     Other,
 }
 
+/// How break reminders work.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RhythmMode {
+    /// Fixed focus blocks, then a short or long break.
+    Fixed,
+    /// Flowtime: work until done, then a break proportional to the focus.
+    Flowtime,
+    /// No reminders.
+    Off,
+}
+
+/// Kind of break.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BreakKind {
+    /// Short break after a focus block.
+    Short,
+    /// Long break after several blocks.
+    Long,
+    /// Flowtime break.
+    Flow,
+}
+
 /// How a habit is checked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -440,6 +464,12 @@ payloads! {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub new: Option<u32>,
     }
+    /// `rhythm.switched`
+    pub struct RhythmSwitched { pub mode: RhythmMode, }
+    /// `break.started`; the break ends `minutes` later (derived, never stored).
+    pub struct BreakStarted { pub kind: BreakKind, pub minutes: u32, }
+    /// `break.snoozed` (observation)
+    pub struct BreakSnoozed { pub minutes: u32, }
 }
 
 /// Typed event payload; serialized as `{"type": ..., "data": ...}`.
@@ -536,6 +566,15 @@ pub enum EventData {
     /// A weekly time target changed.
     #[serde(rename = "identity.target_changed")]
     IdentityTargetChanged(IdentityTargetChanged),
+    /// The rhythm mode changed.
+    #[serde(rename = "rhythm.switched")]
+    RhythmSwitched(RhythmSwitched),
+    /// A break started.
+    #[serde(rename = "break.started")]
+    BreakStarted(BreakStarted),
+    /// A break reminder was snoozed.
+    #[serde(rename = "break.snoozed")]
+    BreakSnoozed(BreakSnoozed),
 }
 
 const KINDS: &[&str] = &[
@@ -569,6 +608,9 @@ const KINDS: &[&str] = &[
     "command.undone",
     "mode.switched",
     "identity.target_changed",
+    "rhythm.switched",
+    "break.started",
+    "break.snoozed",
 ];
 
 impl EventData {
@@ -604,6 +646,9 @@ impl EventData {
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
             EventData::ModeSwitched(_) => "mode.switched",
+            EventData::BreakSnoozed(_) => "break.snoozed",
+            EventData::BreakStarted(_) => "break.started",
+            EventData::RhythmSwitched(_) => "rhythm.switched",
             EventData::IdentityTargetChanged(_) => "identity.target_changed",
         }
     }
@@ -640,6 +685,9 @@ impl EventData {
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)
             | EventData::IdentityTargetChanged(_)
+            | EventData::RhythmSwitched(_)
+            | EventData::BreakStarted(_)
+            | EventData::BreakSnoozed(_)
             | EventData::CommandUndone(_) => 1,
         }
     }
@@ -651,7 +699,8 @@ impl EventData {
         match self {
             EventData::RecommendationShown(_)
             | EventData::RecommendationAccepted(_)
-            | EventData::RecommendationSkipped(_) => Category::Observation,
+            | EventData::RecommendationSkipped(_)
+            | EventData::BreakSnoozed(_) => Category::Observation,
             _ => Category::Domain,
         }
     }

@@ -11,8 +11,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::event::{
-    AbandonReason, Category, Estimate, Event, EventData, Frequency, HabitKind, InterruptOutcome,
-    Repeat, TimerTarget,
+    AbandonReason, BreakKind, Category, Estimate, Event, EventData, Frequency, HabitKind,
+    InterruptOutcome, Repeat, RhythmMode, TimerTarget,
 };
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
 use crate::recommend::CardKind;
@@ -381,6 +381,26 @@ pub struct ModeSwitch {
     pub identity: Option<IdentityId>,
 }
 
+/// A break that started.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Break {
+    /// Effective time.
+    pub at: Timestamp,
+    /// Kind.
+    pub kind: BreakKind,
+    /// Planned length in minutes.
+    pub minutes: u32,
+}
+
+/// A snoozed break reminder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Snooze {
+    /// Effective time.
+    pub at: Timestamp,
+    /// Minutes the reminder was postponed.
+    pub minutes: u32,
+}
+
 /// Projected state.
 #[derive(Clone, Debug, Default)]
 pub struct State {
@@ -402,6 +422,12 @@ pub struct State {
     pub running: Option<SegmentId>,
     /// Weekly reviews sorted by effective time.
     pub reviews: Vec<Review>,
+    /// Rhythm mode switches sorted by effective time.
+    pub rhythm: Vec<(Timestamp, RhythmMode)>,
+    /// Breaks sorted by effective time.
+    pub breaks: Vec<Break>,
+    /// Snoozed reminders sorted by effective time.
+    pub snoozes: Vec<Snooze>,
     /// Interruptions sorted by effective time.
     pub interruptions: Vec<Interruption>,
     /// Latest card shown per device.
@@ -583,6 +609,34 @@ impl State {
                     .get_mut(&d.identity)
                     .ok_or(Rejection::UnknownIdentity(d.identity))?;
                 identity.weekly_target_minutes = d.new;
+            }
+            EventData::RhythmSwitched(d) => {
+                let at = event.effective_at;
+                let pos = self.rhythm.partition_point(|(t, _)| *t <= at);
+                self.rhythm.insert(pos, (at, d.mode));
+            }
+            EventData::BreakStarted(d) => {
+                let at = event.effective_at;
+                let pos = self.breaks.partition_point(|b| b.at <= at);
+                self.breaks.insert(
+                    pos,
+                    Break {
+                        at,
+                        kind: d.kind,
+                        minutes: d.minutes,
+                    },
+                );
+            }
+            EventData::BreakSnoozed(d) => {
+                let at = event.effective_at;
+                let pos = self.snoozes.partition_point(|s| s.at <= at);
+                self.snoozes.insert(
+                    pos,
+                    Snooze {
+                        at,
+                        minutes: d.minutes,
+                    },
+                );
             }
             EventData::ItemCaptured(d) => {
                 if self.items.contains_key(&d.item) {

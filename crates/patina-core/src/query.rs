@@ -10,11 +10,14 @@ use uuid::Uuid;
 use crate::dag;
 use crate::engine::{Error, Subject, SubjectKind};
 use crate::error::TimeError;
-use crate::event::{AbandonReason, Estimate, Frequency, HabitKind, Repeat, TimerTarget};
+use crate::event::{
+    AbandonReason, Estimate, Frequency, HabitKind, Repeat, RhythmMode, TimerTarget,
+};
 use crate::habit;
 use crate::ids::{self, IdentityId};
 use crate::mode;
 use crate::resolve;
+use crate::rhythm::{self, BreakDue, OnBreak};
 use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
 use crate::store::LoadWarning;
 use crate::time::{Settings, logical_day};
@@ -43,6 +46,8 @@ pub enum Query {
     Mode,
     /// Weekly review summary.
     Review,
+    /// Break rhythm: mode, focus, due or running break.
+    Rhythm,
     /// The recommended next card; records nothing.
     Next {
         /// Restrict to one identity (overrides the mode).
@@ -238,6 +243,27 @@ pub struct TodayView {
     pub mode: ModeView,
     /// The running timer.
     pub timer: Option<TimerView>,
+    /// Break rhythm.
+    pub rhythm: RhythmView,
+    /// A weekly review is due.
+    pub review_due: bool,
+}
+
+/// The break rhythm at a glance.
+#[derive(Clone, Debug, Serialize)]
+pub struct RhythmView {
+    /// The mode.
+    pub mode: RhythmMode,
+    /// Minutes of focus in the current block.
+    pub focus_minutes: i64,
+    /// Short breaks taken this round.
+    pub round: u32,
+    /// A break is due.
+    pub due: Option<BreakDue>,
+    /// A break is running.
+    pub on_break: Option<OnBreak>,
+    /// What to resume after the break.
+    pub resume: Option<Subject>,
 }
 
 /// A node in the tree view.
@@ -402,6 +428,8 @@ pub enum QueryOutput {
     Mode(Box<ModeOutput>),
     /// [`Query::Review`]
     Review(Box<ReviewView>),
+    /// [`Query::Rhythm`]
+    Rhythm(Box<RhythmView>),
     /// [`Query::Next`]
     Next(Box<NextView>),
 }
@@ -456,6 +484,34 @@ impl<'a> View<'a> {
     pub(crate) fn identity_name(&self, id: Option<IdentityId>) -> Option<String> {
         id.and_then(|i| self.state.identities.get(&i))
             .map(|i| i.name.clone())
+    }
+
+    pub(crate) fn rhythm_view(&self) -> RhythmView {
+        let status = rhythm::status(self.state, self.now.timestamp(), self.settings);
+        let resume = status
+            .last_target
+            .filter(|_| self.state.running.is_none())
+            .filter(|t| match t {
+                TimerTarget::Item(id) => self
+                    .state
+                    .items
+                    .get(id)
+                    .is_some_and(|i| i.status == ItemStatus::Todo && !i.is_external()),
+                TimerTarget::Habit(id) => self
+                    .state
+                    .habits
+                    .get(id)
+                    .is_some_and(|h| matches!(h.kind, HabitKind::Duration { .. })),
+            })
+            .map(|t| self.target_subject(t));
+        RhythmView {
+            mode: status.mode,
+            focus_minutes: status.focus_secs / 60,
+            round: status.round,
+            due: status.due,
+            on_break: status.on_break,
+            resume,
+        }
     }
 
     pub(crate) fn mode_view(&self) -> ModeView {
@@ -819,8 +875,11 @@ pub fn run(
                 banner: v.banner(f)?,
                 mode: v.mode_view(),
                 timer: v.timer_view(),
+                rhythm: v.rhythm_view(),
+                review_due: crate::review::due(state, today, now.time_zone(), settings)?,
             }))
         }
+        Query::Rhythm => QueryOutput::Rhythm(Box::new(v.rhythm_view())),
         Query::Inbox => QueryOutput::Inbox(v.inbox_entries()),
         Query::List { identity } => {
             let f = filter(identity)?;

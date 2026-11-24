@@ -149,6 +149,9 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
             .map(|s| vec![target_ref(s.target)])
             .unwrap_or_default(),
         EventData::IdentityTargetChanged(d) => vec![(Identity, d.identity.as_uuid())],
+        EventData::RhythmSwitched(_) => Vec::new(),
+        EventData::BreakStarted(_) => Vec::new(),
+        EventData::BreakSnoozed(_) => Vec::new(),
         EventData::CommandUndone(_) => Vec::new(),
     }
 }

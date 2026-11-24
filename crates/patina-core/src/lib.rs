@@ -20,6 +20,7 @@ pub mod query;
 pub mod recommend;
 pub mod resolve;
 pub mod review;
+pub mod rhythm;
 pub mod state;
 pub mod store;
 #[cfg(test)]

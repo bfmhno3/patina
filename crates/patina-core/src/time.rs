@@ -128,6 +128,37 @@ impl Default for Weights {
     }
 }
 
+/// Break reminder parameters (`[rhythm]`).
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RhythmSettings {
+    /// Minutes of focus before a fixed-mode break.
+    pub focus_minutes: u32,
+    /// Short break length.
+    pub short_break_minutes: u32,
+    /// Long break length.
+    pub long_break_minutes: u32,
+    /// Focus blocks before a long break.
+    pub rounds_before_long: u32,
+    /// Flowtime: focus minutes per break minute.
+    pub flow_ratio: u32,
+    /// Minutes a snooze postpones the reminder.
+    pub snooze_minutes: u32,
+}
+
+impl Default for RhythmSettings {
+    fn default() -> Self {
+        Self {
+            focus_minutes: 25,
+            short_break_minutes: 5,
+            long_break_minutes: 15,
+            rounds_before_long: 4,
+            flow_ratio: 5,
+            snooze_minutes: 10,
+        }
+    }
+}
+
 /// User settings from `<data root>/config.toml`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -156,6 +187,8 @@ pub struct Settings {
     pub skip_cooldown_hours: u32,
     /// Recommendation weights.
     pub recommend: Weights,
+    /// Break reminders.
+    pub rhythm: RhythmSettings,
 }
 
 impl Default for Settings {
@@ -173,6 +206,7 @@ impl Default for Settings {
             inbox_threshold: 10,
             skip_cooldown_hours: 4,
             recommend: Weights::default(),
+            rhythm: RhythmSettings::default(),
         }
     }
 }
@@ -191,6 +225,19 @@ impl Settings {
         }
         if self.evening_hour > 23 {
             return Err(SettingsError::EveningHour(self.evening_hour));
+        }
+        let r = &self.rhythm;
+        for (name, value) in [
+            ("focus_minutes", r.focus_minutes),
+            ("short_break_minutes", r.short_break_minutes),
+            ("long_break_minutes", r.long_break_minutes),
+            ("rounds_before_long", r.rounds_before_long),
+            ("flow_ratio", r.flow_ratio),
+            ("snooze_minutes", r.snooze_minutes),
+        ] {
+            if value == 0 {
+                return Err(SettingsError::Rhythm(name));
+            }
         }
         Ok(())
     }

@@ -146,6 +146,16 @@ enum Cmd {
         #[arg(long, requires = "target")]
         at: Option<String>,
     },
+    /// Show or set the break rhythm (fixed, flowtime, off).
+    Rhythm {
+        /// The mode to switch to; omit to show the rhythm.
+        mode: Option<String>,
+    },
+    /// Start a break (stops the running timer), or snooze the reminder.
+    Break {
+        #[command(subcommand)]
+        cmd: Option<BreakCmd>,
+    },
     /// Show the weekly review, or record it with `review done`.
     Review {
         #[command(subcommand)]
@@ -488,6 +498,12 @@ enum NextCmd {
 }
 
 #[derive(Debug, Subcommand)]
+enum BreakCmd {
+    /// Postpone the pending break reminder.
+    Snooze,
+}
+
+#[derive(Debug, Subcommand)]
 enum ReviewCmd {
     /// Record the review.
     Done {
@@ -751,6 +767,21 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
             IdentityCmd::List => Action::Ask(Query::Identities),
         },
         Cmd::Today { identity, all } => Action::Ask(Query::Today { identity, all }),
+        Cmd::Rhythm { mode: None } => Action::Ask(Query::Rhythm),
+        Cmd::Rhythm { mode: Some(m) } => {
+            use patina_core::event::RhythmMode;
+            let mode = match m.trim().to_ascii_lowercase().as_str() {
+                "fixed" => RhythmMode::Fixed,
+                "flowtime" => RhythmMode::Flowtime,
+                "off" => RhythmMode::Off,
+                _ => anyhow::bail!("invalid rhythm {m:?} (use fixed, flowtime, or off)"),
+            };
+            Action::Run(Command::SetRhythm(c::SetRhythm { mode }))
+        }
+        Cmd::Break { cmd: None } => Action::Run(Command::StartBreak),
+        Cmd::Break {
+            cmd: Some(BreakCmd::Snooze),
+        } => Action::Run(Command::SnoozeBreak),
         Cmd::Mode { target, at } => match target {
             None => Action::Ask(Query::Mode),
             Some(t) => Action::Run(Command::SwitchMode(c::SwitchMode {

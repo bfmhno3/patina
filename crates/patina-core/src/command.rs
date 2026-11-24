@@ -14,6 +14,7 @@ use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, Segm
 use crate::mode;
 use crate::recommend::{self, Card, CardKind, NextView};
 use crate::resolve::{self, ResolveError};
+use crate::rhythm;
 use crate::state::{Habit, Item, ItemStatus, Rejection, Segment, State, project};
 use crate::time::{BACKFILL_DAYS, Settings, logical_day, week_start_of};
 
@@ -127,6 +128,12 @@ pub enum CommandError {
     /// Text is empty.
     #[error("text must not be empty")]
     EmptyText,
+    /// A break is already running.
+    #[error("a break is already running")]
+    OnBreak,
+    /// No break reminder is pending.
+    #[error("no break is due")]
+    NoBreakDue,
     /// A time argument lies after the current time.
     #[error("time {at} is in the future")]
     FutureTime {
@@ -307,6 +314,8 @@ cmd_structs! {
     }
     /// Act on the recommendation card.
     pub struct NextCmd { pub action: NextAction, }
+    /// Choose the rhythm mode.
+    pub struct SetRhythm { pub mode: RhythmMode, }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -375,6 +384,12 @@ pub enum Command {
     CompleteReview(CompleteReview),
     /// Show a card or act on the last one.
     Next(NextCmd),
+    /// Choose the rhythm mode.
+    SetRhythm(SetRhythm),
+    /// Start a break, stopping the running timer.
+    StartBreak,
+    /// Postpone the pending break reminder.
+    SnoozeBreak,
 }
 
 /// Everything a command needs besides state.
@@ -776,6 +791,7 @@ fn build(
     gen_: &Gen,
 ) -> Result<Built, CommandError> {
     let today = logical_day(&ctx.now, &ctx.settings)?;
+    let now = ctx.now.timestamp();
     let mut effective_at: Option<jiff::Timestamp> = None;
     let mut card: Option<Box<NextView>> = None;
     let datas = match cmd {
@@ -1429,6 +1445,33 @@ fn build(
                 minimal: c.minimal,
             })]
         }
+        Command::SetRhythm(c) => {
+            if rhythm::mode(state) == c.mode {
+                return Err(CommandError::NoChanges);
+            }
+            vec![EventData::RhythmSwitched(RhythmSwitched { mode: c.mode })]
+        }
+        Command::StartBreak => {
+            let status = rhythm::status(state, now, &ctx.settings);
+            if status.on_break.is_some() {
+                return Err(CommandError::OnBreak);
+            }
+            let (kind, minutes) = rhythm::next_break(&status, state, now, &ctx.settings);
+            let mut out = Vec::new();
+            if let Some(seg) = running_segment(state) {
+                out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+            }
+            out.push(EventData::BreakStarted(BreakStarted { kind, minutes }));
+            out
+        }
+        Command::SnoozeBreak => {
+            if rhythm::status(state, now, &ctx.settings).due.is_none() {
+                return Err(CommandError::NoBreakDue);
+            }
+            vec![EventData::BreakSnoozed(BreakSnoozed {
+                minutes: ctx.settings.rhythm.snooze_minutes,
+            })]
+        }
         Command::Next(c) => match &c.action {
             NextAction::Show { identity, all } => {
                 let scope = if let Some(n) = identity {
@@ -1605,6 +1648,38 @@ mod tests {
             item: a.into(),
             depends_on: b.into(),
         })
+    }
+
+    #[test]
+    fn start_break_stops_the_timer_and_undo_restores_it() {
+        let mut log = Vec::new();
+        init(&mut log);
+        run(&mut log, dev(1), add("A", None)).unwrap();
+        run(
+            &mut log,
+            dev(1),
+            Command::StartTimer(StartTimer {
+                target: TimerRef::Item("A".into()),
+                at: None,
+            }),
+        )
+        .unwrap();
+        run(&mut log, dev(1), Command::StartBreak).unwrap();
+        let state = project(&log);
+        assert!(state.running.is_none());
+        assert_eq!(state.breaks.len(), 1);
+        assert!(matches!(
+            run(&mut log, dev(1), Command::StartBreak),
+            Err(CommandError::OnBreak)
+        ));
+        run(&mut log, dev(1), Command::Undo).unwrap();
+        let state = project(&log);
+        assert!(state.running.is_some());
+        assert!(state.breaks.is_empty());
+        assert!(matches!(
+            run(&mut log, dev(1), Command::SnoozeBreak),
+            Err(CommandError::NoBreakDue)
+        ));
     }
 
     #[test]

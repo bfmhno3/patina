@@ -39,4 +39,7 @@ pub enum SettingsError {
     /// `evening_hour` above 23.
     #[error("evening_hour must be 0..=23, got {0}")]
     EveningHour(u8),
+    /// A `[rhythm]` value is zero.
+    #[error("rhythm.{0} must be positive")]
+    Rhythm(&'static str),
 }
