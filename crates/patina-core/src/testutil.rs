@@ -98,6 +98,10 @@ impl TestLog {
             deadline: None,
             waiting_for: None,
             follow_up: None,
+            important: false,
+            estimate: None,
+            repeat: None,
+            repeat_of: None,
         }));
         id
     }

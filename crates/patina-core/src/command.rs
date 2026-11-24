@@ -25,6 +25,16 @@ pub enum Update<T> {
     Clear,
 }
 
+impl<T> Update<T> {
+    /// Maps the set value, keeping `Clear`.
+    pub fn map_ref<U>(&self, f: impl FnOnce(&T) -> U) -> Update<U> {
+        match self {
+            Update::Set(v) => Update::Set(f(v)),
+            Update::Clear => Update::Clear,
+        }
+    }
+}
+
 /// What a timer command refers to.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -167,6 +177,10 @@ cmd_structs! {
         pub deadline: Option<Date>,
         pub waiting_for: Option<String>,
         pub follow_up: Option<Date>,
+        #[serde(default)]
+        pub important: bool,
+        pub size: Option<Size>,
+        pub repeat: Option<Repeat>,
     }
     /// Turn an inbox entry into a task.
     pub struct Triage {
@@ -181,6 +195,10 @@ cmd_structs! {
         pub deadline: Option<Date>,
         pub waiting_for: Option<String>,
         pub follow_up: Option<Date>,
+        #[serde(default)]
+        pub important: bool,
+        pub size: Option<Size>,
+        pub repeat: Option<Repeat>,
     }
     /// Discard an inbox entry.
     pub struct Discard { pub item: String, }
@@ -200,6 +218,9 @@ cmd_structs! {
         pub deadline: Option<Update<Date>>,
         pub follow_up: Option<Update<Date>>,
         pub waiting_for: Option<Update<String>>,
+        pub important: Option<bool>,
+        pub size: Option<Update<Size>>,
+        pub repeat: Option<Update<Repeat>>,
     }
     /// Add a note.
     pub struct Note { pub item: String, pub text: String, }
@@ -404,7 +425,80 @@ fn new_created(item: ItemId, title: String, identity: IdentityId) -> ItemCreated
         deadline: None,
         waiting_for: None,
         follow_up: None,
+        important: false,
+        estimate: None,
+        repeat: None,
+        repeat_of: None,
     }
+}
+
+fn estimate_of(settings: &Settings, size: Size) -> Estimate {
+    Estimate {
+        size,
+        minutes: settings.size_minutes.minutes(size),
+    }
+}
+
+/// The `item.created` payload for the occurrence that follows `item` once it is completed.
+fn next_occurrence(
+    item: &Item,
+    repeat: Repeat,
+    today: Date,
+    settings: &Settings,
+    id: ItemId,
+) -> Result<ItemCreated, CommandError> {
+    let identity = item.identity.ok_or(CommandError::IdentityRequired)?;
+    let shift = |d: Option<Date>, span: Span| -> Result<Option<Date>, CommandError> {
+        d.map(|d| d.checked_add(span).map_err(|e| TimeError::from(e).into()))
+            .transpose()
+    };
+    let (defer, scheduled, deadline) = match repeat {
+        Repeat::Every { every, unit } => {
+            let n = i64::from(every);
+            let span = match unit {
+                RepeatUnit::Day => Span::new().days(n),
+                RepeatUnit::Week => Span::new().weeks(n),
+                RepeatUnit::Month => Span::new().months(n),
+            };
+            if item.defer.is_none() && item.scheduled.is_none() && item.deadline.is_none() {
+                let due = shift(Some(today), span)?;
+                (due, due, None)
+            } else {
+                (
+                    shift(item.defer, span)?,
+                    shift(item.scheduled, span)?,
+                    shift(item.deadline, span)?,
+                )
+            }
+        }
+        Repeat::AfterCompletion { days } => {
+            let target = add_days(today, i64::from(days))?;
+            match item.scheduled.or(item.deadline).or(item.defer) {
+                None => (Some(target), Some(target), None),
+                Some(anchor) => {
+                    let delta = anchor.until(target).map_err(TimeError::from)?.get_days();
+                    let span = Span::new().days(i64::from(delta));
+                    (
+                        shift(item.defer, span)?,
+                        shift(item.scheduled, span)?,
+                        shift(item.deadline, span)?,
+                    )
+                }
+            }
+        }
+    };
+    Ok(ItemCreated {
+        parent: item.parent,
+        tags: item.tags.iter().cloned().collect(),
+        defer,
+        scheduled,
+        deadline,
+        important: item.important,
+        estimate: item.estimate.map(|e| estimate_of(settings, e.size)),
+        repeat: Some(repeat),
+        repeat_of: Some(item.id),
+        ..new_created(id, item.title.clone(), identity)
+    })
 }
 
 fn upd<T: PartialEq + Clone>(
@@ -605,9 +699,6 @@ fn build(
                 return Err(CommandError::FollowUpWithoutWaiting);
             }
             vec![EventData::ItemCreated(ItemCreated {
-                item: ItemId::from_uuid(gen_.uuid()),
-                title: text(&c.title)?,
-                identity,
                 parent: parent.map(|p| p.id),
                 tags: normalize_tags(&c.tags),
                 defer: c.defer,
@@ -615,6 +706,10 @@ fn build(
                 deadline: c.deadline,
                 waiting_for,
                 follow_up: c.follow_up,
+                important: c.important,
+                estimate: c.size.map(|s| estimate_of(&ctx.settings, s)),
+                repeat: c.repeat,
+                ..new_created(ItemId::from_uuid(gen_.uuid()), text(&c.title)?, identity)
             })]
         }
         Command::Triage(c) => {
@@ -668,6 +763,18 @@ fn build(
                     old: None,
                     new: Some(w),
                 }),
+                important: c.important.then_some(Change {
+                    old: false,
+                    new: true,
+                }),
+                estimate: c.size.map(|s| Change {
+                    old: None,
+                    new: Some(estimate_of(&ctx.settings, s)),
+                }),
+                repeat: c.repeat.map(|r| Change {
+                    old: None,
+                    new: Some(r),
+                }),
             };
             let any = edit.title.is_some()
                 || !edit.tags_added.is_empty()
@@ -675,7 +782,10 @@ fn build(
                 || edit.scheduled.is_some()
                 || edit.deadline.is_some()
                 || edit.follow_up.is_some()
-                || edit.waiting_for.is_some();
+                || edit.waiting_for.is_some()
+                || edit.important.is_some()
+                || edit.estimate.is_some()
+                || edit.repeat.is_some();
             if any {
                 out.push(EventData::ItemEdited(edit));
             }
@@ -758,6 +868,21 @@ fn build(
                 deadline: upd(&c.deadline, &item.deadline),
                 follow_up,
                 waiting_for,
+                important: c
+                    .important
+                    .filter(|i| *i != item.important)
+                    .map(|new| Change {
+                        old: item.important,
+                        new,
+                    }),
+                estimate: upd(
+                    &c.size
+                        .as_ref()
+                        .map(|u| u.map_ref(|s| estimate_of(&ctx.settings, *s))),
+                    &item.estimate,
+                )
+                .filter(|ch| ch.new.map(|e| e.size) != ch.old.map(|e| e.size)),
+                repeat: upd(&c.repeat, &item.repeat),
             };
             let none = edit.title.is_none()
                 && edit.identity.is_none()
@@ -767,7 +892,10 @@ fn build(
                 && edit.scheduled.is_none()
                 && edit.deadline.is_none()
                 && edit.follow_up.is_none()
-                && edit.waiting_for.is_none();
+                && edit.waiting_for.is_none()
+                && edit.important.is_none()
+                && edit.estimate.is_none()
+                && edit.repeat.is_none();
             if none {
                 return Err(CommandError::NoChanges);
             }
@@ -796,6 +924,15 @@ fn build(
                 item: item.id,
                 note: opt_text(&c.note)?,
             }));
+            if let Some(repeat) = item.repeat {
+                out.push(EventData::ItemCreated(next_occurrence(
+                    item,
+                    repeat,
+                    today,
+                    &ctx.settings,
+                    ItemId::from_uuid(gen_.uuid()),
+                )?));
+            }
             out
         }
         Command::Abandon(c) => {
@@ -1201,6 +1338,9 @@ mod tests {
             deadline: None,
             waiting_for: None,
             follow_up: None,
+            important: false,
+            size: None,
+            repeat: None,
         }))
     }
 
@@ -1421,5 +1561,230 @@ mod tests {
         let titles: Vec<&str> = state.items.values().map(|i| i.title.as_str()).collect();
         assert_eq!(titles, ["A"]);
         assert_eq!(state.items.values().next().unwrap().notes.len(), 1);
+    }
+
+    fn chore(
+        title: &str,
+        repeat: Repeat,
+        scheduled: Option<&str>,
+        deadline: Option<&str>,
+    ) -> Command {
+        Command::AddItem(Box::new(AddItem {
+            title: title.into(),
+            identity: Some("life".into()),
+            parent: None,
+            tags: vec!["home".into()],
+            defer: None,
+            scheduled: scheduled.map(|d| d.parse().unwrap()),
+            deadline: deadline.map(|d| d.parse().unwrap()),
+            waiting_for: None,
+            follow_up: None,
+            important: true,
+            size: Some(Size::M),
+            repeat: Some(repeat),
+        }))
+    }
+
+    fn done(title: &str) -> Command {
+        Command::Complete(Complete {
+            item: title.into(),
+            note: None,
+        })
+    }
+
+    fn open_item<'a>(state: &'a State, title: &str) -> &'a Item {
+        state
+            .items
+            .values()
+            .find(|i| i.title == title && i.status == ItemStatus::Todo)
+            .unwrap()
+    }
+
+    #[test]
+    fn monthly_repeat_clamps_month_end_and_moves_exactly_one_interval() {
+        let mut log = Vec::new();
+        init(&mut log);
+        let monthly = Repeat::Every {
+            every: 1,
+            unit: RepeatUnit::Month,
+        };
+        run(
+            &mut log,
+            dev(1),
+            chore("pay rent", monthly, Some("2027-01-30"), Some("2027-01-31")),
+        )
+        .unwrap();
+        run(&mut log, dev(1), done("pay rent")).unwrap();
+        let state = project(&log);
+        assert!(state.warnings.is_empty(), "{:?}", state.warnings);
+        let next = open_item(&state, "pay rent");
+        assert_eq!(next.deadline, Some("2027-02-28".parse().unwrap()));
+        assert_eq!(next.scheduled, Some("2027-02-28".parse().unwrap()));
+        assert_eq!(next.repeat, Some(monthly));
+        assert_eq!(
+            next.estimate.map(|e| (e.size, e.minutes)),
+            Some((Size::M, 30))
+        );
+        assert!(next.important);
+        assert!(next.tags.contains("home"));
+        assert!(next.repeat_of.is_some());
+        // A late completion still moves only one interval.
+        run(&mut log, dev(1), done("pay rent")).unwrap();
+        let state = project(&log);
+        let after = open_item(&state, "pay rent");
+        assert_eq!(after.deadline, Some("2027-03-28".parse().unwrap()));
+    }
+
+    #[test]
+    fn after_completion_repeat_counts_from_today() {
+        let mut log = Vec::new();
+        init(&mut log);
+        run(
+            &mut log,
+            dev(1),
+            chore(
+                "water plants",
+                Repeat::AfterCompletion { days: 90 },
+                None,
+                None,
+            ),
+        )
+        .unwrap();
+        run(&mut log, dev(1), done("water plants")).unwrap();
+        let state = project(&log);
+        let next = open_item(&state, "water plants");
+        let target: Date = "2027-02-22".parse().unwrap();
+        assert_eq!((next.scheduled, next.defer), (Some(target), Some(target)));
+
+        run(
+            &mut log,
+            dev(1),
+            chore(
+                "oil bike",
+                Repeat::AfterCompletion { days: 7 },
+                Some("2026-11-01"),
+                Some("2026-11-10"),
+            ),
+        )
+        .unwrap();
+        run(&mut log, dev(1), done("oil bike")).unwrap();
+        let state = project(&log);
+        let next = open_item(&state, "oil bike");
+        assert_eq!(next.scheduled, Some("2026-12-01".parse().unwrap()));
+        assert_eq!(next.deadline, Some("2026-12-10".parse().unwrap()));
+    }
+
+    #[test]
+    fn abandoning_a_recurring_item_ends_the_series() {
+        let mut log = Vec::new();
+        init(&mut log);
+        let weekly = Repeat::Every {
+            every: 1,
+            unit: RepeatUnit::Week,
+        };
+        run(&mut log, dev(1), chore("laundry", weekly, None, None)).unwrap();
+        run(
+            &mut log,
+            dev(1),
+            Command::Abandon(Abandon {
+                item: "laundry".into(),
+                reason: AbandonReason::NoLongerImportant,
+                note: None,
+            }),
+        )
+        .unwrap();
+        let state = project(&log);
+        assert_eq!(state.items.len(), 1);
+        assert!(state.warnings.is_empty());
+    }
+
+    #[test]
+    fn recurring_items_take_no_children_and_no_zero_interval() {
+        let mut log = Vec::new();
+        init(&mut log);
+        let weekly = Repeat::Every {
+            every: 1,
+            unit: RepeatUnit::Week,
+        };
+        run(&mut log, dev(1), chore("laundry", weekly, None, None)).unwrap();
+        let err = run(&mut log, dev(1), add("fold", Some("laundry"))).unwrap_err();
+        assert!(
+            matches!(err, CommandError::Rejected(Rejection::ParentIsRecurring(_))),
+            "{err:?}"
+        );
+        let zero = Repeat::AfterCompletion { days: 0 };
+        let err = run(&mut log, dev(1), chore("bad", zero, None, None)).unwrap_err();
+        assert!(matches!(
+            err,
+            CommandError::Rejected(Rejection::InvalidRepeat)
+        ));
+        run(&mut log, dev(1), add("plain", None)).unwrap();
+        run(&mut log, dev(1), add("kid", Some("plain"))).unwrap();
+        let err = run(
+            &mut log,
+            dev(1),
+            Command::Edit(Box::new(Edit {
+                item: "plain".into(),
+                title: None,
+                identity: None,
+                add_tags: vec![],
+                remove_tags: vec![],
+                defer: None,
+                scheduled: None,
+                deadline: None,
+                follow_up: None,
+                waiting_for: None,
+                important: None,
+                size: None,
+                repeat: Some(Update::Set(weekly)),
+            })),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            CommandError::Rejected(Rejection::RecurringWithChildren(_))
+        ));
+    }
+
+    #[test]
+    fn editing_to_the_same_size_is_no_change() {
+        let mut log = Vec::new();
+        init(&mut log);
+        let weekly = Repeat::Every {
+            every: 1,
+            unit: RepeatUnit::Week,
+        };
+        run(&mut log, dev(1), chore("laundry", weekly, None, None)).unwrap();
+        let edit = |size: Option<Update<Size>>, important: Option<bool>| {
+            Command::Edit(Box::new(Edit {
+                item: "laundry".into(),
+                title: None,
+                identity: None,
+                add_tags: vec![],
+                remove_tags: vec![],
+                defer: None,
+                scheduled: None,
+                deadline: None,
+                follow_up: None,
+                waiting_for: None,
+                important,
+                size,
+                repeat: None,
+            }))
+        };
+        let err = run(
+            &mut log,
+            dev(1),
+            edit(Some(Update::Set(Size::M)), Some(true)),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CommandError::NoChanges));
+        run(&mut log, dev(1), edit(Some(Update::Set(Size::L)), None)).unwrap();
+        let state = project(&log);
+        assert_eq!(open_item(&state, "laundry").estimate.unwrap().minutes, 60);
+        run(&mut log, dev(1), edit(Some(Update::Clear), Some(false))).unwrap();
+        let state = project(&log);
+        let item = open_item(&state, "laundry");
+        assert!(item.estimate.is_none() && !item.important);
     }
 }

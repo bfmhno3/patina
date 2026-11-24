@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::dag;
 use crate::engine::{Error, Subject, SubjectKind};
-use crate::event::{AbandonReason, Frequency, HabitKind, TimerTarget};
+use crate::event::{AbandonReason, Estimate, Frequency, HabitKind, Repeat, TimerTarget};
 use crate::habit;
 use crate::ids::{self, IdentityId};
 use crate::mode;
@@ -133,6 +133,14 @@ pub struct ItemView {
     pub created_at: Timestamp,
     /// Tracked minutes on this item and its descendants.
     pub tracked_minutes: i64,
+    /// Marked important.
+    pub important: bool,
+    /// Size estimate.
+    pub estimate: Option<Estimate>,
+    /// Recurrence rule.
+    pub repeat: Option<Repeat>,
+    /// Tracked time reached twice the estimate.
+    pub over_estimate: bool,
 }
 
 /// An item with an abandoned prerequisite.
@@ -249,6 +257,8 @@ pub struct ItemDetail {
     pub abandon: Option<AbandonView>,
     /// Where work stopped when an interruption took over.
     pub left_off: Option<String>,
+    /// Sum of the children's estimates in minutes; none when no child has one.
+    pub children_estimate_minutes: Option<u32>,
 }
 
 /// An identity with counts.
@@ -555,6 +565,7 @@ impl<'a> View<'a> {
             .filter_map(|a| self.state.items.get(&a))
             .map(|a| a.title.clone())
             .collect();
+        let tracked_minutes = timer::subtree_seconds(self.state, item.id, &self.item_secs) / 60;
         ItemView {
             id: item.id.as_uuid(),
             short: ids::short(&item.id.as_uuid(), self.item_len),
@@ -580,7 +591,13 @@ impl<'a> View<'a> {
                 .filter(|c| self.state.items.get(c).is_some_and(|c| !c.is_settled()))
                 .count(),
             created_at: item.created_at,
-            tracked_minutes: timer::subtree_seconds(self.state, item.id, &self.item_secs) / 60,
+            tracked_minutes,
+            important: item.important,
+            estimate: item.estimate,
+            repeat: item.repeat,
+            over_estimate: item
+                .estimate
+                .is_some_and(|e| tracked_minutes >= 2 * i64::from(e.minutes)),
         }
     }
 
@@ -831,6 +848,15 @@ pub fn run(
                     note: note.clone(),
                 }),
                 left_off: i.left_off.clone(),
+                children_estimate_minutes: {
+                    let est: Vec<u32> = i
+                        .children
+                        .iter()
+                        .filter_map(|c| state.items.get(c))
+                        .filter_map(|c| c.estimate.map(|e| e.minutes))
+                        .collect();
+                    (!est.is_empty()).then(|| est.iter().sum())
+                },
             }))
         }
         Query::Habits => {

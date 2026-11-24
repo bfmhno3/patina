@@ -157,6 +157,9 @@ mod tests {
                 old: None,
                 new: Some(w.to_string()),
             }),
+            important: None,
+            estimate: None,
+            repeat: None,
         }));
     }
 

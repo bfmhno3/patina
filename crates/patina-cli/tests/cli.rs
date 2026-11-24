@@ -191,3 +191,37 @@ fn forgotten_timer_is_flagged_and_stop_at_corrects_it() {
             .starts_with("mode:work inbox:0")
     );
 }
+
+#[test]
+fn recurring_chore_and_over_estimate_hint() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&[
+        "new",
+        "pay rent",
+        "-i",
+        "life",
+        "--every",
+        "1m",
+        "--deadline",
+        "2026-11-30",
+        "--size",
+        "s",
+        "--important",
+    ]);
+    let list = s.ok(&["list"]);
+    assert!(
+        list.contains("pay rent") && list.contains(" ! [S] every 1m"),
+        "{list}"
+    );
+    s.ok(&["start", "pay rent", "--at", "08:10"]);
+    let done = s.ok(&["done", "pay rent"]);
+    assert!(done.contains("over twice the S estimate (15m)"), "{done}");
+    assert!(
+        done.contains("next: ") && done.contains(" pay rent"),
+        "{done}"
+    );
+    assert!(s.ok(&["list"]).contains("due 2026-12-30"));
+    let bad = s.run_as(None, &["new", "x", "-i", "work", "--every", "0d"]);
+    assert!(!bad.status.success());
+}

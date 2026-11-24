@@ -10,7 +10,9 @@ use jiff::civil::Date;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::event::{AbandonReason, Category, Event, EventData, Frequency, HabitKind, TimerTarget};
+use crate::event::{
+    AbandonReason, Category, Estimate, Event, EventData, Frequency, HabitKind, Repeat, TimerTarget,
+};
 use crate::ids::{CommandId, EventId, HabitId, IdentityId, ItemId, SegmentId};
 
 /// An event that cannot be applied to the current state.
@@ -147,6 +149,15 @@ pub enum Rejection {
     /// A segment would end before it started.
     #[error("segment {0} would end before it started")]
     SegmentEndBeforeStart(SegmentId),
+    /// Repeat interval of zero.
+    #[error("repeat intervals must be positive")]
+    InvalidRepeat,
+    /// Recurring chores are leaves.
+    #[error("parent {0} is a recurring item")]
+    ParentIsRecurring(ItemId),
+    /// Items with children cannot recur.
+    #[error("item {0} has children and cannot recur")]
+    RecurringWithChildren(ItemId),
 }
 
 /// An identity (a way of being: work, life, study).
@@ -228,6 +239,18 @@ pub struct Item {
     pub timed: bool,
     /// Where work stopped when an interruption took over; cleared when timing resumes.
     pub left_off: Option<String>,
+    /// Marked important.
+    pub important: bool,
+    /// Size estimate.
+    pub estimate: Option<Estimate>,
+    /// Recurrence rule.
+    pub repeat: Option<Repeat>,
+    /// The occurrence this one followed.
+    pub repeat_of: Option<ItemId>,
+    /// Last time the item was created or its defer, scheduled, or deadline changed.
+    pub replanned_at: Timestamp,
+    /// Since when the item has been waiting on something external.
+    pub waiting_since: Option<Timestamp>,
 }
 
 impl Item {
@@ -511,6 +534,14 @@ impl State {
                 if let Some(w) = &d.waiting_for {
                     clean(w)?;
                 }
+                if let Some(r) = &d.repeat
+                    && !r.is_valid()
+                {
+                    return Err(Rejection::InvalidRepeat);
+                }
+                if let Some(o) = d.repeat_of {
+                    self.item_ok(o)?;
+                }
                 if let Some(p) = d.parent {
                     let parent = self.item_ok(p)?;
                     if parent.status != ItemStatus::Todo {
@@ -518,6 +549,9 @@ impl State {
                     }
                     if parent.is_external() {
                         return Err(Rejection::ParentIsExternal(p));
+                    }
+                    if parent.repeat.is_some() {
+                        return Err(Rejection::ParentIsRecurring(p));
                     }
                 }
                 let mut item = new_item(d.item, d.title.clone(), event.effective_at);
@@ -530,6 +564,11 @@ impl State {
                 item.deadline = d.deadline;
                 item.waiting_for = d.waiting_for.clone();
                 item.follow_up = d.follow_up;
+                item.important = d.important;
+                item.estimate = d.estimate;
+                item.repeat = d.repeat;
+                item.repeat_of = d.repeat_of;
+                item.waiting_since = d.waiting_for.is_some().then_some(event.effective_at);
                 if let Some(p) = d.parent.and_then(|p| self.items.get_mut(&p)) {
                     p.children.push(d.item);
                 }
@@ -571,6 +610,16 @@ impl State {
                         return Err(Rejection::ExternalWithChildren(d.item));
                     }
                 }
+                if let Some(c) = &d.repeat
+                    && let Some(r) = &c.new
+                {
+                    if !r.is_valid() {
+                        return Err(Rejection::InvalidRepeat);
+                    }
+                    if !item.children.is_empty() {
+                        return Err(Rejection::RecurringWithChildren(d.item));
+                    }
+                }
                 if let Some(i) = self.items.get_mut(&d.item) {
                     if let Some(c) = &d.title {
                         i.title = c.new.trim().to_string();
@@ -596,8 +645,25 @@ impl State {
                     if let Some(c) = &d.follow_up {
                         i.follow_up = c.new;
                     }
+                    if d.defer.is_some() || d.scheduled.is_some() || d.deadline.is_some() {
+                        i.replanned_at = event.effective_at;
+                    }
                     if let Some(c) = &d.waiting_for {
+                        match (&i.waiting_for, &c.new) {
+                            (None, Some(_)) => i.waiting_since = Some(event.effective_at),
+                            (_, None) => i.waiting_since = None,
+                            _ => {}
+                        }
                         i.waiting_for = c.new.clone();
+                    }
+                    if let Some(c) = &d.important {
+                        i.important = c.new;
+                    }
+                    if let Some(c) = &d.estimate {
+                        i.estimate = c.new;
+                    }
+                    if let Some(c) = &d.repeat {
+                        i.repeat = c.new;
                     }
                 }
             }
@@ -678,6 +744,9 @@ impl State {
                     }
                     if parent.is_external() {
                         return Err(Rejection::ParentIsExternal(p));
+                    }
+                    if parent.repeat.is_some() {
+                        return Err(Rejection::ParentIsRecurring(p));
                     }
                     if self.in_subtree(d.item, p) {
                         return Err(Rejection::MoveIntoOwnSubtree(d.item));
@@ -962,6 +1031,12 @@ fn new_item(id: ItemId, title: String, created_at: Timestamp) -> Item {
         abandon: None,
         timed: false,
         left_off: None,
+        important: false,
+        estimate: None,
+        repeat: None,
+        repeat_of: None,
+        replanned_at: created_at,
+        waiting_since: None,
     }
 }
 

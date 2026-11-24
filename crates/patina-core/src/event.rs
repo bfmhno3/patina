@@ -178,6 +178,67 @@ pub enum Frequency {
     },
 }
 
+/// T-shirt size of an item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Size {
+    /// Small.
+    S,
+    /// Medium.
+    M,
+    /// Large.
+    L,
+}
+
+/// A size estimate with the minutes it meant when written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Estimate {
+    /// The size.
+    pub size: Size,
+    /// Minutes the size stood for at write time.
+    pub minutes: u32,
+}
+
+/// Unit of a fixed-interval repeat.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatUnit {
+    /// Days.
+    Day,
+    /// Weeks.
+    Week,
+    /// Months.
+    Month,
+}
+
+/// How a recurring chore comes back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Repeat {
+    /// Every N units, counted from the dates it had.
+    Every {
+        /// Interval length.
+        every: u32,
+        /// Interval unit.
+        unit: RepeatUnit,
+    },
+    /// A number of days after each completion.
+    AfterCompletion {
+        /// Days after completion.
+        days: u32,
+    },
+}
+
+impl Repeat {
+    /// Intervals must be positive.
+    pub fn is_valid(&self) -> bool {
+        match self {
+            Repeat::Every { every, .. } => *every > 0,
+            Repeat::AfterCompletion { days } => *days > 0,
+        }
+    }
+}
+
 macro_rules! payloads {
     ($($(#[$m:meta])* pub struct $name:ident { $($(#[$fm:meta])* pub $f:ident : $t:ty,)* })*) => {
         $(
@@ -214,6 +275,14 @@ payloads! {
         pub waiting_for: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub follow_up: Option<Date>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub important: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub estimate: Option<Estimate>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub repeat: Option<Repeat>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub repeat_of: Option<ItemId>,
     }
     /// `item.triaged`
     pub struct ItemTriaged { pub item: ItemId, pub identity: IdentityId, }
@@ -238,6 +307,12 @@ payloads! {
         pub follow_up: Option<Change<Option<Date>>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub waiting_for: Option<Change<Option<String>>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub important: Option<Change<bool>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub estimate: Option<Change<Option<Estimate>>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub repeat: Option<Change<Option<Repeat>>>,
     }
     /// `item.note_added`
     pub struct ItemNoteAdded { pub item: ItemId, pub text: String, }

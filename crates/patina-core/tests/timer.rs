@@ -40,6 +40,9 @@ fn add(p: &Patina, title: &str, parent: Option<&str>) {
             deadline: None,
             waiting_for: None,
             follow_up: None,
+            important: false,
+            size: None,
+            repeat: None,
         })),
     )
     .unwrap();

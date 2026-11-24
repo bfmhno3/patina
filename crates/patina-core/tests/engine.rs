@@ -23,6 +23,9 @@ fn add(title: &str, parent: Option<&str>, identity: Option<&str>) -> Command {
         deadline: None,
         waiting_for: None,
         follow_up: None,
+        important: false,
+        size: None,
+        repeat: None,
     }))
 }
 

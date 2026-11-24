@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::{SettingsError, TimeError};
+use crate::event::Size;
 
 /// How many days back a habit may be backfilled (and skipped).
 pub const BACKFILL_DAYS: i64 = 2;
@@ -54,6 +55,79 @@ impl Weekday {
     }
 }
 
+/// Minutes each size stands for (`[size_minutes]`).
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SizeMinutes {
+    /// Minutes for S.
+    pub s: u32,
+    /// Minutes for M.
+    pub m: u32,
+    /// Minutes for L.
+    pub l: u32,
+}
+
+impl Default for SizeMinutes {
+    fn default() -> Self {
+        Self {
+            s: 15,
+            m: 30,
+            l: 60,
+        }
+    }
+}
+
+impl SizeMinutes {
+    /// Minutes configured for `size`.
+    pub fn minutes(&self, size: Size) -> u32 {
+        match size {
+            Size::S => self.s,
+            Size::M => self.m,
+            Size::L => self.l,
+        }
+    }
+}
+
+/// Scoring weights of the recommendation (`[recommend]`).
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Weights {
+    /// Due today or overdue (decays with days left).
+    pub deadline: f64,
+    /// Planned for today or earlier.
+    pub scheduled: f64,
+    /// Per item it would unlock.
+    pub unlock: f64,
+    /// Per transitive dependent.
+    pub downstream: f64,
+    /// In the weekly focus.
+    pub focus: f64,
+    /// Marked important.
+    pub important: f64,
+    /// Size S bonus.
+    pub size_s: f64,
+    /// Size M bonus.
+    pub size_m: f64,
+    /// Per recent skip (negative).
+    pub skip: f64,
+}
+
+impl Default for Weights {
+    fn default() -> Self {
+        Self {
+            deadline: 6.0,
+            scheduled: 2.0,
+            unlock: 1.0,
+            downstream: 0.25,
+            focus: 2.0,
+            important: 3.0,
+            size_s: 1.5,
+            size_m: 0.5,
+            skip: -4.0,
+        }
+    }
+}
+
 /// User settings from `<data root>/config.toml`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -68,6 +142,20 @@ pub struct Settings {
     pub away_after_minutes: u32,
     /// Local hour from which other identities' unfinished habits enter the banner.
     pub evening_hour: u8,
+    /// Minutes per size.
+    pub size_minutes: SizeMinutes,
+    /// Day of the weekly review.
+    pub review_day: Weekday,
+    /// Postponements after which the review asks for a decision.
+    pub postpone_threshold: u32,
+    /// Days an external item waits before the review flags it.
+    pub waiting_alert_days: u32,
+    /// Inbox size from which triage is recommended.
+    pub inbox_threshold: usize,
+    /// Hours a skipped recommendation stays penalized.
+    pub skip_cooldown_hours: u32,
+    /// Recommendation weights.
+    pub recommend: Weights,
 }
 
 impl Default for Settings {
@@ -78,6 +166,13 @@ impl Default for Settings {
             habit_half_life_days: 14.0,
             away_after_minutes: 120,
             evening_hour: 20,
+            size_minutes: SizeMinutes::default(),
+            review_day: Weekday::Sun,
+            postpone_threshold: 3,
+            waiting_alert_days: 7,
+            inbox_threshold: 10,
+            skip_cooldown_hours: 4,
+            recommend: Weights::default(),
         }
     }
 }

@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::command::{self, Command, CommandError, Context};
 use crate::error::TimeError;
 use crate::event::{Event, EventData, Source};
+use crate::event::{Category, Estimate, Event, EventData, Source, TimerTarget};
 use crate::ids::{self, CommandId};
 use crate::query::{self, Query, QueryOutput};
 use crate::state::{ItemStatus, State, project};
@@ -67,6 +68,10 @@ pub struct StoppedView {
     pub minutes: i64,
     /// Total tracked minutes: the item with its descendants, or the habit on that day.
     pub total_minutes: i64,
+    /// The timed item's size estimate.
+    pub estimate: Option<Estimate>,
+    /// The item's total tracked time reached twice its estimate.
+    pub over_estimate: bool,
 }
 
 /// Result of a successful command.
@@ -173,10 +178,17 @@ fn stopped_view(
             by_day.get(&day).copied().unwrap_or(0)
         }
     };
+    let estimate = match seg.target {
+        TimerTarget::Item(id) => state.items.get(&id).and_then(|i| i.estimate),
+        TimerTarget::Habit(_) => None,
+    };
+    let total_minutes = total_secs / 60;
     Ok(Some(StoppedView {
         subject: view.target_subject(seg.target),
         minutes: crate::timer::seconds(seg, ts) / 60,
-        total_minutes: total_secs / 60,
+        total_minutes,
+        estimate,
+        over_estimate: estimate.is_some_and(|e| total_minutes >= 2 * i64::from(e.minutes)),
     }))
 }
 

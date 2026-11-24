@@ -12,7 +12,7 @@ use jiff::ZonedDateTime;
 use jiff::civil::Date;
 use patina_core::command::{self, Command, Update};
 use patina_core::engine::Patina;
-use patina_core::event::{AbandonReason, Frequency, HabitKind};
+use patina_core::event::{AbandonReason, Frequency, HabitKind, Repeat, RepeatUnit, Size};
 use patina_core::query::{Query, QueryOutput};
 use patina_core::store::Store;
 use patina_core::time::{Weekday, logical_day};
@@ -207,6 +207,75 @@ struct NewArgs {
     waiting_for: Option<String>,
     #[arg(long)]
     follow_up: Option<String>,
+    #[command(flatten)]
+    extras: Extras,
+}
+
+/// Importance, size estimate, and recurrence for new items.
+#[derive(Debug, Args)]
+struct Extras {
+    /// Mark as important.
+    #[arg(long)]
+    important: bool,
+    /// Size estimate.
+    #[arg(long, value_enum)]
+    size: Option<SizeArg>,
+    /// Repeat every N days, weeks, or months (e.g. 3d, 2w, 1m).
+    #[arg(long, value_parser = parse_every, conflicts_with = "after")]
+    every: Option<Repeat>,
+    /// Repeat this many days after each completion.
+    #[arg(long)]
+    after: Option<u32>,
+}
+
+impl Extras {
+    fn repeat(&self) -> Option<Repeat> {
+        self.every
+            .or(self.after.map(|days| Repeat::AfterCompletion { days }))
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum SizeArg {
+    S,
+    M,
+    L,
+}
+
+impl From<SizeArg> for Size {
+    fn from(s: SizeArg) -> Self {
+        match s {
+            SizeArg::S => Size::S,
+            SizeArg::M => Size::M,
+            SizeArg::L => Size::L,
+        }
+    }
+}
+
+fn parse_every(s: &str) -> Result<Repeat, String> {
+    let bad = || format!("invalid interval {s:?} (use <N>d, <N>w, or <N>m, e.g. 2w)");
+    let s = s.trim();
+    let unit = match s.chars().last() {
+        Some('d') => RepeatUnit::Day,
+        Some('w') => RepeatUnit::Week,
+        Some('m') => RepeatUnit::Month,
+        _ => return Err(bad()),
+    };
+    let every: u32 = s[..s.len() - 1].parse().map_err(|_| bad())?;
+    if every == 0 {
+        return Err(bad());
+    }
+    Ok(Repeat::Every { every, unit })
+}
+
+fn parse_size_update(s: &str) -> Result<Update<Size>, String> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "s" => Ok(Update::Set(Size::S)),
+        "m" => Ok(Update::Set(Size::M)),
+        "l" => Ok(Update::Set(Size::L)),
+        "none" => Ok(Update::Clear),
+        _ => Err(format!("invalid size {s:?} (use s, m, l, or none)")),
+    }
 }
 
 #[derive(Debug, Args)]
@@ -230,6 +299,8 @@ struct TriageArgs {
     waiting_for: Option<String>,
     #[arg(long)]
     follow_up: Option<String>,
+    #[command(flatten)]
+    extras: Extras,
 }
 
 #[derive(Debug, Args)]
@@ -259,6 +330,22 @@ struct EditArgs {
     waiting_for: Option<String>,
     #[arg(long)]
     not_waiting: bool,
+    #[arg(long, conflicts_with = "not_important")]
+    important: bool,
+    #[arg(long)]
+    not_important: bool,
+    /// s, m, l, or `none`.
+    #[arg(long, value_parser = parse_size_update)]
+    size: Option<Update<Size>>,
+    /// Repeat every N days, weeks, or months (e.g. 3d, 2w, 1m).
+    #[arg(long, value_parser = parse_every, conflicts_with_all = ["after", "no_repeat"])]
+    every: Option<Repeat>,
+    /// Repeat this many days after each completion.
+    #[arg(long, conflicts_with_all = ["every", "no_repeat"])]
+    after: Option<u32>,
+    /// Stop repeating.
+    #[arg(long)]
+    no_repeat: bool,
 }
 
 #[derive(Debug, Args)]
@@ -412,6 +499,9 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
             deadline: opt_date(&a.deadline, today)?,
             waiting_for: a.waiting_for,
             follow_up: opt_date(&a.follow_up, today)?,
+            important: a.extras.important,
+            size: a.extras.size.map(Size::from),
+            repeat: a.extras.repeat(),
         }))),
         Cmd::Triage(a) => Action::Run(Command::Triage(Box::new(c::Triage {
             item: a.item,
@@ -424,6 +514,9 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
             deadline: opt_date(&a.deadline, today)?,
             waiting_for: a.waiting_for,
             follow_up: opt_date(&a.follow_up, today)?,
+            important: a.extras.important,
+            size: a.extras.size.map(Size::from),
+            repeat: a.extras.repeat(),
         }))),
         Cmd::Discard { item } => Action::Run(Command::Discard(c::Discard { item })),
         Cmd::Merge { item, into } => Action::Run(Command::Merge(c::Merge { item, into })),
@@ -441,6 +534,21 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
                 Some(Update::Clear)
             } else {
                 a.waiting_for.map(Update::Set)
+            },
+            important: if a.important {
+                Some(true)
+            } else if a.not_important {
+                Some(false)
+            } else {
+                None
+            },
+            size: a.size,
+            repeat: if a.no_repeat {
+                Some(Update::Clear)
+            } else {
+                a.every
+                    .or(a.after.map(|days| Repeat::AfterCompletion { days }))
+                    .map(Update::Set)
             },
         }))),
         Cmd::Note { item, text } => Action::Run(Command::Note(c::Note {

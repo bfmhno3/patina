@@ -6,7 +6,9 @@ use jiff::tz::TimeZone;
 use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::Command;
 use patina_core::engine::{CommandOutcome, Subject};
-use patina_core::event::{EventData, Frequency, HabitKind, InterruptOutcome, TimerTarget};
+use patina_core::event::{
+    EventData, Frequency, HabitKind, InterruptOutcome, Repeat, RepeatUnit, Size, TimerTarget,
+};
 use patina_core::ids;
 use patina_core::query::{
     Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, TimerView, TodayView, TreeNode,
@@ -45,6 +47,39 @@ fn stopped_line(o: &CommandOutcome, out: &mut String) {
             st.minutes,
             st.total_minutes
         );
+        if st.over_estimate
+            && let Some(e) = st.estimate
+        {
+            let _ = writeln!(
+                out,
+                "  over twice the {} estimate ({}m); consider splitting: patina new \"<first step>\" --parent {}",
+                size_name(e.size),
+                e.minutes,
+                sref(Some(&st.subject))
+            );
+        }
+    }
+}
+
+fn size_name(s: Size) -> &'static str {
+    match s {
+        Size::S => "S",
+        Size::M => "M",
+        Size::L => "L",
+    }
+}
+
+fn repeat_text(r: &Repeat) -> String {
+    match r {
+        Repeat::Every { every, unit } => {
+            let u = match unit {
+                RepeatUnit::Day => 'd',
+                RepeatUnit::Week => 'w',
+                RepeatUnit::Month => 'm',
+            };
+            format!("every {every}{u}")
+        }
+        Repeat::AfterCompletion { days } => format!("after {days}d"),
     }
 }
 
@@ -83,6 +118,18 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
         Command::Complete(_) => {
             let _ = writeln!(out, "done {s} {l}");
             stopped_line(o, &mut out);
+            let next = o.events.iter().find_map(|e| match &e.data {
+                EventData::ItemCreated(d) if d.repeat_of.is_some() => Some(d),
+                _ => None,
+            });
+            if let Some(n) = next {
+                let sub = o.subjects.iter().find(|s| s.id == n.item.as_uuid());
+                let _ = write!(out, "next: {} {}", sref(sub), label(sub));
+                if let Some(d) = n.scheduled {
+                    let _ = write!(out, " sched {d}");
+                }
+                out.push('\n');
+            }
         }
         Command::Abandon(_) => {
             for sub in &o.subjects {
@@ -215,6 +262,15 @@ fn item_line(i: &ItemView, show_identity: bool) -> String {
     s.push_str(&i.title);
     for t in &i.tags {
         let _ = write!(s, " #{t}");
+    }
+    if i.important {
+        s.push_str(" !");
+    }
+    if let Some(e) = &i.estimate {
+        let _ = write!(s, " [{}]", size_name(e.size));
+    }
+    if let Some(r) = &i.repeat {
+        let _ = write!(s, " {}", repeat_text(r));
     }
     if show_identity && let Some(id) = &i.identity {
         let _ = write!(s, " [{id}]");
@@ -457,6 +513,22 @@ fn show(d: &ItemDetail, tz: &TimeZone) -> String {
         let _ = writeln!(out, "identity: {id}");
     }
     let _ = writeln!(out, "status: {}", status_key(i.status));
+    if i.important {
+        out.push_str("important: yes\n");
+    }
+    if let Some(e) = &i.estimate {
+        let _ = write!(out, "estimate: {} ({}m)", size_name(e.size), e.minutes);
+        if let Some(c) = d.children_estimate_minutes {
+            let _ = write!(out, ", children sum {c}m");
+        }
+        out.push('\n');
+    }
+    if i.tracked_minutes > 0 {
+        let _ = writeln!(out, "tracked: {}m", i.tracked_minutes);
+    }
+    if let Some(r) = &i.repeat {
+        let _ = writeln!(out, "repeat: {}", repeat_text(r));
+    }
     if !i.tags.is_empty() {
         let _ = writeln!(out, "tags: {}", i.tags.join(", "));
     }
