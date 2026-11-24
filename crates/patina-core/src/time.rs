@@ -196,6 +196,41 @@ impl Settings {
     }
 }
 
+/// Parses `YYYY-MM-DD`, `today`, `tomorrow`, or `+N` relative to `today`.
+pub fn parse_date(s: &str, today: jiff::civil::Date) -> Option<jiff::civil::Date> {
+    let s = s.trim();
+    match s {
+        "today" => Some(today),
+        "tomorrow" => today.tomorrow().ok(),
+        _ => match s.strip_prefix('+') {
+            Some(n) => today
+                .checked_add(jiff::Span::new().days(n.parse::<i64>().ok()?))
+                .ok(),
+            None => s.parse().ok(),
+        },
+    }
+}
+
+/// Parses a past wall-clock time in `now`'s zone.
+///
+/// `HH:MM` is that time today, or yesterday when today's would be in the future;
+/// `YYYY-MM-DDTHH:MM` and `YYYY-MM-DD HH:MM` are explicit.
+pub fn parse_time(s: &str, now: &jiff::ZonedDateTime) -> Option<jiff::Timestamp> {
+    let s = s.trim();
+    let tz = now.time_zone().clone();
+    if let Ok(time) = jiff::civil::Time::strptime("%H:%M", s) {
+        let at = now.date().to_datetime(time).to_zoned_datetime(tz).ok()?;
+        if at.timestamp() > now.timestamp() {
+            return Some(at.checked_sub(jiff::Span::new().days(1)).ok()?.timestamp());
+        }
+        return Some(at.timestamp());
+    }
+    let dt = jiff::civil::DateTime::strptime("%Y-%m-%dT%H:%M", s)
+        .or_else(|_| jiff::civil::DateTime::strptime("%Y-%m-%d %H:%M", s))
+        .ok()?;
+    Some(dt.to_zoned_datetime(tz).ok()?.timestamp())
+}
+
 /// The logical day containing `now` (the day starts at `day_start_hour`).
 ///
 /// # Errors
@@ -246,6 +281,17 @@ mod tests {
         assert_eq!(logical_day(&now, &s).unwrap().to_string(), "2026-11-23");
         let now: jiff::ZonedDateTime = "2026-11-24T04:00:00+08:00[Asia/Shanghai]".parse().unwrap();
         assert_eq!(logical_day(&now, &s).unwrap().to_string(), "2026-11-24");
+    }
+
+    #[test]
+    fn time_of_day_rolls_back_past_now() {
+        let now: jiff::ZonedDateTime = "2026-11-24T09:00:00+08:00[Asia/Shanghai]".parse().unwrap();
+        let at = |s: &str| parse_time(s, &now).unwrap().to_string();
+        assert_eq!(at("08:30"), "2026-11-24T00:30:00Z");
+        assert_eq!(at("23:50"), "2026-11-23T15:50:00Z");
+        assert_eq!(at("2026-11-20 10:00"), "2026-11-20T02:00:00Z");
+        assert_eq!(at("2026-11-20T10:00"), "2026-11-20T02:00:00Z");
+        assert!(parse_time("noon", &now).is_none());
     }
 
     #[test]

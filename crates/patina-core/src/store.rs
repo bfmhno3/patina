@@ -5,6 +5,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::error::{SettingsError, ser_display};
 use crate::event::{Event, UpgradeError};
@@ -35,6 +36,17 @@ pub enum StoreError {
     /// Invalid settings values.
     #[error(transparent)]
     Settings(#[from] SettingsError),
+    /// No data or state directory can be determined on this platform.
+    #[error("cannot determine a data directory")]
+    NoDataDir,
+    /// A device id file or variable does not hold a UUID.
+    #[error("{}: {message}", path.display())]
+    DeviceId {
+        /// File or variable involved.
+        path: PathBuf,
+        /// What is wrong.
+        message: String,
+    },
     /// Event serialization failure.
     #[error("cannot serialize event: {0}")]
     Serialize(
@@ -49,6 +61,65 @@ fn io(path: &Path) -> impl FnOnce(std::io::Error) -> StoreError + '_ {
         path: path.to_path_buf(),
         source,
     }
+}
+
+/// The data root: `PATINA_DIR` when set and non-empty, else `<user data dir>/patina`.
+///
+/// # Errors
+/// Returns [`StoreError::NoDataDir`] when the platform has no data directory.
+pub fn default_root() -> Result<PathBuf, StoreError> {
+    match std::env::var("PATINA_DIR").ok().filter(|v| !v.is_empty()) {
+        Some(d) => Ok(PathBuf::from(d)),
+        None => Ok(dirs::data_dir()
+            .ok_or(StoreError::NoDataDir)?
+            .join("patina")),
+    }
+}
+
+/// Reads `dir/device-id`, creating it with a fresh UUIDv7 when missing.
+///
+/// # Errors
+/// Fails on I/O errors or when the file does not hold a UUID.
+pub fn device_id_in(dir: &Path) -> Result<DeviceId, StoreError> {
+    let path = dir.join("device-id");
+    match fs::read_to_string(&path) {
+        Ok(text) => {
+            let id = Uuid::parse_str(text.trim()).map_err(|e| StoreError::DeviceId {
+                path: path.clone(),
+                message: format!("not a UUID ({e})"),
+            })?;
+            Ok(DeviceId::from_uuid(id))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let id = Uuid::now_v7();
+            fs::create_dir_all(dir).map_err(io(dir))?;
+            fs::write(&path, format!("{}\n", id.hyphenated())).map_err(io(&path))?;
+            Ok(DeviceId::from_uuid(id))
+        }
+        Err(e) => Err(io(&path)(e)),
+    }
+}
+
+/// This device's id: `PATINA_DEVICE_ID`, else the `device-id` file in the state directory.
+///
+/// # Errors
+/// Fails when the variable or file is not a UUID, on I/O errors, or when the platform
+/// has no state directory.
+pub fn device_id() -> Result<DeviceId, StoreError> {
+    if let Some(v) = std::env::var("PATINA_DEVICE_ID")
+        .ok()
+        .filter(|v| !v.is_empty())
+    {
+        let id = Uuid::parse_str(v.trim()).map_err(|e| StoreError::DeviceId {
+            path: "PATINA_DEVICE_ID".into(),
+            message: format!("not a UUID ({e})"),
+        })?;
+        return Ok(DeviceId::from_uuid(id));
+    }
+    let base = dirs::state_dir()
+        .or_else(dirs::data_local_dir)
+        .ok_or(StoreError::NoDataDir)?;
+    device_id_in(&base.join("patina"))
 }
 
 /// Handle to a data root for one device.

@@ -3514,7 +3514,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "dirs",
  "jiff",
  "patina-core",
  "serde",
@@ -3527,6 +3526,7 @@ dependencies = [
 name = "patina-core"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "jiff",
  "serde",
  "serde_json",
