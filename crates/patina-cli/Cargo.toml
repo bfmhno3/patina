@@ -14,7 +14,17 @@ name = "patina"
 path = "src/main.rs"
 
 [dependencies]
+patina-core.workspace = true
 clap.workspace = true
+jiff.workspace = true
+uuid.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+dirs.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
