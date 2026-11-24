@@ -230,6 +230,14 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
         Command::RenameIdentity(_) => {
             let _ = writeln!(out, "renamed identity to {l}");
         }
+        Command::SetIdentityTarget(c) => match c.weekly_minutes {
+            Some(m) => {
+                let _ = writeln!(out, "target {l}: {}/week", hours_text(m));
+            }
+            None => {
+                let _ = writeln!(out, "target {l}: none");
+            }
+        },
         Command::Undo => {
             let _ = writeln!(out, "undid: {}", o.undone.join(", "));
             for sub in &o.subjects {
@@ -252,6 +260,15 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
         }
     }
     out
+}
+
+/// Minutes as hours: `20h` when whole, else one decimal (`7.5h`).
+fn hours_text(minutes: u32) -> String {
+    if minutes.is_multiple_of(60) {
+        format!("{}h", minutes / 60)
+    } else {
+        format!("{:.1}h", f64::from(minutes) / 60.0)
+    }
 }
 
 fn item_line(i: &ItemView, show_identity: bool) -> String {
@@ -797,11 +814,15 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
         }
         QueryOutput::Identities(ids) => {
             for i in ids {
-                let _ = writeln!(
+                let _ = write!(
                     out,
                     "{}  {} open, {} habits",
                     i.name, i.open_items, i.habits
                 );
+                if let Some(m) = i.weekly_target_minutes {
+                    let _ = write!(out, "  target {}/week", hours_text(m));
+                }
+                out.push('\n');
             }
         }
         QueryOutput::Status(s) => {

@@ -288,6 +288,8 @@ pub struct IdentityView {
     pub open_items: usize,
     /// Habits.
     pub habits: usize,
+    /// Weekly time target in minutes.
+    pub weekly_target_minutes: Option<u32>,
 }
 
 /// The one-line status.
@@ -901,6 +903,7 @@ pub fn run(
                         .filter(|t| t.status == ItemStatus::Todo && t.identity == Some(i.id))
                         .count(),
                     habits: state.habits.values().filter(|h| h.identity == i.id).count(),
+                    weekly_target_minutes: i.weekly_target_minutes,
                 })
                 .collect(),
         ),

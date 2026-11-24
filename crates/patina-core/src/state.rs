@@ -156,6 +156,9 @@ pub enum Rejection {
     /// Recurring chores are leaves.
     #[error("parent {0} is a recurring item")]
     ParentIsRecurring(ItemId),
+    /// Weekly target out of range.
+    #[error("weekly target must be 1..=10080 minutes, got {0}")]
+    InvalidTarget(u32),
     /// Items with children cannot recur.
     #[error("item {0} has children and cannot recur")]
     RecurringWithChildren(ItemId),
@@ -168,6 +171,8 @@ pub struct Identity {
     pub id: IdentityId,
     /// Display name.
     pub name: String,
+    /// Weekly time target in minutes.
+    pub weekly_target_minutes: Option<u32>,
 }
 
 /// Stored item state.
@@ -538,6 +543,7 @@ impl State {
                     Identity {
                         id: d.identity,
                         name: d.name.trim().to_string(),
+                        weekly_target_minutes: None,
                     },
                 );
             }
@@ -549,6 +555,18 @@ impl State {
                 if let Some(i) = self.identities.get_mut(&d.identity) {
                     i.name = d.new.trim().to_string();
                 }
+            }
+            EventData::IdentityTargetChanged(d) => {
+                if let Some(m) = d.new
+                    && !(1..=10080).contains(&m)
+                {
+                    return Err(Rejection::InvalidTarget(m));
+                }
+                let identity = self
+                    .identities
+                    .get_mut(&d.identity)
+                    .ok_or(Rejection::UnknownIdentity(d.identity))?;
+                identity.weekly_target_minutes = d.new;
             }
             EventData::ItemCaptured(d) => {
                 if self.items.contains_key(&d.item) {

@@ -506,6 +506,8 @@ enum IdentityCmd {
     Add { name: String },
     /// Rename an identity.
     Rename { name: String, new: String },
+    /// Set or clear the weekly time target (hours per week, or `none`).
+    Target { name: String, hours: String },
     /// List identities.
     List,
 }
@@ -730,6 +732,17 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
                 Action::Run(Command::RenameIdentity(c::RenameIdentity {
                     identity: name,
                     name: new,
+                }))
+            }
+            IdentityCmd::Target { name, hours } => {
+                let weekly_minutes = patina_core::time::parse_hours(&hours).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "invalid hours {hours:?} (use a number like 20 or 7.5, or none)"
+                    )
+                })?;
+                Action::Run(Command::SetIdentityTarget(c::SetIdentityTarget {
+                    identity: name,
+                    weekly_minutes,
                 }))
             }
             IdentityCmd::List => Action::Ask(Query::Identities),

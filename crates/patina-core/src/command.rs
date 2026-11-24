@@ -173,6 +173,8 @@ cmd_structs! {
     pub struct AddIdentity { pub name: String, }
     /// Rename an identity.
     pub struct RenameIdentity { pub identity: String, pub name: String, }
+    /// Set or clear an identity's weekly time target.
+    pub struct SetIdentityTarget { pub identity: String, pub weekly_minutes: Option<u32>, }
     /// Quick capture.
     pub struct Capture { pub text: String, }
     /// Create a task directly.
@@ -314,6 +316,8 @@ pub enum Command {
     AddIdentity(AddIdentity),
     /// Rename an identity.
     RenameIdentity(RenameIdentity),
+    /// Set an identity's weekly target.
+    SetIdentityTarget(SetIdentityTarget),
     /// Quick capture.
     Capture(Capture),
     /// Create a task.
@@ -796,6 +800,21 @@ fn build(
                 identity,
                 old,
                 new: text(&c.name)?,
+            })]
+        }
+        Command::SetIdentityTarget(c) => {
+            let identity = resolve::identity(state, &c.identity)?;
+            let old = state
+                .identities
+                .get(&identity)
+                .and_then(|i| i.weekly_target_minutes);
+            if old == c.weekly_minutes {
+                return Err(CommandError::NoChanges);
+            }
+            vec![EventData::IdentityTargetChanged(IdentityTargetChanged {
+                identity,
+                old,
+                new: c.weekly_minutes,
             })]
         }
         Command::AddItem(c) => {
@@ -1559,6 +1578,34 @@ mod tests {
             item: a.into(),
             depends_on: b.into(),
         })
+    }
+
+    #[test]
+    fn identity_target_sets_and_rejects() {
+        let mut log = Vec::new();
+        init(&mut log);
+        let set = |m| {
+            Command::SetIdentityTarget(SetIdentityTarget {
+                identity: "work".into(),
+                weekly_minutes: m,
+            })
+        };
+        run(&mut log, dev(1), set(Some(450))).unwrap();
+        let state = project(&log);
+        let work = resolve::identity(&state, "work").unwrap();
+        assert_eq!(state.identities[&work].weekly_target_minutes, Some(450));
+        assert!(matches!(
+            run(&mut log, dev(1), set(Some(450))),
+            Err(CommandError::NoChanges)
+        ));
+        for bad in [0, 10081] {
+            assert!(matches!(
+                run(&mut log, dev(1), set(Some(bad))),
+                Err(CommandError::Rejected(Rejection::InvalidTarget(_)))
+            ));
+        }
+        run(&mut log, dev(1), set(None)).unwrap();
+        assert_eq!(project(&log).identities[&work].weekly_target_minutes, None);
     }
 
     #[test]

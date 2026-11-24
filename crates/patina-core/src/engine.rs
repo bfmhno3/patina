@@ -148,6 +148,7 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
             .get(&d.segment)
             .map(|s| vec![target_ref(s.target)])
             .unwrap_or_default(),
+        EventData::IdentityTargetChanged(d) => vec![(Identity, d.identity.as_uuid())],
         EventData::CommandUndone(_) => Vec::new(),
     }
 }

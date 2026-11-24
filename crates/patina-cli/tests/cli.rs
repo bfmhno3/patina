@@ -327,3 +327,19 @@ fn stuck_confirms_and_shows_the_next_card() {
     );
     assert!(out.contains(" email\n  why: important\n"), "{out}");
 }
+
+#[test]
+fn identity_target_shows_in_list() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    assert_eq!(
+        s.ok(&["identity", "target", "work", "7.5"]),
+        "target work: 7.5h/week\n"
+    );
+    assert!(
+        s.ok(&["identity", "list"])
+            .contains("work  0 open, 0 habits  target 7.5h/week")
+    );
+    let out = s.run_as(None, &["identity", "target", "work", "x"]);
+    assert!(!out.status.success());
+}

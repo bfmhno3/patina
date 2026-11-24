@@ -231,6 +231,18 @@ pub fn parse_time(s: &str, now: &jiff::ZonedDateTime) -> Option<jiff::Timestamp>
     Some(dt.to_zoned_datetime(tz).ok()?.timestamp())
 }
 
+/// Parses a weekly target in hours: `none` clears it, else `0 < h <= 168`.
+///
+/// Returns `None` for invalid input, `Some(None)` for no target.
+pub fn parse_hours(s: &str) -> Option<Option<u32>> {
+    let s = s.trim();
+    if s == "none" {
+        return Some(None);
+    }
+    let h: f64 = s.parse().ok()?;
+    (h.is_finite() && h > 0.0 && h <= 168.0).then(|| Some((h * 60.0).round() as u32))
+}
+
 /// The logical day containing `now` (the day starts at `day_start_hour`).
 ///
 /// # Errors
@@ -292,6 +304,15 @@ mod tests {
         assert_eq!(at("2026-11-20 10:00"), "2026-11-20T02:00:00Z");
         assert_eq!(at("2026-11-20T10:00"), "2026-11-20T02:00:00Z");
         assert!(parse_time("noon", &now).is_none());
+    }
+
+    #[test]
+    fn hours_parse_to_minutes() {
+        assert_eq!(parse_hours("7.5"), Some(Some(450)));
+        assert_eq!(parse_hours("none"), Some(None));
+        assert_eq!(parse_hours("0"), None);
+        assert_eq!(parse_hours("200"), None);
+        assert_eq!(parse_hours("x"), None);
     }
 
     #[test]

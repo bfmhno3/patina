@@ -430,6 +430,14 @@ payloads! {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub identity: Option<IdentityId>,
     }
+    /// `identity.target_changed`; minutes per week.
+    pub struct IdentityTargetChanged {
+        pub identity: IdentityId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub old: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub new: Option<u32>,
+    }
 }
 
 /// Typed event payload; serialized as `{"type": ..., "data": ...}`.
@@ -523,6 +531,9 @@ pub enum EventData {
     /// Identity mode switched (or set to away).
     #[serde(rename = "mode.switched")]
     ModeSwitched(ModeSwitched),
+    /// A weekly time target changed.
+    #[serde(rename = "identity.target_changed")]
+    IdentityTargetChanged(IdentityTargetChanged),
 }
 
 const KINDS: &[&str] = &[
@@ -555,6 +566,7 @@ const KINDS: &[&str] = &[
     "habit.resumed",
     "command.undone",
     "mode.switched",
+    "identity.target_changed",
 ];
 
 impl EventData {
@@ -590,6 +602,7 @@ impl EventData {
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
             EventData::ModeSwitched(_) => "mode.switched",
+            EventData::IdentityTargetChanged(_) => "identity.target_changed",
         }
     }
 
@@ -624,6 +637,7 @@ impl EventData {
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)
+            | EventData::IdentityTargetChanged(_)
             | EventData::CommandUndone(_) => 1,
         }
     }
