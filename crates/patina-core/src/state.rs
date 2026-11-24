@@ -226,6 +226,8 @@ pub struct Item {
     pub abandon: Option<(AbandonReason, Option<String>)>,
     /// Some timer segment targets this item.
     pub timed: bool,
+    /// Where work stopped when an interruption took over; cleared when timing resumes.
+    pub left_off: Option<String>,
 }
 
 impl Item {
@@ -897,6 +899,7 @@ impl State {
                     && let Some(i) = self.items.get_mut(&id)
                 {
                     i.timed = true;
+                    i.left_off = None;
                 }
             }
             EventData::TimerStopped(d) => {
@@ -914,6 +917,21 @@ impl State {
                     seg.end = Some(event.effective_at);
                 }
                 self.running = None;
+            }
+            EventData::TimerInterrupted(d) => {
+                self.item_ok(d.item)?;
+                let seg = self
+                    .segments
+                    .get(&d.interrupted)
+                    .ok_or(Rejection::UnknownSegment(d.interrupted))?;
+                if let Some(l) = &d.left_off {
+                    clean(l)?;
+                }
+                if let TimerTarget::Item(id) = seg.target
+                    && let Some(i) = self.items.get_mut(&id)
+                {
+                    i.left_off = d.left_off.clone();
+                }
             }
             EventData::CommandUndone(_) => {}
         }
@@ -943,6 +961,7 @@ fn new_item(id: ItemId, title: String, created_at: Timestamp) -> Item {
         completion_note: None,
         abandon: None,
         timed: false,
+        left_off: None,
     }
 }
 

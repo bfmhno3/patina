@@ -86,6 +86,8 @@ pub struct CommandOutcome {
     pub warnings: usize,
     /// A timer segment ended with this command.
     pub stopped: Option<StoppedView>,
+    /// Timing started on an item that had a hand-over note: where work stopped.
+    pub left_off: Option<String>,
 }
 
 /// Entry point for every front end.
@@ -124,6 +126,7 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
             .map(|i| vec![(Identity, i.as_uuid())])
             .unwrap_or_default(),
         EventData::TimerStarted(d) => vec![target_ref(d.target)],
+        EventData::TimerInterrupted(d) => vec![(Item, d.item.as_uuid())],
         EventData::TimerStopped(d) => state
             .segments
             .get(&d.segment)
@@ -278,6 +281,7 @@ impl Patina {
                 undone: Vec::new(),
                 warnings: 0,
                 stopped: None,
+                left_off: None,
             });
         }
 
@@ -289,6 +293,13 @@ impl Patina {
             .first()
             .map(|e| e.command)
             .ok_or(CommandError::NoChanges)?;
+        let left_off = events.iter().find_map(|e| match &e.data {
+            EventData::TimerStarted(d) => match d.target {
+                TimerTarget::Item(id) => state.items.get(&id).and_then(|i| i.left_off.clone()),
+                TimerTarget::Habit(_) => None,
+            },
+            _ => None,
+        });
 
         let mut undone = Vec::new();
         let (label_state, refs, projection_warnings) = if matches!(cmd, Command::Undo) {
@@ -358,6 +369,7 @@ impl Patina {
             undone,
             warnings: log.warnings.len() + projection_warnings,
             stopped,
+            left_off,
         })
     }
 

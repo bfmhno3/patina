@@ -140,6 +140,16 @@ pub enum HabitKind {
     },
 }
 
+/// What happened to an interruption.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterruptOutcome {
+    /// Handled right now: the timer switched to it.
+    Now,
+    /// Parked in the inbox; the timer keeps running.
+    Inbox,
+}
+
 /// What a timer segment times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -298,6 +308,14 @@ payloads! {
     pub struct TimerStarted { pub segment: SegmentId, pub target: TimerTarget, }
     /// `timer.stopped`; the segment ends at the envelope effective time.
     pub struct TimerStopped { pub segment: SegmentId, }
+    /// `timer.interrupted`; `item` is the item made for the interruption.
+    pub struct TimerInterrupted {
+        pub item: ItemId,
+        pub outcome: InterruptOutcome,
+        pub interrupted: SegmentId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub left_off: Option<String>,
+    }
     /// `habit.paused`
     pub struct HabitPaused { pub habit: HabitId, pub from: Date, }
     /// `habit.resumed`
@@ -375,6 +393,9 @@ pub enum EventData {
     /// Timer segment stopped.
     #[serde(rename = "timer.stopped")]
     TimerStopped(TimerStopped),
+    /// A running timer was interrupted.
+    #[serde(rename = "timer.interrupted")]
+    TimerInterrupted(TimerInterrupted),
     /// Habit paused.
     #[serde(rename = "habit.paused")]
     HabitPaused(HabitPaused),
@@ -410,6 +431,7 @@ const KINDS: &[&str] = &[
     "habit.skipped",
     "timer.started",
     "timer.stopped",
+    "timer.interrupted",
     "habit.paused",
     "habit.resumed",
     "command.undone",
@@ -440,6 +462,7 @@ impl EventData {
             EventData::HabitSkipped(_) => "habit.skipped",
             EventData::TimerStarted(_) => "timer.started",
             EventData::TimerStopped(_) => "timer.stopped",
+            EventData::TimerInterrupted(_) => "timer.interrupted",
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
@@ -470,6 +493,7 @@ impl EventData {
             | EventData::HabitSkipped(_)
             | EventData::TimerStarted(_)
             | EventData::TimerStopped(_)
+            | EventData::TimerInterrupted(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)

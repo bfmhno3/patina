@@ -130,6 +130,12 @@ pub enum CommandError {
     /// No timer runs.
     #[error("no timer is running")]
     NoRunningTimer,
+    /// Interrupt text with a hand-over detail but no hand-over.
+    #[error("--left-off and an identity only apply when handling the interruption now")]
+    NeedsHandleNow,
+    /// The item is already an external node.
+    #[error("the item is already waiting on something external")]
+    AlreadyWaiting,
 }
 
 macro_rules! cmd_structs {
@@ -243,6 +249,20 @@ cmd_structs! {
     pub struct StartTimer { pub target: TimerRef, pub at: Option<jiff::Timestamp>, }
     /// Stop the running timer, optionally at an earlier time.
     pub struct StopTimer { pub at: Option<jiff::Timestamp>, }
+    /// Interrupt the running timer with a new matter.
+    pub struct Interrupt {
+        pub text: String,
+        #[serde(default)]
+        pub now: bool,
+        pub identity: Option<String>,
+        pub left_off: Option<String>,
+    }
+    /// Block an item on something external and stop timing it.
+    pub struct Stuck {
+        pub item: Option<String>,
+        pub waiting_for: String,
+        pub follow_up: Option<Date>,
+    }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -301,6 +321,10 @@ pub enum Command {
     StartTimer(StartTimer),
     /// Stop the running timer.
     StopTimer(StopTimer),
+    /// Interrupt the running timer.
+    Interrupt(Interrupt),
+    /// Mark an item as stuck on something external.
+    Stuck(Stuck),
 }
 
 /// Everything a command needs besides state.
@@ -365,6 +389,22 @@ fn check_not_future(at: jiff::Timestamp, now: jiff::Timestamp) -> Result<(), Com
 
 fn running_segment(state: &State) -> Option<&Segment> {
     state.running.and_then(|id| state.segments.get(&id))
+}
+
+/// An `item.created` payload with every optional field empty.
+fn new_created(item: ItemId, title: String, identity: IdentityId) -> ItemCreated {
+    ItemCreated {
+        item,
+        title,
+        identity,
+        parent: None,
+        tags: Vec::new(),
+        defer: None,
+        scheduled: None,
+        deadline: None,
+        waiting_for: None,
+        follow_up: None,
+    }
 }
 
 fn upd<T: PartialEq + Clone>(
@@ -986,6 +1026,86 @@ fn build(
                 effective_at = Some(at);
             }
             vec![EventData::TimerStopped(TimerStopped { segment: seg.id })]
+        }
+        Command::Interrupt(c) => {
+            let seg = running_segment(state).ok_or(CommandError::NoRunningTimer)?;
+            if !c.now && (c.left_off.is_some() || c.identity.is_some()) {
+                return Err(CommandError::NeedsHandleNow);
+            }
+            let title = text(&c.text)?;
+            let left_off = opt_text(&c.left_off)?;
+            let item = ItemId::from_uuid(gen_.uuid());
+            if c.now {
+                let running_identity = match seg.target {
+                    TimerTarget::Item(id) => state.items.get(&id).and_then(|i| i.identity),
+                    TimerTarget::Habit(_) => None,
+                };
+                let identity = match &c.identity {
+                    Some(name) => resolve::identity(state, name)?,
+                    None => mode::current(state, ctx.now.timestamp(), &ctx.settings)
+                        .identity
+                        .or(running_identity)
+                        .ok_or(CommandError::IdentityRequired)?,
+                };
+                vec![
+                    EventData::ItemCreated(new_created(item, title, identity)),
+                    EventData::TimerInterrupted(TimerInterrupted {
+                        item,
+                        outcome: InterruptOutcome::Now,
+                        interrupted: seg.id,
+                        left_off,
+                    }),
+                    EventData::TimerStopped(TimerStopped { segment: seg.id }),
+                    EventData::TimerStarted(TimerStarted {
+                        segment: SegmentId::from_uuid(gen_.uuid()),
+                        target: TimerTarget::Item(item),
+                    }),
+                ]
+            } else {
+                vec![
+                    EventData::ItemCaptured(ItemCaptured { item, text: title }),
+                    EventData::TimerInterrupted(TimerInterrupted {
+                        item,
+                        outcome: InterruptOutcome::Inbox,
+                        interrupted: seg.id,
+                        left_off: None,
+                    }),
+                ]
+            }
+        }
+        Command::Stuck(c) => {
+            let item = match &c.item {
+                Some(r) => item_ref(state, r)?,
+                None => match running_segment(state).map(|s| s.target) {
+                    Some(TimerTarget::Item(id)) => {
+                        state.items.get(&id).ok_or(Rejection::UnknownItem(id))?
+                    }
+                    _ => return Err(CommandError::NoRunningTimer),
+                },
+            };
+            if item.is_external() {
+                return Err(CommandError::AlreadyWaiting);
+            }
+            let waiting = text(&c.waiting_for)?;
+            let identity = item.identity.ok_or(CommandError::IdentityRequired)?;
+            let blocker = ItemId::from_uuid(gen_.uuid());
+            let mut out = Vec::new();
+            if let Some(seg) = running_segment(state)
+                && seg.target == TimerTarget::Item(item.id)
+            {
+                out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+            }
+            out.push(EventData::ItemCreated(ItemCreated {
+                parent: item.parent,
+                waiting_for: Some(waiting.clone()),
+                follow_up: c.follow_up,
+                ..new_created(blocker, waiting, identity)
+            }));
+            out.push(EventData::EdgeAdded(EdgeAdded {
+                item: item.id,
+                depends_on: blocker,
+            }));
+            out
         }
     };
     Ok(Built { datas, effective_at })

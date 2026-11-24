@@ -6,7 +6,7 @@ use jiff::tz::TimeZone;
 use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::Command;
 use patina_core::engine::{CommandOutcome, Subject};
-use patina_core::event::{EventData, Frequency, HabitKind, TimerTarget};
+use patina_core::event::{EventData, Frequency, HabitKind, InterruptOutcome, TimerTarget};
 use patina_core::ids;
 use patina_core::query::{
     Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, TimerView, TodayView, TreeNode,
@@ -110,8 +110,34 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
             });
             let sub = started.and_then(|id| o.subjects.iter().find(|s| s.id == id));
             let _ = writeln!(out, "started timer on {} {}", sref(sub), label(sub));
+            if let Some(l) = &o.left_off {
+                let _ = writeln!(out, "left off: {l}");
+            }
         }
         Command::StopTimer(_) => stopped_line(o, &mut out),
+        Command::Stuck(_) => {
+            stopped_line(o, &mut out);
+            let blocker = o.events.iter().find_map(|e| match &e.data {
+                EventData::ItemCreated(d) => Some(d.item.as_uuid()),
+                _ => None,
+            });
+            let sub = blocker.and_then(|id| o.subjects.iter().find(|s| s.id == id));
+            let _ = writeln!(out, "waiting on {} {}", sref(sub), label(sub));
+        }
+        Command::Interrupt(_) => {
+            stopped_line(o, &mut out);
+            let interrupted = o.events.iter().find_map(|e| match &e.data {
+                EventData::TimerInterrupted(d) => Some((d.outcome, d.item.as_uuid())),
+                _ => None,
+            });
+            match interrupted {
+                Some((InterruptOutcome::Now, id)) => {
+                    let sub = o.subjects.iter().find(|s| s.id == id);
+                    let _ = writeln!(out, "interrupted: now timing {} {}", sref(sub), label(sub));
+                }
+                _ => out.push_str("interrupted: captured to inbox\n"),
+            }
+        }
         Command::Move(_) => {
             let _ = writeln!(out, "moved {s}");
         }
@@ -446,6 +472,9 @@ fn show(d: &ItemDetail, tz: &TimeZone) -> String {
     }
     if let Some(w) = &i.waiting_for {
         let _ = writeln!(out, "waiting_for: {w}");
+    }
+    if let Some(l) = &d.left_off {
+        let _ = writeln!(out, "left_off: {l}");
     }
     if !i.path.is_empty() {
         let _ = writeln!(out, "path: {}", i.path.join(" > "));

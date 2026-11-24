@@ -247,6 +247,8 @@ pub struct ItemDetail {
     pub completion_note: Option<String>,
     /// Abandon info.
     pub abandon: Option<AbandonView>,
+    /// Where work stopped when an interruption took over.
+    pub left_off: Option<String>,
 }
 
 /// An identity with counts.
@@ -828,6 +830,7 @@ pub fn run(
                     reason: *reason,
                     note: note.clone(),
                 }),
+                left_off: i.left_off.clone(),
             }))
         }
         Query::Habits => {

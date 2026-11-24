@@ -186,3 +186,115 @@ fn undo_of_a_stop_resumes_the_timer() {
             .all(|e| matches!(e.data, EventData::CommandUndone(_)))
     );
 }
+
+fn frontier_titles(p: &Patina, now: &str) -> Vec<String> {
+    match p.query(Query::List { identity: None }, at(now)).unwrap() {
+        QueryOutput::List(v) => v.into_iter().map(|i| i.title).collect(),
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+#[test]
+fn stuck_blocks_the_timed_child_behind_an_external_sibling() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = patina(&dir);
+    add(&p, "project", None);
+    add(&p, "draft", Some("project"));
+    run(&p, "09:00", start("draft", None)).unwrap();
+    let out = run(
+        &p,
+        "09:25",
+        Command::Stuck(Stuck {
+            item: None,
+            waiting_for: "mentor review".into(),
+            follow_up: Some("2026-11-27".parse().unwrap()),
+        }),
+    )
+    .unwrap();
+    assert_eq!(out.stopped.unwrap().minutes, 25);
+    assert!(status(&p, "09:26").timer.is_none());
+    assert!(frontier_titles(&p, "09:26").is_empty());
+    let shown = item(&p, "09:26", "draft");
+    assert_eq!(shown.blocked_by.len(), 1);
+    let waiting = item(&p, "09:26", "mentor review");
+    assert_eq!(waiting.waiting_for.as_deref(), Some("mentor review"));
+    assert_eq!(waiting.path, ["project"]);
+    assert!(matches!(
+        run(
+            &p,
+            "09:27",
+            Command::Stuck(Stuck {
+                item: Some("mentor review".into()),
+                waiting_for: "again".into(),
+                follow_up: None,
+            })
+        )
+        .unwrap_err(),
+        Error::Command(CommandError::AlreadyWaiting)
+    ));
+}
+
+#[test]
+fn interrupt_now_hands_over_and_start_reports_left_off_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = patina(&dir);
+    add(&p, "report", None);
+    run(&p, "09:00", start("report", None)).unwrap();
+    let interrupt = |now: bool, left_off: Option<&str>| {
+        Command::Interrupt(Interrupt {
+            text: "call landlord".into(),
+            now,
+            identity: None,
+            left_off: left_off.map(String::from),
+        })
+    };
+    assert!(matches!(
+        run(&p, "09:10", interrupt(false, Some("x"))).unwrap_err(),
+        Error::Command(CommandError::NeedsHandleNow)
+    ));
+    let out = run(
+        &p,
+        "09:10",
+        interrupt(true, Some("section 3, second paragraph")),
+    )
+    .unwrap();
+    assert_eq!(out.stopped.unwrap().minutes, 10);
+    assert_eq!(
+        status(&p, "09:11").timer.unwrap().target.label,
+        "call landlord"
+    );
+    assert_eq!(
+        item(&p, "09:11", "report").status,
+        patina_core::query::ViewStatus::InProgress
+    );
+    let back = run(&p, "09:30", start("report", None)).unwrap();
+    assert_eq!(
+        back.left_off.as_deref(),
+        Some("section 3, second paragraph")
+    );
+    run(&p, "09:40", stop(None)).unwrap();
+    let again = run(&p, "09:50", start("report", None)).unwrap();
+    assert_eq!(again.left_off, None);
+}
+
+#[test]
+fn interrupt_without_now_parks_it_in_the_inbox_and_keeps_timing() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = patina(&dir);
+    add(&p, "report", None);
+    run(&p, "09:00", start("report", None)).unwrap();
+    run(
+        &p,
+        "09:05",
+        Command::Interrupt(Interrupt {
+            text: "buy stamps".into(),
+            now: false,
+            identity: None,
+            left_off: None,
+        }),
+    )
+    .unwrap();
+    let s = status(&p, "09:06");
+    assert_eq!(s.inbox, 1);
+    assert_eq!(s.timer.unwrap().target.label, "report");
+}

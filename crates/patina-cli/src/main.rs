@@ -67,6 +67,29 @@ enum Cmd {
         #[arg(long)]
         at: Option<String>,
     },
+    /// Mark the item you are timing (or --item) as waiting on something external.
+    Stuck {
+        /// What you are waiting for.
+        #[arg(required = true, num_args = 1..)]
+        text: Vec<String>,
+        #[arg(long)]
+        item: Option<String>,
+        #[arg(long)]
+        follow_up: Option<String>,
+    },
+    /// Park a new matter that interrupts the running timer.
+    Interrupt {
+        #[arg(required = true, num_args = 1..)]
+        text: Vec<String>,
+        /// Handle it right now: switch the timer to it.
+        #[arg(long)]
+        now: bool,
+        #[arg(short, long, requires = "now")]
+        identity: Option<String>,
+        /// Where you stopped on the interrupted item.
+        #[arg(long, requires = "now")]
+        left_off: Option<String>,
+    },
     /// Complete an item.
     Done {
         item: String,
@@ -441,6 +464,26 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
         }
         Cmd::Stop { at } => Action::Run(Command::StopTimer(c::StopTimer {
             at: at.as_deref().map(|s| parse_time(s, now)).transpose()?,
+        })),
+        Cmd::Stuck {
+            text,
+            item,
+            follow_up,
+        } => Action::Run(Command::Stuck(c::Stuck {
+            item,
+            waiting_for: text.join(" "),
+            follow_up: opt_date(&follow_up, today)?,
+        })),
+        Cmd::Interrupt {
+            text,
+            now: handle_now,
+            identity,
+            left_off,
+        } => Action::Run(Command::Interrupt(c::Interrupt {
+            text: text.join(" "),
+            now: handle_now,
+            identity,
+            left_off,
         })),
         Cmd::Done { item, note } => Action::Run(Command::Complete(c::Complete { item, note })),
         Cmd::Abandon { item, reason, note } => Action::Run(Command::Abandon(c::Abandon {
