@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::command::{self, Command, CommandError, Context};
 use crate::error::TimeError;
-use crate::event::{Event, EventData, Source};
 use crate::event::{Category, Estimate, Event, EventData, Source, TimerTarget};
 use crate::ids::{self, CommandId};
 use crate::query::{self, Query, QueryOutput};
@@ -93,6 +92,8 @@ pub struct CommandOutcome {
     pub stopped: Option<StoppedView>,
     /// Timing started on an item that had a hand-over note: where work stopped.
     pub left_off: Option<String>,
+    /// A `Next` command: the card to display.
+    pub card: Option<Box<query::NextView>>,
 }
 
 /// Entry point for every front end.
@@ -133,6 +134,15 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
         EventData::TimerStarted(d) => vec![target_ref(d.target)],
         EventData::TimerInterrupted(d) => vec![(Item, d.item.as_uuid())],
         EventData::ReviewCompleted(d) => d.focus.iter().map(|i| (Item, i.as_uuid())).collect(),
+        EventData::RecommendationShown(d) => d
+            .item
+            .map(|i| vec![(Item, i.as_uuid())])
+            .unwrap_or_default(),
+        EventData::RecommendationAccepted(d) => vec![(Item, d.item.as_uuid())],
+        EventData::RecommendationSkipped(d) => d
+            .item
+            .map(|i| vec![(Item, i.as_uuid())])
+            .unwrap_or_default(),
         EventData::TimerStopped(d) => state
             .segments
             .get(&d.segment)
@@ -295,12 +305,14 @@ impl Patina {
                 warnings: 0,
                 stopped: None,
                 left_off: None,
+                card: None,
             });
         }
 
         let log = self.store.load()?;
         let mut state = project(&log.events);
-        let events = command::execute(&state, &log.events, device, &cmd, &ctx)?.events;
+        let executed = command::execute(&state, &log.events, device, &cmd, &ctx)?;
+        let (events, card) = (executed.events, executed.card);
         guard.append(&events)?;
         let command_id = events
             .first()
@@ -383,6 +395,7 @@ impl Patina {
             warnings: log.warnings.len() + projection_warnings,
             stopped,
             left_off,
+            card,
         })
     }
 

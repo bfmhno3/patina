@@ -262,3 +262,68 @@ fn weekly_review_shows_sections_and_records_focus() {
     );
     assert!(!r.contains("Done\n"), "{r}");
 }
+
+#[test]
+fn next_card_start_then_forgotten_timer_then_review() {
+    let s = Sandbox::new();
+    let at = |day: &str, hm: &str| format!("2026-11-{day}T{hm}:00+08:00[Asia/Shanghai]");
+    s.ok(&["init"]);
+    s.ok(&["mode", "work"]);
+    s.ok(&["new", "write parser", "-i", "work", "--size", "l"]);
+    s.ok(&[
+        "new",
+        "reply mail",
+        "-i",
+        "work",
+        "--size",
+        "s",
+        "--deadline",
+        "tomorrow",
+    ]);
+    let card = s.ok(&["next"]);
+    assert!(
+        card.contains("next: ") && card.contains(" reply mail\n"),
+        "{card}"
+    );
+    assert!(card.contains("  why: due in 1 day; small (S)\n"), "{card}");
+    assert!(
+        card.contains("patina next start | skip: patina next skip"),
+        "{card}"
+    );
+    let started = s.ok(&["next", "start"]);
+    assert!(started.starts_with("started timer on "), "{started}");
+    let status = s.status();
+    assert!(
+        status.starts_with("mode:work timer:") && status.contains("+0m inbox:0"),
+        "{status}"
+    );
+    let today = s.ok_at(&at("24", "23:50"), &["today"]);
+    assert!(today.contains("hint: timer on "), "{today}");
+    let stopped = s.ok_at(&at("25", "08:00"), &["stop", "--at", "09:40"]);
+    assert!(stopped.contains("reply mail after 40m"), "{stopped}");
+    let review = s.ok_at(&at("25", "08:01"), &["review"]);
+    assert!(review.starts_with("Since the beginning\n"), "{review}");
+    assert!(
+        review.contains("finish with: patina review done"),
+        "{review}"
+    );
+    // Proposal-level sources read the card without recording it.
+    let out = s.run_as(Some("agent:test"), &["next"]);
+    assert!(out.status.success());
+}
+
+#[test]
+fn stuck_confirms_and_shows_the_next_card() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&["new", "draft", "-i", "work"]);
+    s.ok(&["new", "email", "-i", "work", "--important"]);
+    s.ok(&["start", "draft"]);
+    let out = s.ok(&["stuck", "mentor", "feedback"]);
+    assert!(out.contains("stopped "), "{out}");
+    assert!(
+        out.contains("waiting on ") && out.contains(" mentor feedback\n"),
+        "{out}"
+    );
+    assert!(out.contains(" email\n  why: important\n"), "{out}");
+}

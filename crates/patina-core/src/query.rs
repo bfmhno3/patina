@@ -3,11 +3,13 @@
 use std::collections::{HashMap, HashSet};
 
 use jiff::civil::Date;
+use jiff::{Timestamp, ZonedDateTime};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::dag;
 use crate::engine::{Error, Subject, SubjectKind};
+use crate::error::TimeError;
 use crate::event::{AbandonReason, Estimate, Frequency, HabitKind, Repeat, TimerTarget};
 use crate::habit;
 use crate::ids::{self, IdentityId};
@@ -17,7 +19,9 @@ use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
 use crate::store::LoadWarning;
 use crate::time::{Settings, logical_day};
 
+pub use crate::recommend::{Card, ElsewhereCount, NextView};
 pub use crate::review::{CompletedGroup, PostponedView, ProjectProgress, ReviewView, WaitingView};
+use crate::timer;
 
 /// A read request.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -35,6 +39,14 @@ pub enum Query {
     Mode,
     /// Weekly review summary.
     Review,
+    /// The recommended next card; records nothing.
+    Next {
+        /// Restrict to one identity (overrides the mode).
+        identity: Option<String>,
+        /// Ignore the identity mode.
+        #[serde(default)]
+        all: bool,
+    },
     /// Untriaged captures.
     Inbox,
     /// The actionable frontier.
@@ -382,6 +394,8 @@ pub enum QueryOutput {
     Mode(Box<ModeOutput>),
     /// [`Query::Review`]
     Review(Box<ReviewView>),
+    /// [`Query::Next`]
+    Next(Box<NextView>),
 }
 
 pub(crate) struct View<'a> {
@@ -492,7 +506,7 @@ impl<'a> View<'a> {
     }
 
     /// Other identities' urgent items; empty when no identity is in scope.
-    pub(crate) fn banner(&self, scope: Option<IdentityId>) -> Result<Banner, Error> {
+    pub(crate) fn banner(&self, scope: Option<IdentityId>) -> Result<Banner, TimeError> {
         let Some(scope) = scope else {
             return Ok(Banner::default());
         };
@@ -628,7 +642,7 @@ impl<'a> View<'a> {
             .collect()
     }
 
-    fn habit_timed(&self, h: &Habit) -> Result<habit::Timed, Error> {
+    fn habit_timed(&self, h: &Habit) -> Result<habit::Timed, TimeError> {
         if matches!(h.kind, HabitKind::Duration { .. }) {
             Ok(timer::habit_seconds(
                 self.state,
@@ -642,7 +656,7 @@ impl<'a> View<'a> {
         }
     }
 
-    pub(crate) fn habit(&self, h: &Habit) -> Result<HabitView, Error> {
+    pub(crate) fn habit(&self, h: &Habit) -> Result<HabitView, TimeError> {
         let timed = self.habit_timed(h)?;
         let st = habit::today_status(h, self.today, self.settings, &timed)?;
         Ok(HabitView {
@@ -923,5 +937,11 @@ pub fn run(
             timer: v.timer_view(),
         })),
         Query::Review => QueryOutput::Review(Box::new(crate::review::view(&v)?)),
+        Query::Next { identity, all } => {
+            let scope = v.scope(identity, *all)?;
+            QueryOutput::Next(Box::new(crate::recommend::next(
+                state, now, settings, scope, None,
+            )?))
+        }
     })
 }

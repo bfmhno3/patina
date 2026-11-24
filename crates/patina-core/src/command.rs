@@ -11,6 +11,7 @@ use crate::error::TimeError;
 use crate::event::*;
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId, new_v7};
 use crate::mode;
+use crate::recommend::{self, Card, CardKind, NextView};
 use crate::resolve::{self, ResolveError};
 use crate::state::{Habit, Item, ItemStatus, Rejection, Segment, State, project};
 use crate::time::{BACKFILL_DAYS, Settings, logical_day, week_start_of};
@@ -152,6 +153,9 @@ pub enum CommandError {
         /// The identity with two focus items.
         identity: IdentityId,
     },
+    /// Nothing recommended on this device to act on.
+    #[error("no recommendation to act on; run 'patina next' first")]
+    NoRecommendation,
 }
 
 macro_rules! cmd_structs {
@@ -296,6 +300,8 @@ cmd_structs! {
         #[serde(default)]
         pub focus: Vec<String>,
     }
+    /// Act on the recommendation card.
+    pub struct NextCmd { pub action: NextAction, }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -360,6 +366,8 @@ pub enum Command {
     Stuck(Stuck),
     /// Record the weekly review.
     CompleteReview(CompleteReview),
+    /// Show a card or act on the last one.
+    Next(NextCmd),
 }
 
 /// Everything a command needs besides state.
@@ -424,6 +432,87 @@ fn check_not_future(at: jiff::Timestamp, now: jiff::Timestamp) -> Result<(), Com
 
 fn running_segment(state: &State) -> Option<&Segment> {
     state.running.and_then(|id| state.segments.get(&id))
+}
+
+/// What to do with the recommendation card.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum NextAction {
+    /// Compute and show the next card.
+    Show {
+        /// Restrict to one identity (overrides the mode).
+        identity: Option<String>,
+        /// Ignore the identity mode.
+        #[serde(default)]
+        all: bool,
+    },
+    /// Start timing the shown item.
+    Start,
+    /// Skip the shown card and show the next one.
+    Skip,
+    /// The shown item is too big: add its first step and show that.
+    Split {
+        /// The first step.
+        text: String,
+    },
+}
+
+fn shown_data(view: &NextView, scope: Option<IdentityId>) -> EventData {
+    let (item, score, reasons) = match &view.card {
+        Card::Item {
+            item,
+            score,
+            reasons,
+        }
+        | Card::BreakDown {
+            item,
+            score,
+            reasons,
+        } => (Some(ItemId::from_uuid(item.id)), *score, reasons.clone()),
+        _ => (None, None, Vec::new()),
+    };
+    EventData::RecommendationShown(RecommendationShown {
+        card: view.card.kind(),
+        item,
+        score,
+        reasons,
+        scope,
+    })
+}
+
+/// Applies `data` to a scratch copy so the next card is computed after it.
+fn apply_scratch(
+    state: &mut State,
+    device: DeviceId,
+    ctx: &Context,
+    gen_: &Gen,
+    data: &EventData,
+) -> Result<(), CommandError> {
+    let now = ctx.now.timestamp();
+    let event = Event {
+        id: EventId::from_uuid(gen_.uuid()),
+        device,
+        effective_at: now,
+        recorded_at: now,
+        source: ctx.source.clone(),
+        command: CommandId::from_uuid(gen_.uuid()),
+        category: data.category(),
+        data: data.clone(),
+    };
+    state.apply(&event)?;
+    Ok(())
+}
+
+/// The open item on this device's last item or break-down card.
+fn shown_item(state: &State, device: DeviceId) -> Result<&Item, CommandError> {
+    state
+        .last_shown
+        .get(&device)
+        .filter(|s| matches!(s.card, CardKind::Item | CardKind::BreakDown))
+        .and_then(|s| s.item)
+        .and_then(|id| state.items.get(&id))
+        .filter(|i| i.status == ItemStatus::Todo)
+        .ok_or(CommandError::NoRecommendation)
 }
 
 /// An `item.created` payload with every optional field empty.
@@ -604,12 +693,15 @@ pub fn capture(device: DeviceId, raw: &str, ctx: &Context) -> Result<Event, Comm
 pub struct Executed {
     /// The events to append, in order.
     pub events: Vec<Event>,
+    /// The card a `Next` command displays.
+    pub card: Option<Box<NextView>>,
 }
 
 /// What `build` decided: payloads plus the shared effective time.
 struct Built {
     datas: Vec<EventData>,
     effective_at: Option<jiff::Timestamp>,
+    card: Option<Box<NextView>>,
 }
 
 /// Validates `cmd` against `state` and produces its events.
@@ -629,6 +721,7 @@ pub fn execute(
     if let Command::Capture(c) = cmd {
         return Ok(Executed {
             events: vec![capture(device, &c.text, ctx)?],
+            card: None,
         });
     }
     let now = ctx.now.timestamp();
@@ -655,7 +748,10 @@ pub fn execute(
         scratch.apply(&event)?;
         events.push(event);
     }
-    Ok(Executed { events })
+    Ok(Executed {
+        events,
+        card: built.card,
+    })
 }
 
 fn build(
@@ -668,6 +764,7 @@ fn build(
 ) -> Result<Built, CommandError> {
     let today = logical_day(&ctx.now, &ctx.settings)?;
     let mut effective_at: Option<jiff::Timestamp> = None;
+    let mut card: Option<Box<NextView>> = None;
     let datas = match cmd {
         Command::Capture(_) => Vec::new(),
         Command::Init => {
@@ -1286,8 +1383,79 @@ fn build(
                 focus,
             })]
         }
+        Command::Next(c) => match &c.action {
+            NextAction::Show { identity, all } => {
+                let scope = if let Some(n) = identity {
+                    Some(resolve::identity(state, n)?)
+                } else if *all {
+                    None
+                } else {
+                    mode::current(state, ctx.now.timestamp(), &ctx.settings).effective()
+                };
+                let view = recommend::next(state, &ctx.now, &ctx.settings, scope, None)?;
+                let shown = shown_data(&view, scope);
+                card = Some(Box::new(view));
+                vec![shown]
+            }
+            NextAction::Start => {
+                let item = shown_item(state, device)?;
+                let target = TimerTarget::Item(item.id);
+                let mut out = Vec::new();
+                if let Some(seg) = running_segment(state) {
+                    if seg.target == target {
+                        return Err(CommandError::AlreadyTiming);
+                    }
+                    out.push(EventData::TimerStopped(TimerStopped { segment: seg.id }));
+                }
+                out.push(EventData::TimerStarted(TimerStarted {
+                    segment: SegmentId::from_uuid(gen_.uuid()),
+                    target,
+                }));
+                out.push(EventData::RecommendationAccepted(RecommendationAccepted {
+                    item: item.id,
+                }));
+                out
+            }
+            NextAction::Skip => {
+                let shown = state
+                    .last_shown
+                    .get(&device)
+                    .filter(|s| s.card != CardKind::Empty)
+                    .ok_or(CommandError::NoRecommendation)?;
+                let skipped = EventData::RecommendationSkipped(RecommendationSkipped {
+                    card: shown.card,
+                    item: shown.item,
+                });
+                let mut scratch = state.clone();
+                apply_scratch(&mut scratch, device, ctx, gen_, &skipped)?;
+                let view = recommend::next(&scratch, &ctx.now, &ctx.settings, shown.scope, None)?;
+                let next_shown = shown_data(&view, shown.scope);
+                card = Some(Box::new(view));
+                vec![skipped, next_shown]
+            }
+            NextAction::Split { text: step } => {
+                let parent = shown_item(state, device)?;
+                let scope = state.last_shown.get(&device).and_then(|s| s.scope);
+                let identity = parent.identity.ok_or(CommandError::IdentityRequired)?;
+                let child = ItemId::from_uuid(gen_.uuid());
+                let created = EventData::ItemCreated(ItemCreated {
+                    parent: Some(parent.id),
+                    ..new_created(child, text(step)?, identity)
+                });
+                let mut scratch = state.clone();
+                apply_scratch(&mut scratch, device, ctx, gen_, &created)?;
+                let view = recommend::next(&scratch, &ctx.now, &ctx.settings, scope, Some(child))?;
+                let next_shown = shown_data(&view, scope);
+                card = Some(Box::new(view));
+                vec![created, next_shown]
+            }
+        },
     };
-    Ok(Built { datas, effective_at })
+    Ok(Built {
+        datas,
+        effective_at,
+        card,
+    })
 }
 
 /// The command `Undo` would undo, after checking nothing later depends on it.

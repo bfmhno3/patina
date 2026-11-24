@@ -78,15 +78,23 @@ pub fn postponements(
     tz: &TimeZone,
     settings: &Settings,
 ) -> Result<u32, TimeError> {
-    let Some(scheduled) = item.scheduled else {
-        return Ok(0);
+    let skips = item
+        .skips
+        .iter()
+        .filter(|t| **t > item.replanned_at)
+        .count();
+    let late_days = match item.scheduled {
+        Some(scheduled) => {
+            let from = scheduled.max(day_of(item.replanned_at, tz, settings)?);
+            if from < today {
+                active.range(from..today).count()
+            } else {
+                0
+            }
+        }
+        None => 0,
     };
-    let from = scheduled.max(day_of(item.replanned_at, tz, settings)?);
-    if from >= today {
-        return Ok(0);
-    }
-    let days = active.range(from..today).count();
-    Ok(u32::try_from(days).unwrap_or(u32::MAX))
+    Ok(u32::try_from(skips + late_days).unwrap_or(u32::MAX))
 }
 
 /// Items completed in the window, per identity.

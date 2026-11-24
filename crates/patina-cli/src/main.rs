@@ -153,6 +153,16 @@ enum Cmd {
     },
     /// List untriaged captures.
     Inbox,
+    /// Show the next thing to do, or act on it with `start`, `skip`, or `split`.
+    Next {
+        #[command(subcommand)]
+        cmd: Option<NextCmd>,
+        #[arg(short, long)]
+        identity: Option<String>,
+        /// Ignore the identity mode.
+        #[arg(long, conflicts_with = "identity")]
+        all: bool,
+    },
     /// List actionable items.
     List {
         #[arg(short, long)]
@@ -465,6 +475,19 @@ enum HabitCmd {
 }
 
 #[derive(Debug, Subcommand)]
+enum NextCmd {
+    /// Start timing the shown item.
+    Start,
+    /// Skip the shown card and show another.
+    Skip,
+    /// The shown item is too big: add its first step and show that.
+    Split {
+        #[arg(required = true, num_args = 1..)]
+        text: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum ReviewCmd {
     /// Record the review.
     Done {
@@ -500,7 +523,7 @@ fn opt_update(s: &Option<String>, today: Date) -> Result<Option<Update<Date>>> {
     s.as_deref().map(|s| parse_update(s, today)).transpose()
 }
 
-fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
+fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> Result<Action> {
     use command as c;
     Ok(match cmd {
         Cmd::Init => Action::Run(Command::Init),
@@ -723,6 +746,24 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime) -> Result<Action> {
                 at: at.as_deref().map(|s| parse_time(s, now)).transpose()?,
             })),
         },
+        Cmd::Next { cmd, identity, all } => match cmd {
+            // Proposal-level sources only read: they must not record shown cards.
+            None if proposal_level => Action::Ask(Query::Next { identity, all }),
+            None => Action::Run(Command::Next(c::NextCmd {
+                action: c::NextAction::Show { identity, all },
+            })),
+            Some(NextCmd::Start) => Action::Run(Command::Next(c::NextCmd {
+                action: c::NextAction::Start,
+            })),
+            Some(NextCmd::Skip) => Action::Run(Command::Next(c::NextCmd {
+                action: c::NextAction::Skip,
+            })),
+            Some(NextCmd::Split { text }) => Action::Run(Command::Next(c::NextCmd {
+                action: c::NextAction::Split {
+                    text: text.join(" "),
+                },
+            })),
+        },
         Cmd::Review { cmd } => match cmd {
             None => Action::Ask(Query::Review),
             Some(ReviewCmd::Done { conclusion, focus }) => {
@@ -753,7 +794,7 @@ fn run(cli: Cli) -> Result<()> {
     let patina = Patina::new(Store::new(env.root.clone(), env.device));
     let settings = patina.settings()?;
     let today = logical_day(&env.now, &settings)?;
-    let action = action(cli.command, today, &env.now)?;
+    let action = action(cli.command, today, &env.now, env.source.is_proposal_level())?;
     match action {
         Action::Run(cmd) => {
             let outcome = patina.run(cmd.clone(), env.now.clone(), env.source.clone())?;
@@ -763,6 +804,17 @@ fn run(cli: Cli) -> Result<()> {
                 print!("{}", render::outcome(&cmd, &outcome, &env.now));
             }
             warn(outcome.warnings);
+            // "Stuck" immediately recommends the next thing (design: no dead end).
+            if matches!(cmd, Command::Stuck(_)) && !cli.json && !env.source.is_proposal_level() {
+                let show = Command::Next(command::NextCmd {
+                    action: command::NextAction::Show {
+                        identity: None,
+                        all: false,
+                    },
+                });
+                let next = patina.run(show.clone(), env.now.clone(), env.source.clone())?;
+                print!("{}", render::outcome(&show, &next, &env.now));
+            }
         }
         Action::Ask(q) => {
             let out = patina.query(q, env.now.clone())?;

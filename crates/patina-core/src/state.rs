@@ -13,7 +13,8 @@ use uuid::Uuid;
 use crate::event::{
     AbandonReason, Category, Estimate, Event, EventData, Frequency, HabitKind, Repeat, TimerTarget,
 };
-use crate::ids::{CommandId, EventId, HabitId, IdentityId, ItemId, SegmentId};
+use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
+use crate::recommend::CardKind;
 
 /// An event that cannot be applied to the current state.
 #[derive(Clone, Debug, PartialEq, thiserror::Error, Serialize)]
@@ -251,6 +252,8 @@ pub struct Item {
     pub replanned_at: Timestamp,
     /// Since when the item has been waiting on something external.
     pub waiting_since: Option<Timestamp>,
+    /// Times a recommendation of this item was skipped.
+    pub skips: Vec<Timestamp>,
 }
 
 impl Item {
@@ -313,6 +316,19 @@ pub struct Warning {
     pub rejection: Rejection,
 }
 
+/// The latest recommendation card a device showed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shown {
+    /// When it was shown.
+    pub at: Timestamp,
+    /// Which card.
+    pub card: CardKind,
+    /// The item on an item card.
+    pub item: Option<ItemId>,
+    /// The identity scope it was computed for.
+    pub scope: Option<IdentityId>,
+}
+
 /// A recorded weekly review.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Review {
@@ -367,6 +383,10 @@ pub struct State {
     pub running: Option<SegmentId>,
     /// Weekly reviews sorted by effective time.
     pub reviews: Vec<Review>,
+    /// Latest card shown per device.
+    pub last_shown: BTreeMap<DeviceId, Shown>,
+    /// Latest skip of the review and triage cards.
+    pub card_skips: BTreeMap<CardKind, Timestamp>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -1033,6 +1053,37 @@ impl State {
                     },
                 );
             }
+            EventData::RecommendationShown(d) => {
+                if let Some(i) = d.item {
+                    self.item_ok(i)?;
+                }
+                if let Some(s) = d.scope {
+                    self.identity_ok(s)?;
+                }
+                self.last_shown.insert(
+                    event.device,
+                    Shown {
+                        at: event.effective_at,
+                        card: d.card,
+                        item: d.item,
+                        scope: d.scope,
+                    },
+                );
+            }
+            EventData::RecommendationAccepted(d) => {
+                self.item_ok(d.item)?;
+            }
+            EventData::RecommendationSkipped(d) => {
+                if let Some(i) = d.item {
+                    self.item_ok(i)?;
+                }
+                if let Some(item) = d.item.and_then(|i| self.items.get_mut(&i)) {
+                    item.skips.push(event.effective_at);
+                }
+                if matches!(d.card, CardKind::Review | CardKind::Triage) {
+                    self.card_skips.insert(d.card, event.effective_at);
+                }
+            }
             EventData::CommandUndone(_) => {}
         }
         Ok(())
@@ -1068,6 +1119,7 @@ fn new_item(id: ItemId, title: String, created_at: Timestamp) -> Item {
         repeat_of: None,
         replanned_at: created_at,
         waiting_since: None,
+        skips: Vec::new(),
     }
 }
 

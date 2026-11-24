@@ -7,6 +7,7 @@ use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
+use crate::recommend::{CardKind, Reason};
 use crate::time::Weekday;
 
 /// One immutable log entry with its full envelope.
@@ -398,6 +399,26 @@ payloads! {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         pub focus: Vec<ItemId>,
     }
+    /// `recommendation.shown` (observation)
+    pub struct RecommendationShown {
+        pub card: CardKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub item: Option<ItemId>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub score: Option<f64>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub reasons: Vec<Reason>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub scope: Option<IdentityId>,
+    }
+    /// `recommendation.accepted` (observation)
+    pub struct RecommendationAccepted { pub item: ItemId, }
+    /// `recommendation.skipped` (observation)
+    pub struct RecommendationSkipped {
+        pub card: CardKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub item: Option<ItemId>,
+    }
     /// `habit.paused`
     pub struct HabitPaused { pub habit: HabitId, pub from: Date, }
     /// `habit.resumed`
@@ -481,6 +502,15 @@ pub enum EventData {
     /// A weekly review was recorded.
     #[serde(rename = "review.completed")]
     ReviewCompleted(ReviewCompleted),
+    /// A recommendation card was shown.
+    #[serde(rename = "recommendation.shown")]
+    RecommendationShown(RecommendationShown),
+    /// A recommendation was taken.
+    #[serde(rename = "recommendation.accepted")]
+    RecommendationAccepted(RecommendationAccepted),
+    /// A recommendation was skipped.
+    #[serde(rename = "recommendation.skipped")]
+    RecommendationSkipped(RecommendationSkipped),
     /// Habit paused.
     #[serde(rename = "habit.paused")]
     HabitPaused(HabitPaused),
@@ -518,6 +548,9 @@ const KINDS: &[&str] = &[
     "timer.stopped",
     "timer.interrupted",
     "review.completed",
+    "recommendation.shown",
+    "recommendation.accepted",
+    "recommendation.skipped",
     "habit.paused",
     "habit.resumed",
     "command.undone",
@@ -550,6 +583,9 @@ impl EventData {
             EventData::TimerStopped(_) => "timer.stopped",
             EventData::TimerInterrupted(_) => "timer.interrupted",
             EventData::ReviewCompleted(_) => "review.completed",
+            EventData::RecommendationShown(_) => "recommendation.shown",
+            EventData::RecommendationAccepted(_) => "recommendation.accepted",
+            EventData::RecommendationSkipped(_) => "recommendation.skipped",
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
             EventData::CommandUndone(_) => "command.undone",
@@ -582,6 +618,9 @@ impl EventData {
             | EventData::TimerStopped(_)
             | EventData::TimerInterrupted(_)
             | EventData::ReviewCompleted(_)
+            | EventData::RecommendationShown(_)
+            | EventData::RecommendationAccepted(_)
+            | EventData::RecommendationSkipped(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
             | EventData::ModeSwitched(_)
@@ -593,7 +632,12 @@ impl EventData {
     ///
     /// Observations survive the undo of their command.
     pub fn category(&self) -> Category {
-        Category::Domain
+        match self {
+            EventData::RecommendationShown(_)
+            | EventData::RecommendationAccepted(_)
+            | EventData::RecommendationSkipped(_) => Category::Observation,
+            _ => Category::Domain,
+        }
     }
 }
 

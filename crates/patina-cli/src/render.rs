@@ -4,16 +4,17 @@ use std::fmt::Write as _;
 
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, ZonedDateTime};
-use patina_core::command::Command;
+use patina_core::command::{Command, NextAction};
 use patina_core::engine::{CommandOutcome, Subject};
 use patina_core::event::{
     EventData, Frequency, HabitKind, InterruptOutcome, Repeat, RepeatUnit, Size, TimerTarget,
 };
 use patina_core::ids;
 use patina_core::query::{
-    Banner, HabitView, ItemDetail, ItemView, ModeView, QueryOutput, ReviewView, TimerView,
-    TodayView, TreeNode, ViewStatus,
+    Banner, Card, HabitView, ItemDetail, ItemView, ModeView, NextView, QueryOutput, ReviewView,
+    TimerView, TodayView, TreeNode, ViewStatus,
 };
+use patina_core::recommend::Reason;
 use patina_core::time::Weekday;
 
 fn sref(s: Option<&Subject>) -> &str {
@@ -146,21 +147,15 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
             }
             stopped_line(o, &mut out);
         }
-        Command::StartTimer(_) => {
-            stopped_line(o, &mut out);
-            let started = o.events.iter().find_map(|e| match &e.data {
-                EventData::TimerStarted(d) => Some(match d.target {
-                    TimerTarget::Item(i) => i.as_uuid(),
-                    TimerTarget::Habit(h) => h.as_uuid(),
-                }),
-                _ => None,
-            });
-            let sub = started.and_then(|id| o.subjects.iter().find(|s| s.id == id));
-            let _ = writeln!(out, "started timer on {} {}", sref(sub), label(sub));
-            if let Some(l) = &o.left_off {
-                let _ = writeln!(out, "left off: {l}");
+        Command::StartTimer(_) => started_lines(o, &mut out),
+        Command::Next(c) => match &c.action {
+            NextAction::Start => started_lines(o, &mut out),
+            _ => {
+                if let Some(v) = &o.card {
+                    out.push_str(&card(v, now));
+                }
             }
-        }
+        },
         Command::StopTimer(_) => stopped_line(o, &mut out),
         Command::Stuck(_) => {
             stopped_line(o, &mut out);
@@ -377,6 +372,95 @@ fn hints(mode: &ModeView, timer: Option<&TimerView>, now: &ZonedDateTime) -> Str
             stamp(last, now),
         );
     }
+    out
+}
+
+/// `[stopped ...]` then `started timer on <ref> <label>` and the hand-over note.
+fn started_lines(o: &CommandOutcome, out: &mut String) {
+    stopped_line(o, out);
+    let started = o.events.iter().find_map(|e| match &e.data {
+        EventData::TimerStarted(d) => Some(match d.target {
+            TimerTarget::Item(i) => i.as_uuid(),
+            TimerTarget::Habit(h) => h.as_uuid(),
+        }),
+        _ => None,
+    });
+    let sub = started.and_then(|id| o.subjects.iter().find(|s| s.id == id));
+    let _ = writeln!(out, "started timer on {} {}", sref(sub), label(sub));
+    if let Some(l) = &o.left_off {
+        let _ = writeln!(out, "left off: {l}");
+    }
+}
+
+fn plural(n: i64) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+fn reason_text(r: &Reason) -> String {
+    match r {
+        Reason::Deadline { days } if *days < 0 => {
+            format!("overdue by {} day{}", -days, plural(-days))
+        }
+        Reason::Deadline { days: 0 } => "due today".into(),
+        Reason::Deadline { days } => format!("due in {days} day{}", plural(*days)),
+        Reason::Scheduled { days_late: 0 } => "planned for today".into(),
+        Reason::Scheduled { days_late } => {
+            format!("planned {days_late} day{} ago", plural(*days_late))
+        }
+        Reason::Unlocks { count } => format!("unlocks {count}"),
+        Reason::Downstream { count } => format!("{count} downstream"),
+        Reason::Focus => "weekly focus".into(),
+        Reason::Important => "important".into(),
+        Reason::Small { size } => format!("small ({})", size_name(*size)),
+        Reason::RecentlySkipped { count } => format!("skipped {count}x recently"),
+        Reason::FirstStep => "first step".into(),
+    }
+}
+
+fn card(v: &NextView, now: &ZonedDateTime) -> String {
+    let mut out = String::new();
+    if let Some(scope) = &v.scope {
+        let _ = writeln!(out, "[{scope}]");
+    }
+    banner(&v.banner, &mut out);
+    match &v.card {
+        Card::Item { item, reasons, .. } => {
+            let _ = writeln!(out, "next: {} {}", item.short, item.title);
+            if !reasons.is_empty() {
+                let why: Vec<String> = reasons.iter().map(reason_text).collect();
+                let _ = writeln!(out, "  why: {}", why.join("; "));
+            }
+            out.push_str(
+                "  start: patina next start | skip: patina next skip | too big: patina next split \"<first 5 minutes>\"\n",
+            );
+        }
+        Card::BreakDown { item, .. } => {
+            let _ = writeln!(out, "break it down: {} {}", item.short, item.title);
+            out.push_str(
+                "  what can you do in the first 5 minutes? patina next split \"<step>\"\n",
+            );
+        }
+        Card::Review { .. } => out.push_str("weekly review due: patina review\n"),
+        Card::Triage { inbox } => {
+            let _ = writeln!(out, "inbox has {inbox} entries: patina inbox");
+        }
+        Card::Empty { elsewhere } => {
+            match &v.scope {
+                Some(scope) => {
+                    let _ = writeln!(out, "nothing actionable in {scope}");
+                }
+                None => out.push_str("nothing actionable\n"),
+            }
+            if !elsewhere.is_empty() {
+                let parts: Vec<String> = elsewhere
+                    .iter()
+                    .map(|e| format!("{} {}", e.identity, e.actionable))
+                    .collect();
+                let _ = writeln!(out, "elsewhere: {}", parts.join(", "));
+            }
+        }
+    }
+    out.push_str(&hints(&v.mode, v.timer.as_ref(), now));
     out
 }
 
@@ -667,6 +751,7 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
     match o {
         QueryOutput::Today(t) => return today(t, now),
         QueryOutput::Review(r) => return review(r, now),
+        QueryOutput::Next(n) => return card(n, now),
         QueryOutput::Mode(m) => {
             let name = m.mode.identity.as_deref().unwrap_or("away");
             if m.mode.auto_away {
