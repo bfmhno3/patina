@@ -1,12 +1,13 @@
 //! Commands: the serializable write protocol, and their translation to events.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use jiff::Span;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 use uuid::{ContextV7, Uuid};
 
+use crate::calibration;
 use crate::error::TimeError;
 use crate::event::*;
 use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId, new_v7};
@@ -539,19 +540,23 @@ fn new_created(item: ItemId, title: String, identity: IdentityId) -> ItemCreated
     }
 }
 
-fn estimate_of(settings: &Settings, size: Size) -> Estimate {
-    Estimate {
+/// The estimate for `size` on an item with `tags`, calibrated from finished work.
+fn learned(state: &State, ctx: &Context, tags: &BTreeSet<String>, size: Size) -> Estimate {
+    calibration::estimate(
+        &calibration::samples(state, ctx.now.timestamp()),
+        tags,
         size,
-        minutes: settings.size_minutes.minutes(size),
-    }
+        &ctx.settings,
+    )
 }
 
 /// The `item.created` payload for the occurrence that follows `item` once it is completed.
 fn next_occurrence(
+    state: &State,
     item: &Item,
     repeat: Repeat,
     today: Date,
-    settings: &Settings,
+    ctx: &Context,
     id: ItemId,
 ) -> Result<ItemCreated, CommandError> {
     let identity = item.identity.ok_or(CommandError::IdentityRequired)?;
@@ -601,7 +606,9 @@ fn next_occurrence(
         scheduled,
         deadline,
         important: item.important,
-        estimate: item.estimate.map(|e| estimate_of(settings, e.size)),
+        estimate: item
+            .estimate
+            .map(|e| learned(state, ctx, &item.tags, e.size)),
         repeat: Some(repeat),
         repeat_of: Some(item.id),
         ..new_created(id, item.title.clone(), identity)
@@ -837,7 +844,10 @@ fn build(
                 waiting_for,
                 follow_up: c.follow_up,
                 important: c.important,
-                estimate: c.size.map(|s| estimate_of(&ctx.settings, s)),
+                estimate: c.size.map(|s| {
+                    let tags = normalize_tags(&c.tags).into_iter().collect();
+                    learned(state, ctx, &tags, s)
+                }),
                 repeat: c.repeat,
                 ..new_created(ItemId::from_uuid(gen_.uuid()), text(&c.title)?, identity)
             })]
@@ -859,6 +869,12 @@ fn build(
             if c.follow_up.is_some() && waiting_for.is_none() {
                 return Err(CommandError::FollowUpWithoutWaiting);
             }
+            let tags: BTreeSet<String> = item
+                .tags
+                .iter()
+                .cloned()
+                .chain(normalize_tags(&c.tags))
+                .collect();
             let mut out = vec![EventData::ItemTriaged(ItemTriaged {
                 item: item.id,
                 identity,
@@ -899,7 +915,7 @@ fn build(
                 }),
                 estimate: c.size.map(|s| Change {
                     old: None,
-                    new: Some(estimate_of(&ctx.settings, s)),
+                    new: Some(learned(state, ctx, &tags, s)),
                 }),
                 repeat: c.repeat.map(|r| Change {
                     old: None,
@@ -972,6 +988,13 @@ fn build(
                 .into_iter()
                 .filter(|t| item.tags.contains(t))
                 .collect();
+            let tags: BTreeSet<String> = item
+                .tags
+                .iter()
+                .filter(|t| !tags_removed.contains(t))
+                .chain(&tags_added)
+                .cloned()
+                .collect();
             let waiting_update = match &c.waiting_for {
                 Some(Update::Set(w)) => Some(Update::Set(text(w)?)),
                 Some(Update::Clear) => Some(Update::Clear),
@@ -1008,7 +1031,7 @@ fn build(
                 estimate: upd(
                     &c.size
                         .as_ref()
-                        .map(|u| u.map_ref(|s| estimate_of(&ctx.settings, *s))),
+                        .map(|u| u.map_ref(|s| learned(state, ctx, &tags, *s))),
                     &item.estimate,
                 )
                 .filter(|ch| ch.new.map(|e| e.size) != ch.old.map(|e| e.size)),
@@ -1056,10 +1079,11 @@ fn build(
             }));
             if let Some(repeat) = item.repeat {
                 out.push(EventData::ItemCreated(next_occurrence(
+                    state,
                     item,
                     repeat,
                     today,
-                    &ctx.settings,
+                    ctx,
                     ItemId::from_uuid(gen_.uuid()),
                 )?));
             }
