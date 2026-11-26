@@ -124,6 +124,15 @@ pub enum Rejection {
     /// Pause or resume date out of order.
     #[error("pause or resume date out of order for habit {0}")]
     PauseOrder(HabitId),
+    /// Habit already graduated.
+    #[error("habit {0} has graduated")]
+    AlreadyGraduated(HabitId),
+    /// Habit not graduated.
+    #[error("habit {0} has not graduated")]
+    NotGraduated(HabitId),
+    /// Graduation or reinstatement date out of order.
+    #[error("graduation or reinstatement date out of order for habit {0}")]
+    GraduationOrder(HabitId),
     /// Undo of an undo command.
     #[error("command {0} is an undo and cannot be undone")]
     UndoOfUndo(CommandId),
@@ -307,6 +316,8 @@ pub struct Habit {
     pub start: Date,
     /// Pause intervals `[from, resume)`.
     pub pauses: Vec<(Date, Option<Date>)>,
+    /// Graduation intervals `[from, reinstated)`.
+    pub graduations: Vec<(Date, Option<Date>)>,
     /// Check-ins by day.
     pub checkins: BTreeMap<Date, CheckIn>,
     /// Skipped days.
@@ -958,6 +969,7 @@ impl State {
                         cue: d.cue.clone(),
                         start: d.start,
                         pauses: Vec::new(),
+                        graduations: Vec::new(),
                         checkins: BTreeMap::new(),
                         skips: BTreeSet::new(),
                     },
@@ -1007,6 +1019,9 @@ impl State {
             }
             EventData::HabitPaused(d) => {
                 let h = self.habit_ok(d.habit)?;
+                if matches!(h.graduations.last(), Some((_, None))) {
+                    return Err(Rejection::AlreadyGraduated(d.habit));
+                }
                 match h.pauses.last() {
                     Some((_, None)) => return Err(Rejection::AlreadyPaused(d.habit)),
                     Some((_, Some(resume))) if d.from < *resume => {
@@ -1029,6 +1044,37 @@ impl State {
                     .habits
                     .get_mut(&d.habit)
                     .and_then(|h| h.pauses.last_mut())
+                {
+                    last.1 = Some(d.from);
+                }
+            }
+            EventData::HabitGraduated(d) => {
+                let h = self.habit_ok(d.habit)?;
+                if matches!(h.pauses.last(), Some((_, None))) {
+                    return Err(Rejection::AlreadyPaused(d.habit));
+                }
+                match h.graduations.last() {
+                    Some((_, None)) => return Err(Rejection::AlreadyGraduated(d.habit)),
+                    Some((_, Some(back))) if d.from < *back => {
+                        return Err(Rejection::GraduationOrder(d.habit));
+                    }
+                    _ => {}
+                }
+                if let Some(h) = self.habits.get_mut(&d.habit) {
+                    h.graduations.push((d.from, None));
+                }
+            }
+            EventData::HabitReinstated(d) => {
+                let h = self.habit_ok(d.habit)?;
+                match h.graduations.last() {
+                    Some((from, None)) if d.from > *from => {}
+                    Some((_, None)) => return Err(Rejection::GraduationOrder(d.habit)),
+                    _ => return Err(Rejection::NotGraduated(d.habit)),
+                }
+                if let Some(last) = self
+                    .habits
+                    .get_mut(&d.habit)
+                    .and_then(|h| h.graduations.last_mut())
                 {
                     last.1 = Some(d.from);
                 }

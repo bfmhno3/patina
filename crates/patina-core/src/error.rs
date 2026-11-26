@@ -42,4 +42,7 @@ pub enum SettingsError {
     /// A `[rhythm]` value is zero.
     #[error("rhythm.{0} must be positive")]
     Rhythm(&'static str),
+    /// A habit stage threshold is out of range.
+    #[error("{0} is out of range")]
+    HabitStage(&'static str),
 }

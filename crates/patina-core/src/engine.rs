@@ -128,6 +128,8 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
         EventData::HabitSkipped(d) => vec![(Habit, d.habit.as_uuid())],
         EventData::HabitPaused(d) => vec![(Habit, d.habit.as_uuid())],
         EventData::HabitResumed(d) => vec![(Habit, d.habit.as_uuid())],
+        EventData::HabitGraduated(d) => vec![(Habit, d.habit.as_uuid())],
+        EventData::HabitReinstated(d) => vec![(Habit, d.habit.as_uuid())],
         EventData::ModeSwitched(d) => d
             .identity
             .map(|i| vec![(Identity, i.as_uuid())])

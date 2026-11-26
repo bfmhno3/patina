@@ -172,6 +172,12 @@ pub struct Settings {
     pub habit_half_life_days: f64,
     /// Minutes without activity after which identity mode counts as away.
     pub away_after_minutes: u32,
+    /// Strength from which a habit counts as maintained.
+    pub habit_maintain_strength: f64,
+    /// Strength a habit must hold to be ready to graduate.
+    pub habit_graduate_strength: f64,
+    /// Days the graduation strength must hold.
+    pub habit_graduate_days: u32,
     /// Local hour from which other identities' unfinished habits enter the banner.
     pub evening_hour: u8,
     /// Minutes per size.
@@ -201,6 +207,9 @@ impl Default for Settings {
             week_start: Weekday::Mon,
             habit_half_life_days: 14.0,
             away_after_minutes: 120,
+            habit_maintain_strength: 0.8,
+            habit_graduate_strength: 0.9,
+            habit_graduate_days: 28,
             evening_hour: 20,
             size_minutes: SizeMinutes::default(),
             review_day: Weekday::Sun,
@@ -229,6 +238,20 @@ impl Settings {
         }
         if self.evening_hour > 23 {
             return Err(SettingsError::EveningHour(self.evening_hour));
+        }
+        for (name, v) in [
+            ("habit_maintain_strength", self.habit_maintain_strength),
+            ("habit_graduate_strength", self.habit_graduate_strength),
+        ] {
+            if !(v.is_finite() && v > 0.0 && v <= 1.0) {
+                return Err(SettingsError::HabitStage(name));
+            }
+        }
+        if self.habit_maintain_strength > self.habit_graduate_strength {
+            return Err(SettingsError::HabitStage("habit_maintain_strength"));
+        }
+        if !(1..=365).contains(&self.habit_graduate_days) {
+            return Err(SettingsError::HabitStage("habit_graduate_days"));
         }
         let r = &self.rhythm;
         for (name, value) in [

@@ -449,6 +449,10 @@ payloads! {
     pub struct HabitPaused { pub habit: HabitId, pub from: Date, }
     /// `habit.resumed`
     pub struct HabitResumed { pub habit: HabitId, pub from: Date, }
+    /// `habit.graduated`
+    pub struct HabitGraduated { pub habit: HabitId, pub from: Date, }
+    /// `habit.reinstated`
+    pub struct HabitReinstated { pub habit: HabitId, pub from: Date, }
     /// `command.undone`
     pub struct CommandUndone { pub command: CommandId, }
     /// `mode.switched`; no identity means away.
@@ -557,6 +561,12 @@ pub enum EventData {
     /// Habit resumed.
     #[serde(rename = "habit.resumed")]
     HabitResumed(HabitResumed),
+    /// Habit graduated.
+    #[serde(rename = "habit.graduated")]
+    HabitGraduated(HabitGraduated),
+    /// Habit reinstated after graduation.
+    #[serde(rename = "habit.reinstated")]
+    HabitReinstated(HabitReinstated),
     /// A command was undone.
     #[serde(rename = "command.undone")]
     CommandUndone(CommandUndone),
@@ -605,6 +615,8 @@ const KINDS: &[&str] = &[
     "recommendation.skipped",
     "habit.paused",
     "habit.resumed",
+    "habit.graduated",
+    "habit.reinstated",
     "command.undone",
     "mode.switched",
     "identity.target_changed",
@@ -644,6 +656,8 @@ impl EventData {
             EventData::RecommendationSkipped(_) => "recommendation.skipped",
             EventData::HabitPaused(_) => "habit.paused",
             EventData::HabitResumed(_) => "habit.resumed",
+            EventData::HabitGraduated(_) => "habit.graduated",
+            EventData::HabitReinstated(_) => "habit.reinstated",
             EventData::CommandUndone(_) => "command.undone",
             EventData::ModeSwitched(_) => "mode.switched",
             EventData::BreakSnoozed(_) => "break.snoozed",
@@ -683,6 +697,8 @@ impl EventData {
             | EventData::RecommendationSkipped(_)
             | EventData::HabitPaused(_)
             | EventData::HabitResumed(_)
+            | EventData::HabitGraduated(_)
+            | EventData::HabitReinstated(_)
             | EventData::ModeSwitched(_)
             | EventData::IdentityTargetChanged(_)
             | EventData::RhythmSwitched(_)

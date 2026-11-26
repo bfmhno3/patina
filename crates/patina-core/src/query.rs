@@ -181,6 +181,32 @@ pub struct NeedsDecision {
     pub abandoned: Vec<ItemView>,
 }
 
+/// Lifecycle stage of a habit today.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HabitStage {
+    /// Still forming.
+    Building,
+    /// Strong enough to coast.
+    Maintaining,
+    /// Paused.
+    Paused,
+    /// Graduated; nothing is due.
+    Graduated,
+}
+
+impl HabitStage {
+    /// The stable snake_case key.
+    pub fn key(self) -> &'static str {
+        match self {
+            HabitStage::Building => "building",
+            HabitStage::Maintaining => "maintaining",
+            HabitStage::Paused => "paused",
+            HabitStage::Graduated => "graduated",
+        }
+    }
+}
+
 /// A habit as shown in lists.
 #[derive(Clone, Debug, Serialize)]
 pub struct HabitView {
@@ -200,6 +226,10 @@ pub struct HabitView {
     pub cue: Option<String>,
     /// Paused today.
     pub paused: bool,
+    /// Lifecycle stage.
+    pub stage: HabitStage,
+    /// Strength held long enough to graduate.
+    pub graduation_ready: bool,
     /// Strength 0..=1.
     pub strength: f64,
     /// Still expected today.
@@ -727,6 +757,19 @@ impl<'a> View<'a> {
     pub(crate) fn habit(&self, h: &Habit) -> Result<HabitView, TimeError> {
         let timed = self.habit_timed(h)?;
         let st = habit::today_status(h, self.today, self.settings, &timed)?;
+        let paused = habit::is_paused(h, self.today);
+        let strength = habit::strength(h, self.today, self.settings, &timed)?;
+        let stage = if habit::is_graduated(h, self.today) {
+            HabitStage::Graduated
+        } else if paused {
+            HabitStage::Paused
+        } else if strength >= self.settings.habit_maintain_strength {
+            HabitStage::Maintaining
+        } else {
+            HabitStage::Building
+        };
+        let graduation_ready =
+            stage == HabitStage::Maintaining && self.holds_strength(h, &timed)?;
         Ok(HabitView {
             id: h.id.as_uuid(),
             short: ids::short(&h.id.as_uuid(), self.habit_len),
@@ -735,8 +778,10 @@ impl<'a> View<'a> {
             kind: h.kind,
             frequency: h.frequency.clone(),
             cue: h.cue.clone(),
-            paused: habit::is_paused(h, self.today),
-            strength: habit::strength(h, self.today, self.settings, &timed)?,
+            paused,
+            stage,
+            graduation_ready,
+            strength,
             due: st.due,
             value: st.value,
             count: st.count,
@@ -744,6 +789,22 @@ impl<'a> View<'a> {
             week_target: st.week_target,
             minutes: st.minutes,
         })
+    }
+
+    /// Whether strength stayed at the graduation level for every one of the last
+    /// `habit_graduate_days` days.
+    fn holds_strength(&self, h: &Habit, timed: &habit::Timed) -> Result<bool, TimeError> {
+        let days = i64::from(self.settings.habit_graduate_days);
+        for k in 0..days {
+            let d = self.today.checked_sub(jiff::Span::new().days(k))?;
+            if d < h.start
+                || habit::strength(h, d, self.settings, timed)?
+                    < self.settings.habit_graduate_strength
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     pub(crate) fn visible(&self, item: &Item) -> bool {
@@ -831,7 +892,7 @@ pub fn run(
                 .filter(|h| f.is_none() || Some(h.identity) == f)
             {
                 let hv = v.habit(h)?;
-                if hv.due || hv.value > 0.0 {
+                if hv.stage != HabitStage::Graduated && (hv.due || hv.value > 0.0) {
                     habits.push(hv);
                 }
             }

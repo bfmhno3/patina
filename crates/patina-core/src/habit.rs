@@ -56,6 +56,19 @@ pub fn is_paused(habit: &Habit, day: Date) -> bool {
         .any(|(from, resume)| day >= *from && resume.is_none_or(|r| day < r))
 }
 
+/// Whether `day` falls in a graduation interval.
+pub fn is_graduated(habit: &Habit, day: Date) -> bool {
+    habit
+        .graduations
+        .iter()
+        .any(|(from, back)| day >= *from && back.is_none_or(|r| day < r))
+}
+
+/// Whether `day` is paused or graduated, so no unit is due.
+pub fn is_off(habit: &Habit, day: Date) -> bool {
+    is_paused(habit, day) || is_graduated(habit, day)
+}
+
 fn add_days(day: Date, n: i64) -> Result<Date, TimeError> {
     Ok(day.checked_add(Span::new().days(n))?)
 }
@@ -104,7 +117,7 @@ pub fn strength(
                     Frequency::Weekdays { days } => weekday_listed(days, d),
                     _ => true,
                 };
-                if counts && !is_paused(habit, d) && !habit.skips.contains(&d) {
+                if counts && !is_off(habit, d) && !habit.skips.contains(&d) {
                     units.push(Unit {
                         last_day: d,
                         x: day_value(habit, d, timed),
@@ -125,7 +138,7 @@ pub fn strength(
                 let mut d = ws;
                 while d <= we {
                     skipped |= habit.skips.contains(&d);
-                    if d >= from && !is_paused(habit, d) {
+                    if d >= from && !is_off(habit, d) {
                         available += 1;
                     }
                     d = d.tomorrow()?;
@@ -167,7 +180,7 @@ pub fn today_status(
 ) -> Result<HabitToday, TimeError> {
     let value = day_value(habit, today, timed);
     let count = habit.checkins.get(&today).and_then(|c| c.count);
-    let off = is_paused(habit, today) || habit.skips.contains(&today);
+    let off = is_off(habit, today) || habit.skips.contains(&today);
     let mut week_value = None;
     let mut week_target = None;
     let due = match &habit.frequency {
@@ -185,7 +198,7 @@ pub fn today_status(
             let sum = week_sum(habit, ws.max(habit.start), today, timed)?;
             week_value = Some(sum);
             week_target = Some(*times);
-            !skipped && !is_paused(habit, today) && sum < f64::from(*times)
+            !skipped && !is_off(habit, today) && sum < f64::from(*times)
         }
     };
     Ok(HabitToday {

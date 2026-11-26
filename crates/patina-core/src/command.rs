@@ -98,6 +98,12 @@ pub enum CommandError {
         /// The day.
         day: Date,
     },
+    /// Habit graduated that day.
+    #[error("habit has graduated on {day}")]
+    HabitGraduated {
+        /// The day.
+        day: Date,
+    },
     /// Already checked in.
     #[error("already checked in on {day}")]
     AlreadyCheckedIn {
@@ -284,6 +290,10 @@ cmd_structs! {
     pub struct PauseHabit { pub habit: String, pub from: Option<Date>, }
     /// Resume a habit.
     pub struct ResumeHabit { pub habit: String, pub from: Option<Date>, }
+    /// Graduate a habit.
+    pub struct GraduateHabit { pub habit: String, pub from: Option<Date>, }
+    /// Reinstate a graduated habit.
+    pub struct ReinstateHabit { pub habit: String, pub from: Option<Date>, }
     /// Switch identity mode (no identity means away), optionally backdated.
     pub struct SwitchMode { pub identity: Option<String>, pub at: Option<jiff::Timestamp>, }
     /// Start timing (stopping any running timer), optionally backdated.
@@ -368,6 +378,10 @@ pub enum Command {
     PauseHabit(PauseHabit),
     /// Resume.
     ResumeHabit(ResumeHabit),
+    /// Graduate.
+    GraduateHabit(GraduateHabit),
+    /// Reinstate.
+    ReinstateHabit(ReinstateHabit),
     /// Undo this device's latest command.
     Undo,
     /// Switch identity mode.
@@ -1215,6 +1229,9 @@ fn build(
             if crate::habit::is_paused(habit, day) {
                 return Err(CommandError::HabitPaused { day });
             }
+            if crate::habit::is_graduated(habit, day) {
+                return Err(CommandError::HabitGraduated { day });
+            }
             if !matches!(habit.kind, HabitKind::Count { .. }) && habit.checkins.contains_key(&day) {
                 return Err(CommandError::AlreadyCheckedIn { day });
             }
@@ -1239,6 +1256,9 @@ fn build(
             }
             if day < habit.start {
                 return Err(CommandError::BeforeHabitStart);
+            }
+            if crate::habit::is_graduated(habit, day) {
+                return Err(CommandError::HabitGraduated { day });
             }
             match &habit.frequency {
                 Frequency::Weekdays { days }
@@ -1273,6 +1293,14 @@ fn build(
             from: c.from.unwrap_or(today),
         })],
         Command::ResumeHabit(c) => vec![EventData::HabitResumed(HabitResumed {
+            habit: habit_ref(state, &c.habit)?.id,
+            from: c.from.unwrap_or(today),
+        })],
+        Command::GraduateHabit(c) => vec![EventData::HabitGraduated(HabitGraduated {
+            habit: habit_ref(state, &c.habit)?.id,
+            from: c.from.unwrap_or(today),
+        })],
+        Command::ReinstateHabit(c) => vec![EventData::HabitReinstated(HabitReinstated {
             habit: habit_ref(state, &c.habit)?.id,
             from: c.from.unwrap_or(today),
         })],

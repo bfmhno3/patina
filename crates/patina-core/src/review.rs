@@ -13,7 +13,7 @@ use crate::error::TimeError;
 use crate::gauges::{
     self, CalibrationView, HabitTrend, IdentityTime, InterruptionView, SourceCount, WeekNote,
 };
-use crate::query::{InboxEntry, ItemView, View};
+use crate::query::{HabitView, InboxEntry, ItemView, View};
 use crate::state::{Item, ItemStatus, State};
 use crate::time::{Settings, last_on_or_before, logical_day};
 
@@ -213,6 +213,8 @@ pub struct ReviewView {
     pub interruption_sources: Vec<SourceCount>,
     /// Habit strength trends.
     pub habits: Vec<HabitTrend>,
+    /// Habits currently graduated, for a spot check.
+    pub graduated: Vec<HabitView>,
     /// Estimate calibration.
     pub calibration: CalibrationView,
     /// Completion and check-in notes of the window.
@@ -314,6 +316,16 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
         }))
     });
 
+    let mut graduated = Vec::new();
+    for h in state
+        .habits
+        .values()
+        .filter(|h| crate::habit::is_graduated(h, today))
+    {
+        graduated.push(v.habit(h)?);
+    }
+    graduated.sort_by(|a, b| (&a.identity, &a.name).cmp(&(&b.identity, &b.name)));
+
     let (interruptions, interruption_sources) = gauges::interruptions(v, window_start);
 
     Ok(ReviewView {
@@ -332,6 +344,7 @@ pub(crate) fn view(v: &View<'_>) -> Result<ReviewView, Error> {
         interruptions,
         interruption_sources,
         habits: gauges::habits(v, window_start)?,
+        graduated,
         calibration: gauges::calibration(v, window_start)?,
         notes: gauges::notes(v, window_start)?,
     })

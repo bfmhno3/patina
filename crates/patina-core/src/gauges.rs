@@ -240,6 +240,9 @@ pub(crate) fn habits(v: &View<'_>, window_start: Timestamp) -> Result<Vec<HabitT
     let start_day = day_of(v, window_start)?;
     let mut out = Vec::new();
     for h in v.state.habits.values() {
+        if habit::is_graduated(h, v.today) {
+            continue;
+        }
         let timed = v.habit_timed(h)?;
         let view = v.habit(h)?;
         let start_strength = if start_day < h.start {
