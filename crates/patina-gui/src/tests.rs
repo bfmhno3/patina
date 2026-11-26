@@ -221,3 +221,26 @@ fn graduating_a_habit_moves_it_to_the_graduated_list() {
     assert_eq!(graduated.name, "read");
     assert_eq!(graduated.stage, "graduated");
 }
+
+#[test]
+fn graph_page_lays_out_the_children_of_a_composite_item() {
+    let h = harness();
+    let app = h.app();
+    app.invoke_init_identities();
+    assert_eq!(app.invoke_add_item(form("P", "work")), "");
+    app.invoke_navigate(2);
+    let p = app.get_tree().row_data(0).unwrap();
+    for title in ["a", "b"] {
+        let mut f = form(title, "work");
+        f.parent_id = p.id.clone();
+        assert_eq!(app.invoke_add_item(f), "");
+    }
+    app.invoke_open_graph(p.id.clone());
+    assert!(app.get_graph_open());
+    let g = app.get_graph();
+    assert_eq!(g.root_title, "P");
+    assert_eq!(g.nodes.row_count(), 2);
+    assert!(g.width > 0.0 && g.height > 0.0);
+    app.invoke_close_graph();
+    assert!(!app.get_graph_open());
+}
