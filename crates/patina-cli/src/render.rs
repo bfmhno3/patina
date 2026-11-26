@@ -11,8 +11,8 @@ use patina_core::event::{
 };
 use patina_core::ids;
 use patina_core::query::{
-    Banner, Card, HabitView, ItemDetail, ItemView, ModeView, NextView, QueryOutput, ReviewView,
-    TimerView, TodayView, TreeNode, ViewStatus,
+    Banner, Card, GraphView, HabitView, ItemDetail, ItemView, ModeView, NextView, QueryOutput,
+    ReviewView, TimerView, TodayView, TreeNode, ViewStatus,
 };
 use patina_core::recommend::Reason;
 use patina_core::time::Weekday;
@@ -850,16 +850,54 @@ fn today(t: &TodayView, now: &ZonedDateTime) -> String {
     out
 }
 
+fn marker(s: ViewStatus) -> &'static str {
+    match s {
+        ViewStatus::Todo | ViewStatus::Inbox => "[ ]",
+        ViewStatus::InProgress => "[>]",
+        ViewStatus::Blocked => "[!]",
+        ViewStatus::Waiting => "[~]",
+        ViewStatus::Done => "[x]",
+        ViewStatus::Abandoned => "[-]",
+    }
+}
+
+fn graph(g: &GraphView) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "{} {}", g.root.short, g.root.title);
+    if g.nodes.is_empty() {
+        out.push_str("no sub-items\n");
+        return out;
+    }
+    let last = g.nodes.iter().map(|n| n.layer).max().unwrap_or(0);
+    for layer in 0..=last {
+        let _ = writeln!(out, "layer {layer}");
+        for n in g.nodes.iter().filter(|n| n.layer == layer) {
+            let _ = write!(
+                out,
+                "  {} {}  {}",
+                marker(n.item.status),
+                n.item.short,
+                n.item.title
+            );
+            let needs: Vec<&str> = g
+                .edges
+                .iter()
+                .filter(|e| e.to == n.item.id)
+                .filter_map(|e| g.nodes.iter().find(|p| p.item.id == e.from))
+                .map(|p| p.item.short.as_str())
+                .collect();
+            if !needs.is_empty() {
+                let _ = write!(out, "  <- {}", needs.join(", "));
+            }
+            out.push('\n');
+        }
+    }
+    out
+}
+
 fn tree(nodes: &[TreeNode], depth: usize, out: &mut String) {
     for n in nodes {
-        let marker = match n.item.status {
-            ViewStatus::Todo | ViewStatus::Inbox => "[ ]",
-            ViewStatus::InProgress => "[>]",
-            ViewStatus::Blocked => "[!]",
-            ViewStatus::Waiting => "[~]",
-            ViewStatus::Done => "[x]",
-            ViewStatus::Abandoned => "[-]",
-        };
+        let marker = marker(n.item.status);
         let mut line = format!(
             "{}{marker} {}  {}",
             "  ".repeat(depth),
@@ -1023,6 +1061,7 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
         }
         QueryOutput::Tree(nodes) => tree(nodes, 0, &mut out),
         QueryOutput::Show(d) => return show(d, tz),
+        QueryOutput::Graph(g) => return graph(g),
         QueryOutput::Habits(habits) => {
             for h in habits {
                 let ready = if h.graduation_ready {

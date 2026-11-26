@@ -186,6 +186,8 @@ enum Cmd {
     },
     /// Show one item.
     Show { item: String },
+    /// Show the children of a composite item as a layered dependency graph.
+    Graph { item: String },
     /// One-line status.
     Status,
     /// Report problems in the event log.
@@ -851,6 +853,7 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
         Cmd::List { identity } => Action::Ask(Query::List { identity }),
         Cmd::Tree { root, all } => Action::Ask(Query::Tree { root, all }),
         Cmd::Show { item } => Action::Ask(Query::Show { item }),
+        Cmd::Graph { item } => Action::Ask(Query::Graph { item }),
         Cmd::Status => Action::Ask(Query::Status),
         Cmd::Doctor => Action::Ask(Query::Doctor),
         Cmd::Undo => Action::Run(Command::Undo),

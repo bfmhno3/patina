@@ -359,3 +359,19 @@ fn minimal_review_is_recorded_in_the_log() {
         .unwrap();
     assert!(line.contains("\"minimal\":true"), "{line}");
 }
+
+#[test]
+fn graph_lists_siblings_by_layer_with_prerequisites() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&["new", "P", "-i", "work"]);
+    s.ok(&["new", "a", "-p", "P"]);
+    s.ok(&["new", "b", "-p", "P"]);
+    s.ok(&["link", "b", "--on", "a"]);
+    let out = s.ok(&["graph", "P"]);
+    let l0 = out.find("layer 0").expect(&out);
+    let a = out.find("  a\n").expect(&out);
+    let l1 = out.find("layer 1").expect(&out);
+    let b = out.find("  b  <- ").expect(&out);
+    assert!(l0 < a && a < l1 && l1 < b, "{out}");
+}
