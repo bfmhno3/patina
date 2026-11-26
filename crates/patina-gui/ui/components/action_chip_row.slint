@@ -1,0 +1,62 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+// A row of outlined one-shot action chips. Chips hug their text; overflow scrolls sideways.
+export component ActionChipRow inherits Rectangle {
+    in property <[string]> options;
+
+    callback activated(index: int);
+
+    min_height: MaterialStyleMetrics.size_48;
+    preferred_width: row.preferred_width;
+
+    Flickable {
+        width: 100%;
+        height: 100%;
+        content_width: max(row.preferred_width, self.width);
+        interactive: row.preferred_width > self.width;
+
+        row := HorizontalLayout {
+            alignment: start;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            for option[index] in root.options: Rectangle {
+                // The touch target is the full 48 px column; the chip inside is 32 px.
+                min_height: MaterialStyleMetrics.size_48;
+                preferred_width: chip_layout.preferred_width;
+
+                Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    width: parent.width;
+                    height: MaterialStyleMetrics.size_32;
+                    border_radius: MaterialStyleMetrics.border_radius_8;
+                    border_width: MaterialStyleMetrics.size_1;
+                    border_color: MaterialPalette.outline_variant;
+                    background: touch.has_hover ? MaterialPalette.surface_container_highest : transparent;
+
+                    chip_layout := HorizontalLayout {
+                        padding_left: MaterialStyleMetrics.padding_16;
+                        padding_right: MaterialStyleMetrics.padding_16;
+
+                        MaterialText {
+                            text: option;
+                            vertical_alignment: center;
+                            style: MaterialTypography.label_large;
+                            color: MaterialPalette.on_surface_variant;
+                        }
+                    }
+                }
+
+                touch := TouchArea {
+                    clicked => {
+                        root.activated(index);
+                    }
+                }
+            }
+        }
+    }
+}

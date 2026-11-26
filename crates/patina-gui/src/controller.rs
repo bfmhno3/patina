@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 use crate::convert::{self, ss};
 use crate::{
-    App, IdentityRow, ItemForm, MainWindow, NoticeData, NoticeKind, PickerPurpose, PickerRow,
-    PromptData, PromptKind, SettingsData, StorageUi,
+    App, ItemForm, MainWindow, NoticeData, NoticeKind, PickerPurpose, PickerRow, PromptData,
+    PromptKind, SettingsData, StorageUi,
 };
 
 /// Which items the Today page shows.
@@ -936,6 +936,7 @@ impl Controller {
         });
 
         app.set_identities(convert::model(names.iter().map(ss).collect()));
+        app.set_identity_rows(convert::identity_rows(&identities));
         app.set_mode_label(ss(self.mode_name.as_deref().unwrap_or("")));
         app.set_mode_identity(ss(self.mode_name.as_deref().unwrap_or("")));
         app.set_timer(convert::timer_data(today.timer.as_ref(), &now));
@@ -1103,24 +1104,6 @@ impl Controller {
             app.set_settings(SettingsData {
                 sources: convert::source_rows(&sources, &now),
                 storage: self.storage,
-                identities: convert::model(
-                    identities
-                        .iter()
-                        .map(|i| IdentityRow {
-                            name: ss(&i.name),
-                            target: ss(i.weekly_target_minutes.map_or_else(String::new, |m| {
-                                let h = f64::from(m) / 60.0;
-                                if m % 60 == 0 {
-                                    format!("{h:.0}")
-                                } else {
-                                    format!("{h:.1}")
-                                }
-                            })),
-                            open_items: i32::try_from(i.open_items).unwrap_or(i32::MAX),
-                            habits: i32::try_from(i.habits).unwrap_or(i32::MAX),
-                        })
-                        .collect(),
-                ),
                 root: ss(self.root.display().to_string()),
                 device: ss(self.device.to_string()),
                 version: ss(env!("CARGO_PKG_VERSION")),

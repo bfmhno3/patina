@@ -3,12 +3,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use jiff::ZonedDateTime;
 use patina_core::command::NextAction;
 use slint::{ComponentHandle as _, Model as _, SharedString};
 
 use crate::controller::Controller;
 use crate::{
-    App, HabitForm, ItemForm, MainWindow, NoticeData, PickerPurpose, RhythmModeUi, convert,
+    App, DatePickerAdapter, HabitForm, ItemForm, MainWindow, NoticeData, PickerPurpose,
+    RhythmModeUi, convert,
 };
 
 /// Registers all callbacks of the `App` global on `window`.
@@ -177,4 +179,13 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
         on_set_target,
         |c, name: SharedString, hours: SharedString| c.set_target(&name, &hours)
     );
+
+    // Data for Material's date picker; "now" is the system date.
+    let dp = window.global::<DatePickerAdapter<'_>>();
+    dp.on_month_day_count(convert::picker_days_in_month);
+    dp.on_month_offset(convert::picker_month_offset);
+    dp.on_format_date(|f, d, m, y| convert::ss(convert::picker_format(&f, d, m, y)));
+    dp.on_parse_date(|s, f| convert::model(convert::picker_parse(&s, &f)));
+    dp.on_valid_date(|s, f| !convert::picker_parse(&s, &f).is_empty());
+    dp.on_date_now(|| convert::model(convert::picker_parts(ZonedDateTime::now().date())));
 }

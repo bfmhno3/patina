@@ -1,18 +1,23 @@
 import {
-    FullscreenDialog,
+    DatePickerAdapter,
+    DatePickerPopup,
+    Icon,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     Switch,
     TextButton,
     TextField,
 } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { ItemForm, PickerPurpose } from "../types.slint";
 import { ChoiceRow } from "choice_row.slint";
+import { DateField } from "date_field.slint";
+import { FormDialog } from "form_dialog.slint";
 import { ItemPicker } from "item_picker.slint";
+import { Section } from "section.slint";
 
 // Create, add a child, triage, or edit an item. `mode`: 0 create, 1 child, 2 triage, 3 edit.
 export component ItemFormDialog inherits Rectangle {
@@ -36,6 +41,12 @@ export component ItemFormDialog inherits Rectangle {
     property <int> repeat_kind_value;
     property <int> repeat_unit_value;
     property <bool> important_value;
+    // Calendar target: 0 planned for, 1 deadline, 2 hidden until, 3 follow up on.
+    property <int> picker_target;
+    property <string> picker_title;
+    property <int> picker_day;
+    property <int> picker_month;
+    property <int> picker_year;
 
     width: 0;
     height: 0;
@@ -96,34 +107,89 @@ export component ItemFormDialog inherits Rectangle {
         }
     }
 
-    dlg := FullscreenDialog {
+    function open_picker(target: int, title: string, value: string) {
+        root.picker_target = target;
+        root.picker_title = title;
+        let parts = DatePickerAdapter.parse_date(value, "%Y-%m-%d");
+        let now = DatePickerAdapter.date_now();
+        root.picker_day = parts.length == 3 ? parts[0] : now[0];
+        root.picker_month = parts.length == 3 ? parts[1] : now[1];
+        root.picker_year = parts.length == 3 ? parts[2] : now[2];
+        picker.show();
+    }
+
+    function set_picked(value: string) {
+        if value == "" {
+            return;
+        }
+        if root.picker_target == 0 {
+            root.scheduled_value = value;
+        } else if root.picker_target == 1 {
+            root.deadline_value = value;
+        } else if root.picker_target == 2 {
+            root.defer_value = value;
+        } else {
+            root.follow_up_value = value;
+        }
+    }
+
+    dlg := FormDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: root.mode == 0 ? @tr("New item") : root.mode == 1 ? @tr("New sub-item") : root.mode == 2 ? @tr("Triage") : @tr("Edit item");
-        actions: [@tr("Save")];
+        action_text: @tr("Save");
 
-        action_clicked(index) => {
+        accepted => {
             root.submit();
         }
 
-        ScrollView {
-            VerticalLayout {
-                padding: MaterialStyleMetrics.padding_16;
-                padding_top: 0;
-                spacing: MaterialStyleMetrics.spacing_8;
+        if root.error != "": Rectangle {
+            background: MaterialPalette.error_container;
+            border_radius: MaterialStyleMetrics.border_radius_12;
 
-                if root.error != "": MaterialText {
+            HorizontalLayout {
+                padding: MaterialStyleMetrics.padding_12;
+                spacing: MaterialStyleMetrics.spacing_12;
+
+                VerticalLayout {
+                    alignment: center;
+
+                    Icon {
+                        source: AppIcons.warning;
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: MaterialPalette.on_error_container;
+                    }
+                }
+
+                MaterialText {
                     text: root.error;
+                    horizontal_stretch: 1;
                     wrap: word_wrap;
                     overflow: clip;
-                    color: MaterialPalette.error;
+                    color: MaterialPalette.on_error_container;
+                    style: MaterialTypography.body_medium;
                 }
+            }
+        }
+
+        Section {
+            title: @tr("Details");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
 
                 TextField {
                     text <=> root.title_value;
                     label: @tr("Title");
+                }
+
+                MaterialText {
+                    text: @tr("Identity");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.on_surface_variant;
                 }
 
                 ChoiceRow {
@@ -182,12 +248,14 @@ export component ItemFormDialog inherits Rectangle {
                 TextField {
                     text <=> root.tags_value;
                     label: @tr("Tags");
+                    leading_icon: AppIcons.sell;
                     supporting_text: @tr("Separated by spaces or commas");
                 }
 
                 MaterialText {
                     text: @tr("Size");
                     style: MaterialTypography.label_large;
+                    color: MaterialPalette.on_surface_variant;
                 }
 
                 ChoiceRow {
@@ -196,11 +264,11 @@ export component ItemFormDialog inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    alignment: start;
                     spacing: MaterialStyleMetrics.spacing_16;
 
                     MaterialText {
                         text: @tr("Important");
+                        horizontal_stretch: 1;
                         vertical_alignment: center;
                         style: MaterialTypography.body_large;
                     }
@@ -209,40 +277,75 @@ export component ItemFormDialog inherits Rectangle {
                         checked <=> root.important_value;
                     }
                 }
+            }
+        }
 
-                TextField {
-                    text <=> root.defer_value;
-                    label: @tr("Hidden until");
-                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
-                }
+        Section {
+            title: @tr("Dates");
 
-                TextField {
-                    text <=> root.scheduled_value;
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
+
+                DateField {
                     label: @tr("Planned for");
-                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                    value <=> root.scheduled_value;
+
+                    pick => {
+                        root.open_picker(0, @tr("Planned for"), root.scheduled_value);
+                    }
                 }
 
-                TextField {
-                    text <=> root.deadline_value;
+                DateField {
                     label: @tr("Deadline");
-                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+                    value <=> root.deadline_value;
+
+                    pick => {
+                        root.open_picker(1, @tr("Deadline"), root.deadline_value);
+                    }
                 }
+
+                DateField {
+                    label: @tr("Hidden until");
+                    value <=> root.defer_value;
+
+                    pick => {
+                        root.open_picker(2, @tr("Hidden until"), root.defer_value);
+                    }
+                }
+            }
+        }
+
+        Section {
+            title: @tr("Waiting");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
 
                 TextField {
                     text <=> root.waiting_value;
                     label: @tr("Waiting for");
+                    leading_icon: AppIcons.hourglass_empty;
                 }
 
-                TextField {
-                    text <=> root.follow_up_value;
+                DateField {
                     label: @tr("Follow up on");
-                    supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
-                }
+                    value <=> root.follow_up_value;
 
-                MaterialText {
-                    text: @tr("Repeat");
-                    style: MaterialTypography.label_large;
+                    pick => {
+                        root.open_picker(3, @tr("Follow up on"), root.follow_up_value);
+                    }
                 }
+            }
+        }
+
+        Section {
+            title: @tr("Repeat");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
 
                 ChoiceRow {
                     options: [@tr("Never"), @tr("Every"), @tr("After completion")];
@@ -260,6 +363,25 @@ export component ItemFormDialog inherits Rectangle {
                     current <=> root.repeat_unit_value;
                 }
             }
+        }
+    }
+
+    picker := DatePickerPopup {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.picker_title;
+        date: { day: root.picker_day, month: root.picker_month, year: root.picker_year };
+
+        accepted(date) => {
+            // The vendored OK passes its initial date and stays open; read the chosen one and close here.
+            if !self.ok_enabled() {
+                return;
+            }
+            let d = self.get_current_date();
+            root.set_picked(DatePickerAdapter.format_date("%Y-%m-%d", d.day, d.month, d.year));
+            self.close();
         }
     }
 }

@@ -1,16 +1,39 @@
-import { SnackBar } from "@material";
+import {
+    Elevation,
+    Icon,
+    IconButton,
+    MaterialAnimations,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    TextButton,
+} from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { NoticeKind } from "../types.slint";
 
-// Transient message with an optional action; closes by itself after six seconds.
+// Transient message with an optional action, floating above the content; closes by itself after four seconds. Not a popup: the rest of the window stays usable while it shows.
 export component NoticeBar inherits Rectangle {
-    width: 0;
-    height: 0;
+    property <bool> shown;
+    property <bool> is_error: App.notice.kind == NoticeKind.error;
+
+    height: max(MaterialStyleMetrics.size_48, layout.preferred_height);
+    visible: card.opacity > 0;
 
     public function show() {
-        bar.show();
-        close_timer.running = true;
+        root.shown = true;
+        if close_timer.running {
+            close_timer.restart();
+        } else {
+            close_timer.start();
+        }
+    }
+
+    function dismiss() {
+        root.shown = false;
+        close_timer.stop();
     }
 
     function action_text() -> string {
@@ -29,26 +52,108 @@ export component NoticeBar inherits Rectangle {
         return "";
     }
 
-    bar := SnackBar {
-        x: -root.absolute_position.x;
-        y: -root.absolute_position.y;
-        width: App.window_width;
-        height: App.window_height;
-        text: Labels.notice(App.notice.kind, App.notice.text);
-        action_text: root.action_text();
+    function icon() -> image {
+        if App.notice.kind == NoticeKind.saved {
+            return AppIcons.check_circle;
+        }
+        if App.notice.kind == NoticeKind.undone {
+            return AppIcons.undo;
+        }
+        if App.notice.kind == NoticeKind.error {
+            return AppIcons.warning;
+        }
+        if App.notice.kind == NoticeKind.left_off {
+            return AppIcons.schedule;
+        }
+        if App.notice.kind == NoticeKind.over_estimate {
+            return AppIcons.hourglass_empty;
+        }
+        if App.notice.kind == NoticeKind.break_over {
+            return AppIcons.coffee;
+        }
+        return AppIcons.lightbulb;
+    }
 
-        action_clicked => {
-            App.notice_action(App.notice);
+    card := Rectangle {
+        y: root.shown ? 0 : MaterialStyleMetrics.size_16;
+        width: root.width;
+        height: root.height;
+        opacity: root.shown ? 1 : 0;
+
+        animate y, opacity {
+            duration: MaterialAnimations.standard_decelerate_duration;
+            easing: MaterialAnimations.standard_easing;
+        }
+
+        Elevation {
+            width: 100%;
+            height: 100%;
+            level: 3;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+            background: root.is_error ? MaterialPalette.error_container : MaterialPalette.inverse_surface;
+
+            layout := HorizontalLayout {
+                padding_left: MaterialStyleMetrics.padding_16;
+                padding_right: MaterialStyleMetrics.padding_8;
+                padding_top: MaterialStyleMetrics.padding_4;
+                padding_bottom: MaterialStyleMetrics.padding_4;
+                spacing: MaterialStyleMetrics.spacing_12;
+
+                VerticalLayout {
+                    alignment: center;
+
+                    Icon {
+                        source: root.icon();
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: root.is_error ? MaterialPalette.on_error_container : MaterialPalette.inverse_primary;
+                    }
+                }
+
+                MaterialText {
+                    text: Labels.notice(App.notice.kind, App.notice.text);
+                    horizontal_stretch: 1;
+                    vertical_alignment: center;
+                    wrap: word_wrap;
+                    style: MaterialTypography.body_medium;
+                    color: root.is_error ? MaterialPalette.on_error_container : MaterialPalette.inverse_on_surface;
+                }
+
+                if root.action_text() != "": VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        text: root.action_text();
+                        inverse: !root.is_error;
+
+                        clicked => {
+                            App.notice_action(App.notice);
+                            root.dismiss();
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    IconButton {
+                        icon: AppIcons.close;
+                        inverse: !root.is_error;
+
+                        clicked => {
+                            root.dismiss();
+                        }
+                    }
+                }
+            }
         }
     }
 
     close_timer := Timer {
-        interval: 6s;
+        interval: 4s;
         running: false;
 
         triggered => {
-            self.running = false;
-            bar.close();
+            root.dismiss();
         }
     }
 }

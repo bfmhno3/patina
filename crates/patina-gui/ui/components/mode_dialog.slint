@@ -1,8 +1,15 @@
-import { Dialog, MaterialStyleMetrics } from "@material";
+import {
+    Dialog,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
 import { App } from "../app.slint";
-import { RadioRow } from "radio_row.slint";
+import { AppIcons } from "../icons.slint";
+import { IdentityOption } from "identity_option.slint";
 
-// Switch the identity mode, or go away.
+// Switch the identity mode, or go away. Tap outside or press Escape to close.
 export component ModeDialog inherits Rectangle {
     width: 0;
     height: 0;
@@ -17,28 +24,50 @@ export component ModeDialog inherits Rectangle {
         width: App.window_width;
         height: App.window_height;
         title: @tr("Identity mode");
-        actions: [@tr("Cancel")];
-
-        action_clicked(index) => {
-            dlg.close();
-        }
 
         VerticalLayout {
             min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+            spacing: MaterialStyleMetrics.spacing_4;
 
-            for name in App.identities: RadioRow {
-                text: name;
-                checked: App.mode_identity == name;
+            MaterialText {
+                text: @tr("Today shows the items and habits of the identity you work as.");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_surface_variant;
+            }
+
+            Rectangle {
+                height: MaterialStyleMetrics.spacing_8;
+            }
+
+            for r in App.identity_rows: IdentityOption {
+                text: r.name;
+                initial: r.initial;
+                supporting_text: (r.target != "" ? @tr("target {} h/week", r.target) + " · " : "") + @tr("{} open items", r.open_items);
+                selected: App.mode_identity == r.name;
 
                 clicked => {
-                    App.switch_mode(name);
+                    App.switch_mode(r.name);
                     dlg.close();
                 }
             }
 
-            RadioRow {
+            VerticalLayout {
+                padding_top: MaterialStyleMetrics.padding_4;
+                padding_bottom: MaterialStyleMetrics.padding_4;
+
+                Rectangle {
+                    height: MaterialStyleMetrics.size_1;
+                    background: MaterialPalette.outline_variant;
+                }
+            }
+
+            IdentityOption {
                 text: @tr("Away");
-                checked: App.mode_identity == "";
+                supporting_text: @tr("Done for now; mode time stops counting");
+                icon: AppIcons.do_not_disturb_on;
+                selected: App.mode_identity == "";
 
                 clicked => {
                     App.switch_mode("");

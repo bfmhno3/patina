@@ -8,6 +8,7 @@ import {
     HabitForm,
     GraphData,
     HabitRow,
+    IdentityRow,
     ProposalRow,
     InboxRow,
     ItemForm,
@@ -39,6 +40,8 @@ export global App {
     out property <bool> two_pane: root.window_width >= 1000px;
 
     in property <[string]> identities;
+    // The same identities with their counts, for the mode dialog and Settings.
+    in property <[IdentityRow]> identity_rows;
     in property <string> mode_label;
     in property <string> mode_identity;
     in property <TimerData> timer;

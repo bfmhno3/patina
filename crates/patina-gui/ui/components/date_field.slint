@@ -1,0 +1,32 @@
+import { MaterialStyleMetrics, TextField } from "@material";
+import { AppIcons } from "../icons.slint";
+import { ActionChipRow } from "action_chip_row.slint";
+
+// A date text field with quick picks; `pick` asks the owner to open the calendar.
+export component DateField inherits VerticalLayout {
+    in property <string> label;
+    in_out property <string> value;
+
+    callback pick();
+
+    spacing: MaterialStyleMetrics.spacing_4;
+
+    TextField {
+        text <=> root.value;
+        label: root.label;
+        supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N");
+        trailing_icon: AppIcons.event;
+
+        trailing_icon_clicked => {
+            root.pick();
+        }
+    }
+
+    ActionChipRow {
+        options: root.value != "" ? [@tr("Today"), @tr("Tomorrow"), @tr("Next week"), @tr("Clear")] : [@tr("Today"), @tr("Tomorrow"), @tr("Next week")];
+
+        activated(index) => {
+            root.value = index == 0 ? "today" : index == 1 ? "tomorrow" : index == 2 ? "+7" : "";
+        }
+    }
+}

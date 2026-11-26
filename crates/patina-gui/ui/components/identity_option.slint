@@ -1,0 +1,93 @@
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    StateLayerArea,
+} from "@material";
+import { AppIcons } from "../icons.slint";
+
+// One choice in the identity mode dialog: avatar, name, summary, and a check when current. Fixed height, like RadioRow, because content-sized tiles loop inside dialogs.
+export component IdentityOption inherits Rectangle {
+    in property <string> text;
+    in property <string> supporting_text;
+    in property <string> initial;
+    in property <image> icon;
+    in property <bool> selected;
+
+    callback clicked();
+
+    min_height: MaterialStyleMetrics.size_64;
+    border_radius: MaterialStyleMetrics.border_radius_16;
+    background: root.selected ? MaterialPalette.secondary_container : transparent;
+
+    StateLayerArea {
+        color: MaterialPalette.on_surface;
+        border_radius: root.border_radius;
+
+        clicked => {
+            root.clicked();
+        }
+
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_12;
+            padding_right: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_16;
+
+            VerticalLayout {
+                alignment: center;
+
+                Rectangle {
+                    width: MaterialStyleMetrics.size_40;
+                    height: MaterialStyleMetrics.size_40;
+                    border_radius: self.height / 2;
+                    background: root.selected ? MaterialPalette.primary : MaterialPalette.surface_container_highest;
+
+                    if root.icon.width > 0: Icon {
+                        source: root.icon;
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: root.selected ? MaterialPalette.on_primary : MaterialPalette.on_surface_variant;
+                    }
+
+                    if root.icon.width == 0: MaterialText {
+                        text: root.initial;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        style: MaterialTypography.title_medium;
+                        color: root.selected ? MaterialPalette.on_primary : MaterialPalette.on_surface_variant;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                horizontal_stretch: 1;
+
+                MaterialText {
+                    text: root.text;
+                    overflow: elide;
+                    style: MaterialTypography.body_large;
+                    color: root.selected ? MaterialPalette.on_secondary_container : MaterialPalette.on_surface;
+                }
+
+                if root.supporting_text != "": MaterialText {
+                    text: root.supporting_text;
+                    overflow: elide;
+                    style: MaterialTypography.body_medium;
+                    color: MaterialPalette.on_surface_variant;
+                }
+            }
+
+            if root.selected: VerticalLayout {
+                alignment: center;
+
+                Icon {
+                    source: AppIcons.check;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_secondary_container;
+                }
+            }
+        }
+    }
+}

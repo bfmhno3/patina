@@ -6,9 +6,9 @@ use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::{self, AddItem, Triage, Update};
 use patina_core::event::{Frequency, HabitKind, Repeat, RepeatUnit, Size};
 use patina_core::query::{
-    GraphView, HabitView, ItemDetail, ItemView, NextView, ProjectProgress, ProposalStatus,
-    ProposalView, ReviewView, RhythmView, SourceView, TimerView, TodayView, TreeNode, UnitState,
-    ViewStatus,
+    GraphView, HabitView, IdentityView, ItemDetail, ItemView, NextView, ProjectProgress,
+    ProposalStatus, ProposalView, ReviewView, RhythmView, SourceView, TimerView, TodayView,
+    TreeNode, UnitState, ViewStatus,
 };
 use patina_core::recommend::{self, Card, Reason};
 use patina_core::rhythm::BreakDue;
@@ -18,9 +18,9 @@ use slint::{ModelRc, SharedString};
 use crate::{
     BreakKindUi, CardData, CardKind, ChangeRow, ConvRow, CountRow, DecisionRow, DetailData,
     FieldRow, FocusGroup, FrequencyUi, GraphData, GraphNodeData, GroupRow, HabitKindUi, HabitRow,
-    InboxRow, InterruptRow, ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow, ProposalRow,
-    ReasonData, ReasonKind, ReviewData, RhythmData, RhythmModeUi, SourceRow, SuggestionData,
-    TagRow, TimeRow, TimerData, TodayData, TrendRow, UnitRow, WaitRow, WeekPoint,
+    IdentityRow, InboxRow, InterruptRow, ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow,
+    ProposalRow, ReasonData, ReasonKind, ReviewData, RhythmData, RhythmModeUi, SourceRow,
+    SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow, UnitRow, WaitRow, WeekPoint,
 };
 
 pub fn ss(s: impl AsRef<str>) -> SharedString {
@@ -658,6 +658,76 @@ pub fn review_data(
     }
 }
 
+/// One row per identity, with its weekly target and counts.
+pub fn identity_rows(identities: &[IdentityView]) -> ModelRc<IdentityRow> {
+    model(
+        identities
+            .iter()
+            .map(|i| IdentityRow {
+                name: ss(&i.name),
+                initial: ss(i
+                    .name
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().collect::<String>())
+                    .unwrap_or_default()),
+                target: ss(i.weekly_target_minutes.map_or_else(String::new, |m| {
+                    let h = f64::from(m) / 60.0;
+                    if m % 60 == 0 {
+                        format!("{h:.0}")
+                    } else {
+                        format!("{h:.1}")
+                    }
+                })),
+                open_items: int(i.open_items),
+                habits: int(i.habits),
+            })
+            .collect(),
+    )
+}
+
+fn civil_date(day: i32, month: i32, year: i32) -> Option<Date> {
+    Date::new(
+        i16::try_from(year).ok()?,
+        i8::try_from(month).ok()?,
+        i8::try_from(day).ok()?,
+    )
+    .ok()
+}
+
+/// Days in `month` of `year`, for the date picker; 0 when out of range.
+pub fn picker_days_in_month(month: i32, year: i32) -> i32 {
+    civil_date(1, month, year).map_or(0, |d| i32::from(d.days_in_month()))
+}
+
+/// Blank cells before the 1st of `month` in the picker's Sunday-first grid.
+pub fn picker_month_offset(month: i32, year: i32) -> i32 {
+    civil_date(1, month, year).map_or(0, |d| i32::from(d.weekday().to_sunday_zero_offset()))
+}
+
+/// `strftime`-formats a date; empty when the date or format is invalid.
+pub fn picker_format(format: &str, day: i32, month: i32, year: i32) -> String {
+    civil_date(day, month, year)
+        .and_then(|d| jiff::fmt::strtime::format(format, d).ok())
+        .unwrap_or_default()
+}
+
+/// `[day, month, year]`, the picker's date list order.
+pub fn picker_parts(d: Date) -> Vec<i32> {
+    vec![
+        i32::from(d.day()),
+        i32::from(d.month()),
+        i32::from(d.year()),
+    ]
+}
+
+/// Parses `date` with `format` into `[day, month, year]`; empty when it does not match.
+pub fn picker_parse(date: &str, format: &str) -> Vec<i32> {
+    jiff::fmt::strtime::parse(format, date)
+        .and_then(|t| t.to_date())
+        .map_or_else(|_| Vec::new(), picker_parts)
+}
+
 const BAD_DATE: &str = "use YYYY-MM-DD, today, tomorrow, or +N";
 
 /// Parses a date field; empty is none.
@@ -1099,5 +1169,16 @@ mod tests {
                 unit: RepeatUnit::Week
             })
         );
+    }
+
+    #[test]
+    fn date_picker_helpers() {
+        assert_eq!(picker_days_in_month(2, 2028), 29);
+        assert_eq!(picker_month_offset(11, 2026), 0); // 2026-11-01 is a Sunday
+        assert_eq!(picker_month_offset(2, 2027), 1); // 2027-02-01 is a Monday
+        assert_eq!(picker_format("%Y-%m-%d", 5, 3, 2027), "2027-03-05");
+        assert_eq!(picker_format("%Y-%m-%d", 0, 0, 0), "");
+        assert_eq!(picker_parse("03/05/2027", "%m/%d/%Y"), [5, 3, 2027]);
+        assert!(picker_parse("today", "%Y-%m-%d").is_empty());
     }
 }

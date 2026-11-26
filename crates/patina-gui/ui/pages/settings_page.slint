@@ -7,9 +7,7 @@ import {
     MaterialText,
     MaterialTypography,
     TextButton,
-    TextField,
     TonalButton,
-    TonalIconButton,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
@@ -24,9 +22,7 @@ import { RhythmModeUi, StorageUi } from "../types.slint";
 import { Tile } from "../components/tile.slint";
 
 export component SettingsPage inherits Rectangle {
-    property <string> identity_error;
     property <string> sources_error;
-    property <string> new_identity;
     property <string> target_for;
     property <string> rhythm_value: Labels.rhythm_mode(App.rhythm.mode);
 
@@ -44,7 +40,7 @@ export component SettingsPage inherits Rectangle {
         Section {
             title: @tr("Identities");
 
-            for identity[i] in App.settings.identities: Tile {
+            for identity[i] in App.identity_rows: Tile {
                 leading_icon: AppIcons.person;
                 divider: i > 0;
                 text: identity.name;
@@ -70,35 +66,14 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
             }
-        }
 
-        if root.identity_error != "": MaterialText {
-            text: root.identity_error;
-            color: MaterialPalette.error;
-            style: MaterialTypography.body_medium;
-        }
+            Tile {
+                leading_icon: AppIcons.add;
+                divider: App.identity_rows.length > 0;
+                text: @tr("Add identity");
 
-        HorizontalLayout {
-            spacing: MaterialStyleMetrics.spacing_8;
-
-            TextField {
-                text <=> root.new_identity;
-                label: @tr("New identity");
-            }
-
-            VerticalLayout {
-                alignment: center;
-
-                TonalIconButton {
-                    icon: AppIcons.add;
-                    tooltip: @tr("Add identity");
-
-                    clicked => {
-                        root.identity_error = App.add_identity(root.new_identity);
-                        if root.identity_error == "" {
-                            root.new_identity = "";
-                        }
-                    }
+                clicked => {
+                    add.open("");
                 }
             }
         }
@@ -246,6 +221,16 @@ export component SettingsPage inherits Rectangle {
 
         submitted(text) => {
             return App.rename_identity(root.target_for, text);
+        }
+    }
+
+    add := TextPromptDialog {
+        title: @tr("New identity");
+        label: @tr("Name");
+        action_text: @tr("Add");
+
+        submitted(text) => {
+            return App.add_identity(text);
         }
     }
 

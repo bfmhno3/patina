@@ -128,7 +128,7 @@ fn habits_and_settings_round_trip() {
     );
     app.invoke_open_settings();
     let settings = app.get_settings();
-    let work = settings.identities.row_data(0).unwrap();
+    let work = app.get_identity_rows().row_data(0).unwrap();
     assert_eq!((work.name.as_str(), work.target.as_str()), ("work", "7.5"));
     assert_eq!(settings.focus_minutes, 25);
     app.invoke_close_settings();

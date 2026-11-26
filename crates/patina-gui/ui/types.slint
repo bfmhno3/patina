@@ -372,6 +372,7 @@ export struct HabitForm {
 
 export struct IdentityRow {
     name: string,
+    initial: string,
     target: string,
     open_items: int,
     habits: int,
@@ -380,7 +381,6 @@ export struct IdentityRow {
 export enum StorageUi { desktop, shared, private }
 
 export struct SettingsData {
-    identities: [IdentityRow],
     root: string,
     device: string,
     storage: StorageUi,
