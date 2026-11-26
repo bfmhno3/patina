@@ -11,14 +11,15 @@ import {
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
+import { DayPills } from "day_pills.slint";
 import { FrequencyUi, HabitKindUi, HabitRow } from "../types.slint";
 
 // One habit: progress ring with the primary action by kind, strength, overflow menu.
 export component HabitTile inherits Rectangle {
     in property <HabitRow> data;
 
-    callback check_in_requested(kind: HabitKindUi);
-    callback skip_requested(kind: HabitKindUi);
+    callback check_in_requested();
+    callback skip_requested();
     callback edit_requested();
 
     in property <bool> divider;
@@ -95,7 +96,7 @@ export component HabitTile inherits Rectangle {
                     if root.data.kind == HabitKindUi.check {
                         App.check_in(root.data.id, 0, -1, "");
                     } else if root.data.kind == HabitKindUi.count {
-                        root.check_in_requested(root.data.kind);
+                        root.check_in_requested();
                     } else {
                         App.start_habit_timer(root.data.id);
                     }
@@ -121,25 +122,8 @@ export component HabitTile inherits Rectangle {
                 style: MaterialTypography.body_medium;
             }
 
-            if root.detailed && root.data.days.length > 0: HorizontalLayout {
-                spacing: MaterialStyleMetrics.spacing_4;
-
-                for day in root.data.days: Rectangle {
-                    border_radius: MaterialStyleMetrics.border_radius_4;
-                    background: MaterialPalette.surface_container_highest;
-
-                    HorizontalLayout {
-                        padding_left: MaterialStyleMetrics.padding_6;
-                        padding_right: MaterialStyleMetrics.padding_6;
-                        padding_top: MaterialStyleMetrics.spacing_2;
-                        padding_bottom: MaterialStyleMetrics.spacing_2;
-
-                        MaterialText {
-                            text: Labels.weekday(day);
-                            style: MaterialTypography.label_small;
-                        }
-                    }
-                }
+            if root.detailed && root.data.days.length > 0: DayPills {
+                days: root.data.days;
             }
         }
 
@@ -203,9 +187,9 @@ export component HabitTile inherits Rectangle {
         activated(index) => {
             menu.close();
             if index == 0 {
-                root.check_in_requested(root.data.kind);
+                root.check_in_requested();
             } else if index == 1 {
-                root.skip_requested(root.data.kind);
+                root.skip_requested();
             } else if index == 2 {
                 if root.data.paused {
                     App.resume_habit(root.data.id);

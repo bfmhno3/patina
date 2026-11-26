@@ -1,12 +1,9 @@
-import {
-    Dialog,
-    MaterialStyleMetrics,
-    MaterialText,
-    MaterialTypography,
-} from "@material";
+import { MaterialPalette, MaterialText, MaterialTypography } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { RhythmModeUi } from "../types.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 export component BreakDialog inherits Rectangle {
     width: 0;
@@ -16,33 +13,30 @@ export component BreakDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: @tr("Time for a break");
-        actions: [App.rhythm.mode == RhythmModeUi.flowtime ? @tr("Not now") : @tr("10 more minutes")];
-        default_action_text: @tr("OK");
+        icon: AppIcons.coffee;
+        cancel_text: App.rhythm.mode == RhythmModeUi.flowtime ? @tr("Not now") : @tr("10 more minutes");
+        action_text: @tr("Start break");
 
-        default_action_clicked => {
+        accepted => {
             App.start_break();
             dlg.close();
         }
-        action_clicked(index) => {
+        cancelled => {
             App.snooze_break();
-            dlg.close();
         }
 
-        VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
-
-            MaterialText {
-                text: @tr("You've focused {} min. Take a {}-min {} break?", App.prompt.focus_minutes, App.prompt.minutes, Labels.break_kind(App.prompt.break_kind));
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
+        MaterialText {
+            text: @tr("You've focused {} min. Take a {}-min {} break?", App.prompt.focus_minutes, App.prompt.minutes, Labels.break_kind(App.prompt.break_kind));
+            wrap: word_wrap;
+            overflow: clip;
+            style: MaterialTypography.body_medium;
+            color: MaterialPalette.on_surface_variant;
         }
     }
 }

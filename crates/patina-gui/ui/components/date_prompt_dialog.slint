@@ -1,0 +1,64 @@
+import { App } from "../app.slint";
+import { DateField } from "date_field.slint";
+import { DatePickerDialog } from "date_picker_dialog.slint";
+import { PromptDialog } from "prompt_dialog.slint";
+
+// One date field with quick picks and a calendar. `submitted` returns "" to close or an error to show.
+export component DatePromptDialog inherits Rectangle {
+    in property <string> title;
+    in property <string> label;
+    in property <image> icon;
+    in property <string> action_text: @tr("OK");
+    property <string> error;
+    property <string> value;
+
+    callback submitted(text: string) -> string;
+
+    width: 0;
+    height: 0;
+
+    public function open(initial: string) {
+        root.value = initial;
+        root.error = "";
+        dlg.show();
+    }
+
+    function submit() {
+        root.error = root.submitted(root.value);
+        if root.error == "" {
+            dlg.close();
+        }
+    }
+
+    dlg := PromptDialog {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.title;
+        icon: root.icon;
+        error: root.error;
+        action_text: root.action_text;
+
+        accepted => {
+            root.submit();
+        }
+
+        DateField {
+            label: root.label;
+            value <=> root.value;
+
+            pick => {
+                calendar.open(root.value);
+            }
+        }
+    }
+
+    calendar := DatePickerDialog {
+        title: root.label;
+
+        picked(v) => {
+            root.value = v;
+        }
+    }
+}

@@ -1,14 +1,30 @@
-import { FullscreenDialog, MaterialStyleMetrics } from "@material";
+import {
+    MaterialPalette,
+    MaterialTypography,
+    MaterialText,
+    TextField,
+} from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { PickerPurpose } from "../types.slint";
-import { ItemPicker } from "item_picker.slint";
+import { EmptyState } from "empty_state.slint";
+import { FormDialog } from "form_dialog.slint";
+import { InfoCard } from "info_card.slint";
+import { Section } from "section.slint";
+import { Tile } from "tile.slint";
 
+// Pick an item from a filterable list: merge into, move under, depend on, parent.
 export component ItemPickerDialog inherits Rectangle {
     in property <string> title;
     in property <PickerPurpose> purpose;
     in property <string> context_id;
+    // What is being merged, moved, or linked; shown above the search when set.
+    in property <string> subject;
+    in property <image> subject_icon;
+    // Shown when there are no candidates and no filter.
+    in property <string> empty_text;
 
-    callback picked(id: string);
+    callback picked(id: string, title: string);
 
     property <string> filter_value;
 
@@ -21,27 +37,54 @@ export component ItemPickerDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := FullscreenDialog {
+    dlg := FormDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: root.title;
+        action_text: "";
 
-        VerticalLayout {
-            padding: MaterialStyleMetrics.padding_16;
-            padding_top: 0;
+        if root.subject != "": InfoCard {
+            icon: root.subject_icon;
 
-            ItemPicker {
-                filter <=> root.filter_value;
-                purpose: root.purpose;
-                context_id: root.context_id;
+            MaterialText {
+                text: root.subject;
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_large;
+                color: MaterialPalette.on_secondary_container;
+            }
+        }
 
-                picked(id, title) => {
+        TextField {
+            text <=> root.filter_value;
+            label: @tr("Search");
+            leading_icon: AppIcons.search;
+
+            edited(text) => {
+                App.picker_query(root.purpose, text, root.context_id);
+            }
+        }
+
+        if App.picker_rows.length > 0: Section {
+            for row[i] in App.picker_rows: Tile {
+                leading_icon: AppIcons.task_alt;
+                divider: i > 0;
+                text: row.title;
+                supporting_text: row.path;
+
+                clicked => {
                     dlg.close();
-                    root.picked(id);
+                    root.picked(row.id, row.title);
                 }
             }
+        }
+
+        if App.picker_rows.length == 0: EmptyState {
+            icon: AppIcons.search;
+            title: root.filter_value != "" ? @tr("No matches") : @tr("Nothing to choose");
+            text: root.filter_value != "" ? @tr("Try a different search.") : root.empty_text;
         }
     }
 }

@@ -1,0 +1,45 @@
+import { DatePickerAdapter, DatePickerPopup } from "@material";
+import { App } from "../app.slint";
+
+// A calendar popup; `picked` fires with a `YYYY-MM-DD` date. A zero-size anchor, like the other dialogs.
+export component DatePickerDialog inherits Rectangle {
+    in property <string> title;
+
+    callback picked(value: string);
+
+    property <int> day;
+    property <int> month;
+    property <int> year;
+
+    width: 0;
+    height: 0;
+
+    // `value` is the date to start on; anything unparsable starts on today.
+    public function open(value: string) {
+        let parts = DatePickerAdapter.parse_date(value, "%Y-%m-%d");
+        let now = DatePickerAdapter.date_now();
+        root.day = parts.length == 3 ? parts[0] : now[0];
+        root.month = parts.length == 3 ? parts[1] : now[1];
+        root.year = parts.length == 3 ? parts[2] : now[2];
+        popup.show();
+    }
+
+    popup := DatePickerPopup {
+        x: -root.absolute_position.x;
+        y: -root.absolute_position.y;
+        width: App.window_width;
+        height: App.window_height;
+        title: root.title;
+        date: { day: root.day, month: root.month, year: root.year };
+
+        accepted(date) => {
+            // The vendored OK passes its initial date and stays open; read the chosen one and close here.
+            if !self.ok_enabled() {
+                return;
+            }
+            let d = self.get_current_date();
+            root.picked(DatePickerAdapter.format_date("%Y-%m-%d", d.day, d.month, d.year));
+            self.close();
+        }
+    }
+}

@@ -227,14 +227,14 @@ export component TodayPage inherits Rectangle {
                 data: r;
                 divider: i > 0;
 
-                check_in_requested(kind) => {
-                    check_in.open(r.id, kind, false);
+                check_in_requested => {
+                    check_in.open(r, false);
                 }
-                skip_requested(kind) => {
-                    check_in.open(r.id, kind, true);
+                skip_requested => {
+                    check_in.open(r, true);
                 }
                 edit_requested => {
-                    habit_form.open(1, r.id, r.name, r.identity, r.cue);
+                    habit_form.open_edit(r);
                 }
             }
         }

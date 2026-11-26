@@ -8,8 +8,8 @@ import {
 } from "@material";
 import { AppIcons } from "../icons.slint";
 
-// One choice in the identity mode dialog: avatar, name, summary, and a check when current. Fixed height, like RadioRow, because content-sized tiles loop inside dialogs.
-export component IdentityOption inherits Rectangle {
+// One choice in a dialog list: avatar (initial or icon), text, optional supporting line, and a check when selected. Fixed height, because content-sized tiles loop inside dialogs.
+export component OptionRow inherits Rectangle {
     in property <string> text;
     in property <string> supporting_text;
     in property <string> initial;

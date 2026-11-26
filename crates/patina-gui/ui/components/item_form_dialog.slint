@@ -1,7 +1,4 @@
 import {
-    DatePickerAdapter,
-    DatePickerPopup,
-    Icon,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
@@ -15,8 +12,10 @@ import { AppIcons } from "../icons.slint";
 import { ItemForm, PickerPurpose } from "../types.slint";
 import { ChoiceRow } from "choice_row.slint";
 import { DateField } from "date_field.slint";
+import { DatePickerDialog } from "date_picker_dialog.slint";
+import { ErrorBanner } from "error_banner.slint";
 import { FormDialog } from "form_dialog.slint";
-import { ItemPicker } from "item_picker.slint";
+import { ItemPickerDialog } from "item_picker_dialog.slint";
 import { Section } from "section.slint";
 
 // Create, add a child, triage, or edit an item. `mode`: 0 create, 1 child, 2 triage, 3 edit.
@@ -24,8 +23,6 @@ export component ItemFormDialog inherits Rectangle {
     property <int> mode;
     property <string> target_id;
     property <string> error;
-    property <bool> picking;
-    property <string> picker_filter;
     property <string> title_value;
     property <string> identity_value;
     property <string> parent_id;
@@ -44,9 +41,6 @@ export component ItemFormDialog inherits Rectangle {
     // Calendar target: 0 planned for, 1 deadline, 2 hidden until, 3 follow up on.
     property <int> picker_target;
     property <string> picker_title;
-    property <int> picker_day;
-    property <int> picker_month;
-    property <int> picker_year;
 
     width: 0;
     height: 0;
@@ -56,7 +50,6 @@ export component ItemFormDialog inherits Rectangle {
         root.mode = mode;
         root.target_id = id;
         root.error = "";
-        root.picking = false;
         root.title_value = form.title;
         root.identity_value = form.identity != "" ? form.identity : App.identities[0];
         root.parent_id = form.parent_id;
@@ -110,12 +103,7 @@ export component ItemFormDialog inherits Rectangle {
     function open_picker(target: int, title: string, value: string) {
         root.picker_target = target;
         root.picker_title = title;
-        let parts = DatePickerAdapter.parse_date(value, "%Y-%m-%d");
-        let now = DatePickerAdapter.date_now();
-        root.picker_day = parts.length == 3 ? parts[0] : now[0];
-        root.picker_month = parts.length == 3 ? parts[1] : now[1];
-        root.picker_year = parts.length == 3 ? parts[2] : now[2];
-        picker.show();
+        calendar.open(value);
     }
 
     function set_picked(value: string) {
@@ -145,33 +133,8 @@ export component ItemFormDialog inherits Rectangle {
             root.submit();
         }
 
-        if root.error != "": Rectangle {
-            background: MaterialPalette.error_container;
-            border_radius: MaterialStyleMetrics.border_radius_12;
-
-            HorizontalLayout {
-                padding: MaterialStyleMetrics.padding_12;
-                spacing: MaterialStyleMetrics.spacing_12;
-
-                VerticalLayout {
-                    alignment: center;
-
-                    Icon {
-                        source: AppIcons.warning;
-                        width: MaterialStyleMetrics.icon_size_24;
-                        colorize: MaterialPalette.on_error_container;
-                    }
-                }
-
-                MaterialText {
-                    text: root.error;
-                    horizontal_stretch: 1;
-                    wrap: word_wrap;
-                    overflow: clip;
-                    color: MaterialPalette.on_error_container;
-                    style: MaterialTypography.body_medium;
-                }
-            }
+        if root.error != "": ErrorBanner {
+            text: root.error;
         }
 
         Section {
@@ -211,9 +174,7 @@ export component ItemFormDialog inherits Rectangle {
                         text: @tr("Choose parent…");
 
                         clicked => {
-                            root.picking = !root.picking;
-                            root.picker_filter = "";
-                            App.picker_query(PickerPurpose.parent, "", "");
+                            parent_picker.open();
                         }
                     }
 
@@ -222,25 +183,6 @@ export component ItemFormDialog inherits Rectangle {
 
                         clicked => {
                             root.parent_id = "";
-                            root.picking = false;
-                        }
-                    }
-                }
-
-                Rectangle {
-                    visible: root.mode == 0 && root.picking;
-                    min_height: root.mode == 0 && root.picking ? MaterialStyleMetrics.size_256 : 0;
-                    max_height: self.min_height;
-
-                    ItemPicker {
-                        filter <=> root.picker_filter;
-                        purpose: PickerPurpose.parent;
-                        context_id: "";
-
-                        picked(id, title) => {
-                            root.parent_id = id;
-                            root.parent_title = title;
-                            root.picking = false;
                         }
                     }
                 }
@@ -366,22 +308,23 @@ export component ItemFormDialog inherits Rectangle {
         }
     }
 
-    picker := DatePickerPopup {
-        x: -root.absolute_position.x;
-        y: -root.absolute_position.y;
-        width: App.window_width;
-        height: App.window_height;
+    calendar := DatePickerDialog {
         title: root.picker_title;
-        date: { day: root.picker_day, month: root.picker_month, year: root.picker_year };
 
-        accepted(date) => {
-            // The vendored OK passes its initial date and stays open; read the chosen one and close here.
-            if !self.ok_enabled() {
-                return;
-            }
-            let d = self.get_current_date();
-            root.set_picked(DatePickerAdapter.format_date("%Y-%m-%d", d.day, d.month, d.year));
-            self.close();
+        picked(value) => {
+            root.set_picked(value);
+        }
+    }
+
+    parent_picker := ItemPickerDialog {
+        title: @tr("Choose parent");
+        purpose: PickerPurpose.parent;
+        context_id: "";
+        empty_text: @tr("There are no open items yet.");
+
+        picked(id, title) => {
+            root.parent_id = id;
+            root.parent_title = title;
         }
     }
 }

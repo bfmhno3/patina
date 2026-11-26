@@ -1,28 +1,34 @@
 import {
-    FilterChip,
-    FullscreenDialog,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     TextField,
 } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
-import { HabitForm } from "../types.slint";
+import { FrequencyUi, HabitKindUi, HabitRow } from "../types.slint";
 import { ChoiceRow } from "choice_row.slint";
+import { DayPills } from "day_pills.slint";
+import { DayToggle } from "day_toggle.slint";
+import { ErrorBanner } from "error_banner.slint";
+import { FormDialog } from "form_dialog.slint";
+import { NumberStepper } from "number_stepper.slint";
+import { PropertyRow } from "property_row.slint";
+import { Section } from "section.slint";
 
-// Create a habit (mode 0) or edit its name, identity, and cue (mode 1).
+// Create a habit, or edit its name, identity, and cue; kind and schedule are fixed once created.
 export component HabitFormDialog inherits Rectangle {
-    property <int> mode;
+    property <bool> editing;
     property <string> target_id;
+    property <HabitRow> habit;
     property <string> error;
     property <string> name_value;
     property <string> identity_value;
     property <string> cue_value;
-    property <string> target_value;
-    property <string> times_value;
+    property <int> target_value: 1;
+    property <int> times_value: 3;
     property <int> kind_value;
     property <int> frequency_value;
     property <bool> d0;
@@ -36,17 +42,16 @@ export component HabitFormDialog inherits Rectangle {
     width: 0;
     height: 0;
 
-    public function open(mode: int, id: string, name: string, identity: string, cue: string) {
-        root.mode = mode;
-        root.target_id = id;
-        root.error = "";
-        root.name_value = name;
+    public function open_new(identity: string) {
+        root.editing = false;
+        root.target_id = "";
+        root.name_value = "";
         root.identity_value = identity != "" ? identity : App.identities[0];
-        root.cue_value = cue;
-        root.target_value = "1";
-        root.times_value = "3";
+        root.cue_value = "";
         root.kind_value = 0;
+        root.target_value = 1;
         root.frequency_value = 0;
+        root.times_value = 3;
         root.d0 = true;
         root.d1 = true;
         root.d2 = true;
@@ -54,11 +59,41 @@ export component HabitFormDialog inherits Rectangle {
         root.d4 = true;
         root.d5 = false;
         root.d6 = false;
+        root.error = "";
         dlg.show();
     }
 
+    public function open_edit(row: HabitRow) {
+        root.editing = true;
+        root.target_id = row.id;
+        root.name_value = row.name;
+        root.identity_value = row.identity;
+        root.cue_value = row.cue;
+        root.habit = row;
+        root.error = "";
+        dlg.show();
+    }
+
+    pure function kind_text(r: HabitRow) -> string {
+        if r.kind == HabitKindUi.count {
+            return @tr("Count, {} a day", r.target);
+        } else if r.kind == HabitKindUi.duration {
+            return @tr("Duration, {} min a day", r.target);
+        }
+        return @tr("Check off");
+    }
+
+    pure function frequency_text(r: HabitRow) -> string {
+        if r.frequency == FrequencyUi.daily {
+            return @tr("Every day");
+        } else if r.frequency == FrequencyUi.weekly {
+            return @tr("{} times a week", r.times);
+        }
+        return @tr("On specific weekdays");
+    }
+
     function submit() {
-        if root.mode == 1 {
+        if root.editing {
             root.error = App.edit_habit(root.target_id, root.name_value, root.identity_value, root.cue_value);
         } else {
             root.error = App.add_habit({
@@ -66,9 +101,9 @@ export component HabitFormDialog inherits Rectangle {
                 identity: root.identity_value,
                 cue: root.cue_value,
                 kind: root.kind_value,
-                target: Math.round(root.target_value.to_float()),
+                target: root.target_value,
                 frequency: root.frequency_value,
-                times: Math.round(root.times_value.to_float()),
+                times: root.times_value,
                 days: [root.d0, root.d1, root.d2, root.d3, root.d4, root.d5, root.d6],
             });
         }
@@ -77,34 +112,38 @@ export component HabitFormDialog inherits Rectangle {
         }
     }
 
-    dlg := FullscreenDialog {
+    dlg := FormDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
-        title: root.mode == 0 ? @tr("New habit") : @tr("Edit habit");
-        actions: [@tr("Save")];
+        title: root.editing ? @tr("Edit habit") : @tr("New habit");
+        action_text: @tr("Save");
 
-        action_clicked(index) => {
+        accepted => {
             root.submit();
         }
 
-        ScrollView {
+        if root.error != "": ErrorBanner {
+            text: root.error;
+        }
+
+        Section {
+            title: @tr("Details");
+
             VerticalLayout {
                 padding: MaterialStyleMetrics.padding_16;
-                padding_top: 0;
-                spacing: MaterialStyleMetrics.spacing_8;
-
-                if root.error != "": MaterialText {
-                    text: root.error;
-                    wrap: word_wrap;
-                    overflow: clip;
-                    color: MaterialPalette.error;
-                }
+                spacing: MaterialStyleMetrics.spacing_12;
 
                 TextField {
                     text <=> root.name_value;
                     label: @tr("Name");
+                }
+
+                MaterialText {
+                    text: @tr("Identity");
+                    style: MaterialTypography.label_large;
+                    color: MaterialPalette.on_surface_variant;
                 }
 
                 ChoiceRow {
@@ -116,84 +155,150 @@ export component HabitFormDialog inherits Rectangle {
                 TextField {
                     text <=> root.cue_value;
                     label: @tr("Cue");
+                    leading_icon: AppIcons.schedule;
                     supporting_text: @tr("When or where you will do it");
                 }
+            }
+        }
 
-                if root.mode == 0: MaterialText {
+        if !root.editing: Section {
+            title: @tr("Goal");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
+
+                MaterialText {
                     text: @tr("Kind");
                     style: MaterialTypography.label_large;
+                    color: MaterialPalette.on_surface_variant;
                 }
 
-                if root.mode == 0: ChoiceRow {
+                ChoiceRow {
                     options: [@tr("Check"), @tr("Count"), @tr("Duration")];
                     current <=> root.kind_value;
+
+                    chosen(index) => {
+                        root.target_value = index == 2 ? 15 : 1;
+                    }
                 }
 
-                if root.mode == 0 && root.kind_value != 0: TextField {
-                    text <=> root.target_value;
-                    label: root.kind_value == 1 ? @tr("Daily count") : @tr("Daily minutes");
-                    input_type: number;
+                if root.kind_value == 1: NumberStepper {
+                    label: @tr("Daily count");
+                    value <=> root.target_value;
+                    minimum: 1;
+                    maximum: 99;
                 }
 
-                if root.mode == 0: MaterialText {
+                if root.kind_value == 2: NumberStepper {
+                    label: @tr("Daily time");
+                    suffix: @tr("min");
+                    value <=> root.target_value;
+                    minimum: 5;
+                    maximum: 600;
+                    step: 5;
+                }
+            }
+        }
+
+        if !root.editing: Section {
+            title: @tr("Schedule");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
+
+                MaterialText {
                     text: @tr("How often");
                     style: MaterialTypography.label_large;
+                    color: MaterialPalette.on_surface_variant;
                 }
 
-                if root.mode == 0: ChoiceRow {
+                ChoiceRow {
                     options: [@tr("Daily"), @tr("Per week"), @tr("Weekdays")];
                     current <=> root.frequency_value;
                 }
 
-                if root.mode == 0 && root.frequency_value == 1: TextField {
-                    text <=> root.times_value;
+                if root.frequency_value == 1: NumberStepper {
                     label: @tr("Times per week");
-                    input_type: number;
+                    value <=> root.times_value;
+                    minimum: 1;
+                    maximum: 7;
                 }
 
-                Rectangle {
-                    visible: root.mode == 0 && root.frequency_value == 2;
-                    min_height: root.mode == 0 && root.frequency_value == 2 ? MaterialStyleMetrics.size_48 : 0;
-                    max_height: self.min_height;
+                if root.frequency_value == 2: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_4;
 
-                    HorizontalLayout {
-                        spacing: MaterialStyleMetrics.spacing_4;
-
-                        FilterChip {
-                            checked <=> root.d0;
-                            text: Labels.weekday("mon");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d1;
-                            text: Labels.weekday("tue");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d2;
-                            text: Labels.weekday("wed");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d3;
-                            text: Labels.weekday("thu");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d4;
-                            text: Labels.weekday("fri");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d5;
-                            text: Labels.weekday("sat");
-                        }
-
-                        FilterChip {
-                            checked <=> root.d6;
-                            text: Labels.weekday("sun");
-                        }
+                    DayToggle {
+                        text: Labels.weekday("mon");
+                        checked <=> root.d0;
                     }
+
+                    DayToggle {
+                        text: Labels.weekday("tue");
+                        checked <=> root.d1;
+                    }
+
+                    DayToggle {
+                        text: Labels.weekday("wed");
+                        checked <=> root.d2;
+                    }
+
+                    DayToggle {
+                        text: Labels.weekday("thu");
+                        checked <=> root.d3;
+                    }
+
+                    DayToggle {
+                        text: Labels.weekday("fri");
+                        checked <=> root.d4;
+                    }
+
+                    DayToggle {
+                        text: Labels.weekday("sat");
+                        checked <=> root.d5;
+                    }
+
+                    DayToggle {
+                        text: Labels.weekday("sun");
+                        checked <=> root.d6;
+                    }
+                }
+            }
+        }
+
+        if root.editing: Section {
+            title: @tr("Plan");
+
+            PropertyRow {
+                icon: AppIcons.task_alt;
+                label: @tr("Kind");
+                value: root.kind_text(root.habit);
+            }
+
+            PropertyRow {
+                icon: AppIcons.event_repeat;
+                label: @tr("How often");
+                value: root.frequency_text(root.habit);
+                divider: true;
+            }
+
+            if root.habit.days.length > 0: DayPills {
+                days: root.habit.days;
+                padding_left: MaterialStyleMetrics.size_56;
+                padding_bottom: MaterialStyleMetrics.padding_12;
+            }
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                padding_top: 0;
+
+                MaterialText {
+                    text: @tr("Kind and schedule can't be changed after a habit is created.");
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.body_small;
+                    color: MaterialPalette.on_surface_variant;
                 }
             }
         }

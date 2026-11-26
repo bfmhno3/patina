@@ -14,6 +14,7 @@ import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { EmptyState } from "../components/empty_state.slint";
+import { ErrorBanner } from "../components/error_banner.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
 import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
 import { PageHeader } from "../components/page_header.slint";
@@ -24,6 +25,7 @@ import { Tile } from "../components/tile.slint";
 
 export component InboxPage inherits Rectangle {
     property <string> merge_source;
+    property <string> merge_text;
     property <string> error;
     property <string> proposal_error;
 
@@ -33,12 +35,8 @@ export component InboxPage inherits Rectangle {
             subtitle: App.inbox.length > 0 ? @tr("{} to triage", App.inbox.length) : "";
         }
 
-        if root.proposal_error != "": MaterialText {
+        if root.proposal_error != "": ErrorBanner {
             text: root.proposal_error;
-            wrap: word_wrap;
-            overflow: clip;
-            color: MaterialPalette.error;
-            style: MaterialTypography.body_medium;
         }
 
         if App.proposals.length > 0: Section {
@@ -162,11 +160,8 @@ export component InboxPage inherits Rectangle {
             }
         }
 
-        if root.error != "": MaterialText {
+        if root.error != "": ErrorBanner {
             text: root.error;
-            wrap: word_wrap;
-            overflow: clip;
-            style: MaterialTypography.body_medium;
         }
 
         if App.inbox.length > 0: Section {
@@ -191,6 +186,7 @@ export component InboxPage inherits Rectangle {
 
                     clicked => {
                         root.merge_source = entry.id;
+                        root.merge_text = entry.text;
                         picker.open();
                     }
                 }
@@ -219,8 +215,11 @@ export component InboxPage inherits Rectangle {
         title: @tr("Merge into…");
         purpose: PickerPurpose.merge_into;
         context_id: root.merge_source;
+        subject: @tr("“{}” becomes a note on the item you pick", root.merge_text);
+        subject_icon: AppIcons.merge;
+        empty_text: @tr("There are no open items to merge into.");
 
-        picked(id) => {
+        picked(id, title) => {
             root.error = App.merge(root.merge_source, id);
         }
     }

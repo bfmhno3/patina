@@ -16,6 +16,7 @@ import { Labels } from "../labels.slint";
 import { AbandonDialog } from "../components/abandon_dialog.slint";
 import { InfoCard } from "../components/info_card.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { ErrorBanner } from "../components/error_banner.slint";
 import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
 import { ItemTile } from "../components/item_tile.slint";
 import { PageScroll } from "../components/page_scroll.slint";
@@ -156,11 +157,8 @@ export component ItemPage inherits Rectangle {
             }
         }
 
-        if root.action_error != "": MaterialText {
+        if root.action_error != "": ErrorBanner {
             text: root.action_error;
-            wrap: word_wrap;
-            overflow: clip;
-            color: MaterialPalette.error;
         }
 
         if App.detail.left_off != "": InfoCard {
@@ -401,6 +399,7 @@ export component ItemPage inherits Rectangle {
 
     complete := TextPromptDialog {
         title: @tr("Complete");
+        icon: AppIcons.check_circle;
         label: @tr("Note (optional)");
         action_text: @tr("Done");
 
@@ -419,8 +418,11 @@ export component ItemPage inherits Rectangle {
         title: @tr("Move under…");
         purpose: PickerPurpose.parent;
         context_id: App.detail.item.id;
+        subject: @tr("Moving “{}”", App.detail.item.title);
+        subject_icon: AppIcons.drive_file_move;
+        empty_text: @tr("There are no other open items.");
 
-        picked(id) => {
+        picked(id, title) => {
             root.action_error = App.move_item(App.detail.item.id, id);
         }
     }
@@ -429,8 +431,11 @@ export component ItemPage inherits Rectangle {
         title: @tr("Depends on…");
         purpose: PickerPurpose.link;
         context_id: App.detail.item.id;
+        subject: @tr("“{}” will wait for the item you pick", App.detail.item.title);
+        subject_icon: AppIcons.link;
+        empty_text: @tr("Only sibling items can be prerequisites.");
 
-        picked(id) => {
+        picked(id, title) => {
             root.action_error = App.link(App.detail.item.id, id);
         }
     }

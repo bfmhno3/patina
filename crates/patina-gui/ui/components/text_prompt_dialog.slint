@@ -1,11 +1,13 @@
-import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import { TextField } from "@material";
 import { App } from "../app.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // One text field. `submitted` returns "" to close or an error to show.
 export component TextPromptDialog inherits Rectangle {
     in property <string> title;
     in property <string> label;
     in property <string> hint;
+    in property <image> icon;
     in property <string> action_text: @tr("OK");
     property <string> error;
     property <string> value;
@@ -28,34 +30,27 @@ export component TextPromptDialog inherits Rectangle {
         }
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: root.title;
-        actions: [@tr("Cancel")];
-        default_action_text: root.action_text;
+        icon: root.icon;
+        error: root.error;
+        action_text: root.action_text;
 
-        default_action_clicked => {
+        accepted => {
             root.submit();
         }
-        action_clicked(index) => {
-            dlg.close();
-        }
 
-        VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
+        TextField {
+            text <=> root.value;
+            label: root.label;
+            supporting_text: root.hint;
 
-            TextField {
-                text <=> root.value;
-                label: root.label;
-                supporting_text: root.error != "" ? root.error : root.hint;
-                has_error: root.error != "";
-
-                accepted(text) => {
-                    root.submit();
-                }
+            accepted(text) => {
+                root.submit();
             }
         }
     }

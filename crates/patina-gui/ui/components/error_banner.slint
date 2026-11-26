@@ -1,0 +1,40 @@
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { AppIcons } from "../icons.slint";
+
+// A red banner for an operation error. Callers show it only when the text is not empty.
+export component ErrorBanner inherits Rectangle {
+    in property <string> text;
+
+    background: MaterialPalette.error_container;
+    border_radius: MaterialStyleMetrics.border_radius_12;
+
+    HorizontalLayout {
+        padding: MaterialStyleMetrics.padding_12;
+        spacing: MaterialStyleMetrics.spacing_12;
+
+        VerticalLayout {
+            alignment: center;
+
+            Icon {
+                source: AppIcons.warning;
+                width: MaterialStyleMetrics.icon_size_24;
+                colorize: MaterialPalette.on_error_container;
+            }
+        }
+
+        MaterialText {
+            text: root.text;
+            horizontal_stretch: 1;
+            wrap: word_wrap;
+            overflow: clip;
+            color: MaterialPalette.on_error_container;
+            style: MaterialTypography.body_medium;
+        }
+    }
+}

@@ -1,7 +1,15 @@
-import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    TextField,
+} from "@material";
 import { App } from "../app.slint";
-import { RadioRow } from "radio_row.slint";
+import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
+import { OptionRow } from "option_row.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 export component AbandonDialog inherits Rectangle {
     property <string> item_id;
@@ -20,43 +28,62 @@ export component AbandonDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    pure function reason_icon(i: int) -> image {
+        if i == 0 {
+            return AppIcons.visibility_off;
+        } else if i == 1 {
+            return AppIcons.swap_horiz;
+        } else if i == 2 {
+            return AppIcons.block;
+        }
+        return AppIcons.edit_note;
+    }
+
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: @tr("Abandon");
-        actions: [@tr("Cancel")];
-        default_action_text: @tr("Abandon");
+        icon: AppIcons.do_not_disturb_on;
+        error: root.error;
+        action_text: @tr("Abandon");
 
-        default_action_clicked => {
+        accepted => {
             root.error = App.abandon(root.item_id, root.reason, root.note_value);
             if root.error == "" {
                 dlg.close();
             }
         }
-        action_clicked(index) => {
-            dlg.close();
-        }
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
             spacing: MaterialStyleMetrics.spacing_4;
 
-            for i in [0, 1, 2, 3]: RadioRow {
+            MaterialText {
+                text: @tr("Why are you letting this go?");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_surface_variant;
+            }
+
+            for i in [0, 1, 2, 3]: OptionRow {
                 text: Labels.abandon_reason(i);
-                checked: root.reason == i;
+                icon: root.reason_icon(i);
+                selected: root.reason == i;
 
                 clicked => {
                     root.reason = i;
                 }
             }
 
+            Rectangle {
+                height: MaterialStyleMetrics.spacing_8;
+            }
+
             TextField {
                 text <=> root.note_value;
                 label: @tr("Note");
-                has_error: root.error != "";
-                supporting_text: root.error;
             }
         }
     }

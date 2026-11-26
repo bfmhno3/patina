@@ -20,7 +20,8 @@ import { ItemFormDialog } from "../components/item_form_dialog.slint";
 import { PageHeader } from "../components/page_header.slint";
 import { PageScroll } from "../components/page_scroll.slint";
 import { ItemTile } from "../components/item_tile.slint";
-import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
+import { ErrorBanner } from "../components/error_banner.slint";
+import { DatePromptDialog } from "../components/date_prompt_dialog.slint";
 import { WeekChart } from "../components/week_chart.slint";
 
 // The weekly review: seven steps, or the minimal 1, 5, 7.
@@ -330,11 +331,8 @@ export component ReviewPage inherits Rectangle {
                 padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_4;
 
-                if root.action_error != "": MaterialText {
+                if root.action_error != "": ErrorBanner {
                     text: root.action_error;
-                    wrap: word_wrap;
-                    overflow: clip;
-                    color: MaterialPalette.error;
                 }
 
                 MaterialText {
@@ -538,11 +536,8 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
 
-                if root.finish_error != "": MaterialText {
+                if root.finish_error != "": ErrorBanner {
                     text: root.finish_error;
-                    wrap: word_wrap;
-                    overflow: clip;
-                    color: MaterialPalette.error;
                 }
 
                 FilledButton {
@@ -591,20 +586,20 @@ export component ReviewPage inherits Rectangle {
 
     triage_form := ItemFormDialog { }
 
-    set_date := TextPromptDialog {
+    set_date := DatePromptDialog {
         title: @tr("Set a date");
         label: @tr("Date");
-        hint: @tr("YYYY-MM-DD, today, tomorrow, +N");
+        icon: AppIcons.event;
 
         submitted(text) => {
             return App.set_scheduled(root.date_target, text);
         }
     }
 
-    set_follow_up := TextPromptDialog {
+    set_follow_up := DatePromptDialog {
         title: @tr("Follow up");
-        label: @tr("Date");
-        hint: @tr("YYYY-MM-DD, today, tomorrow, +N");
+        label: @tr("Follow up on");
+        icon: AppIcons.event;
 
         submitted(text) => {
             return App.set_follow_up(root.date_target, text);

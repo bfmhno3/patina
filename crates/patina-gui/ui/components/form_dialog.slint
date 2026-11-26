@@ -12,7 +12,7 @@ import {
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 
-// A form shell: a centered card on wide windows, full screen on narrow ones. Never closes on an outside tap, so a mis-tap cannot drop edits; the close button and Escape do.
+// A form shell: a centered card on wide windows, full screen on narrow ones. Never closes on an outside tap, so a mis-tap cannot drop edits; the close button and Escape do. An empty `action_text` hides the button (pickers).
 export component FormDialog inherits PopupWindow {
     in property <string> title;
     in property <string> action_text;
@@ -88,7 +88,7 @@ export component FormDialog inherits PopupWindow {
                     style: MaterialTypography.title_large;
                 }
 
-                VerticalLayout {
+                if root.action_text != "": VerticalLayout {
                     alignment: center;
 
                     FilledButton {
@@ -106,6 +106,8 @@ export component FormDialog inherits PopupWindow {
 
                 VerticalLayout {
                     padding: root.floating ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.padding_16;
+                    // Short forms keep their natural heights instead of stretching to fill the card.
+                    alignment: start;
                     padding_top: 0;
                     spacing: MaterialStyleMetrics.spacing_16;
 

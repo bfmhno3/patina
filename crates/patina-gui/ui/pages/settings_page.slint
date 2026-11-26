@@ -17,6 +17,7 @@ import { PageHeader } from "../components/page_header.slint";
 import { PageScroll } from "../components/page_scroll.slint";
 import { PropertyRow } from "../components/property_row.slint";
 import { Section } from "../components/section.slint";
+import { ErrorBanner } from "../components/error_banner.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
 import { RhythmModeUi, StorageUi } from "../types.slint";
 import { Tile } from "../components/tile.slint";
@@ -160,12 +161,8 @@ export component SettingsPage inherits Rectangle {
             }
         }
 
-        if root.sources_error != "": MaterialText {
+        if root.sources_error != "": ErrorBanner {
             text: root.sources_error;
-            wrap: word_wrap;
-            overflow: clip;
-            color: MaterialPalette.error;
-            style: MaterialTypography.body_medium;
         }
 
         Section {
@@ -217,6 +214,7 @@ export component SettingsPage inherits Rectangle {
 
     rename := TextPromptDialog {
         title: @tr("Rename identity");
+        icon: AppIcons.edit;
         label: @tr("Name");
 
         submitted(text) => {
@@ -226,6 +224,7 @@ export component SettingsPage inherits Rectangle {
 
     add := TextPromptDialog {
         title: @tr("New identity");
+        icon: AppIcons.person;
         label: @tr("Name");
         action_text: @tr("Add");
 
@@ -236,6 +235,7 @@ export component SettingsPage inherits Rectangle {
 
     target := TextPromptDialog {
         title: @tr("Weekly target");
+        icon: AppIcons.schedule;
         label: @tr("Hours per week");
         hint: @tr("A number like 20 or 7.5, or none");
 

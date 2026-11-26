@@ -1,5 +1,5 @@
 import {
-    Dialog,
+    MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
@@ -7,7 +7,9 @@ import {
     TextField,
 } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { ChoiceRow } from "choice_row.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // Park an interruption in the inbox, or hand the timer over to it.
 export component InterruptDialog inherits Rectangle {
@@ -29,49 +31,65 @@ export component InterruptDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: @tr("Interruption");
-        actions: [@tr("Cancel")];
-        default_action_text: @tr("Save");
+        icon: AppIcons.bolt;
+        error: root.error;
+        action_text: @tr("Save");
 
-        default_action_clicked => {
+        accepted => {
             root.error = App.interrupt(root.text_value, root.now, root.now ? root.identity_value : "", root.now ? root.left_off_value : "");
             if root.error == "" {
                 dlg.close();
             }
         }
-        action_clicked(index) => {
-            dlg.close();
-        }
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
-            spacing: MaterialStyleMetrics.spacing_8;
+            spacing: MaterialStyleMetrics.spacing_12;
 
             TextField {
                 text <=> root.text_value;
                 label: @tr("What came up?");
-                has_error: root.error != "";
-                supporting_text: root.error;
             }
 
             HorizontalLayout {
-                alignment: start;
                 spacing: MaterialStyleMetrics.spacing_16;
 
-                MaterialText {
-                    text: @tr("Handle it now");
-                    vertical_alignment: center;
-                    style: MaterialTypography.body_large;
+                VerticalLayout {
+                    horizontal_stretch: 1;
+                    alignment: center;
+
+                    MaterialText {
+                        text: @tr("Handle it now");
+                        style: MaterialTypography.body_large;
+                    }
+
+                    MaterialText {
+                        text: root.now ? @tr("Creates a chore and switches the timer to it") : @tr("Goes to the inbox; the timer keeps running");
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                        color: MaterialPalette.on_surface_variant;
+                    }
                 }
 
-                Switch {
-                    checked <=> root.now;
+                VerticalLayout {
+                    alignment: center;
+
+                    Switch {
+                        checked <=> root.now;
+                    }
                 }
+            }
+
+            if root.now: MaterialText {
+                text: @tr("Identity");
+                style: MaterialTypography.label_large;
+                color: MaterialPalette.on_surface_variant;
             }
 
             if root.now: ChoiceRow {
@@ -83,6 +101,7 @@ export component InterruptDialog inherits Rectangle {
             if root.now: TextField {
                 text <=> root.left_off_value;
                 label: @tr("Where did you leave off?");
+                leading_icon: AppIcons.edit_note;
             }
         }
     }

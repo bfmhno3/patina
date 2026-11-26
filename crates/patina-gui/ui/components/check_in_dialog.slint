@@ -1,75 +1,107 @@
-import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    TextField,
+} from "@material";
 import { App } from "../app.slint";
-import { HabitKindUi } from "../types.slint";
+import { AppIcons } from "../icons.slint";
+import { HabitKindUi, HabitRow } from "../types.slint";
 import { ChoiceRow } from "choice_row.slint";
+import { NumberStepper } from "number_stepper.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // Check in or skip a habit on today or one of the two days before.
 export component CheckInDialog inherits Rectangle {
     property <string> habit_id;
+    property <string> habit_name;
+    property <int> target;
     property <bool> skip;
     property <bool> counted;
     property <int> day_offset;
     property <string> error;
-    property <string> count_value;
+    property <int> count_value;
     property <string> note_value;
 
     width: 0;
     height: 0;
 
-    public function open(id: string, kind: HabitKindUi, skipping: bool) {
-        root.habit_id = id;
+    public function open(row: HabitRow, skipping: bool) {
+        root.habit_id = row.id;
+        root.habit_name = row.name;
+        root.target = row.target;
         root.skip = skipping;
-        root.counted = kind == HabitKindUi.count;
+        root.counted = row.kind == HabitKindUi.count;
         root.day_offset = 0;
         root.error = "";
-        root.count_value = "";
         root.note_value = "";
+        // A count check-in stores the day's total, so start one above today's.
+        root.count_value = row.count > 0 ? row.count + 1 : 1;
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: root.skip ? @tr("Skip habit") : @tr("Check in");
-        actions: [@tr("Cancel")];
-        default_action_text: root.skip ? @tr("Skip") : @tr("Check in");
+        icon: root.skip ? AppIcons.skip_next : AppIcons.check_circle;
+        error: root.error;
+        action_text: root.skip ? @tr("Skip") : @tr("Check in");
 
-        default_action_clicked => {
+        accepted => {
             if root.skip {
                 root.error = App.skip_habit(root.habit_id, root.day_offset);
             } else {
-                root.error = App.check_in(root.habit_id, root.day_offset, root.counted ? Math.round(root.count_value.to_float()) : -1, root.note_value);
+                root.error = App.check_in(root.habit_id, root.day_offset, root.counted ? root.count_value : -1, root.note_value);
             }
             if root.error == "" {
                 dlg.close();
             }
         }
-        action_clicked(index) => {
-            dlg.close();
-        }
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
-            spacing: MaterialStyleMetrics.spacing_8;
+            spacing: MaterialStyleMetrics.spacing_12;
+
+            MaterialText {
+                text: root.habit_name;
+                overflow: elide;
+                style: MaterialTypography.body_large;
+            }
+
+            if root.skip: MaterialText {
+                text: @tr("Skipped days don't count against the habit's strength.");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_surface_variant;
+            }
+
+            MaterialText {
+                text: @tr("Day");
+                style: MaterialTypography.label_large;
+                color: MaterialPalette.on_surface_variant;
+            }
 
             ChoiceRow {
                 options: [@tr("Today"), @tr("Yesterday"), @tr("2 days ago")];
                 current <=> root.day_offset;
             }
 
-            if !root.skip && root.counted: TextField {
-                text <=> root.count_value;
-                label: @tr("Count");
-                input_type: number;
+            if !root.skip && root.counted: NumberStepper {
+                label: @tr("Total for the day");
+                suffix: @tr("of {}", root.target);
+                value <=> root.count_value;
+                minimum: 0;
+                maximum: 999;
             }
 
             if !root.skip: TextField {
                 text <=> root.note_value;
                 label: @tr("Note");
-                has_error: root.error != "";
-                supporting_text: root.error;
+                leading_icon: AppIcons.edit_note;
             }
         }
     }

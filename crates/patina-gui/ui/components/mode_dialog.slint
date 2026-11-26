@@ -1,5 +1,4 @@
 import {
-    Dialog,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
@@ -7,7 +6,8 @@ import {
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
-import { IdentityOption } from "identity_option.slint";
+import { OptionRow } from "option_row.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // Switch the identity mode, or go away. Tap outside or press Escape to close.
 export component ModeDialog inherits Rectangle {
@@ -18,15 +18,16 @@ export component ModeDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: @tr("Identity mode");
+        dismissible: true;
+        cancel_text: "";
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
             spacing: MaterialStyleMetrics.spacing_4;
 
             MaterialText {
@@ -41,7 +42,7 @@ export component ModeDialog inherits Rectangle {
                 height: MaterialStyleMetrics.spacing_8;
             }
 
-            for r in App.identity_rows: IdentityOption {
+            for r in App.identity_rows: OptionRow {
                 text: r.name;
                 initial: r.initial;
                 supporting_text: (r.target != "" ? @tr("target {} h/week", r.target) + " · " : "") + @tr("{} open items", r.open_items);
@@ -63,7 +64,7 @@ export component ModeDialog inherits Rectangle {
                 }
             }
 
-            IdentityOption {
+            OptionRow {
                 text: @tr("Away");
                 supporting_text: @tr("Done for now; mode time stops counting");
                 icon: AppIcons.do_not_disturb_on;

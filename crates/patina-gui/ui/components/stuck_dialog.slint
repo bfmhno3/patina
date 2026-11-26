@@ -1,5 +1,9 @@
-import { Dialog, MaterialStyleMetrics, TextField } from "@material";
+import { MaterialStyleMetrics, TextField } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { DateField } from "date_field.slint";
+import { DatePickerDialog } from "date_picker_dialog.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // Block an item (or the running timer's item) on something external.
 export component StuckDialog inherits Rectangle {
@@ -20,41 +24,48 @@ export component StuckDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: @tr("Stuck on something external");
-        actions: [@tr("Cancel")];
-        default_action_text: @tr("Save");
+        icon: AppIcons.hourglass_empty;
+        error: root.error;
+        action_text: @tr("Save");
 
-        default_action_clicked => {
+        accepted => {
             root.error = App.stuck(root.item_id, root.waiting_value, root.follow_up_value);
             if root.error == "" {
                 dlg.close();
             }
         }
-        action_clicked(index) => {
-            dlg.close();
-        }
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
-            spacing: MaterialStyleMetrics.spacing_8;
+            spacing: MaterialStyleMetrics.spacing_12;
 
             TextField {
                 text <=> root.waiting_value;
                 label: @tr("Waiting for");
-                has_error: root.error != "";
-                supporting_text: root.error;
+                leading_icon: AppIcons.person;
             }
 
-            TextField {
-                text <=> root.follow_up_value;
+            DateField {
                 label: @tr("Follow up on");
-                supporting_text: @tr("YYYY-MM-DD, today, tomorrow, +N; optional");
+                value <=> root.follow_up_value;
+
+                pick => {
+                    calendar.open(root.follow_up_value);
+                }
             }
+        }
+    }
+
+    calendar := DatePickerDialog {
+        title: @tr("Follow up on");
+
+        picked(value) => {
+            root.follow_up_value = value;
         }
     }
 }

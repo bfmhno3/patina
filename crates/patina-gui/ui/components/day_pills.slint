@@ -1,0 +1,32 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { Labels } from "../labels.slint";
+
+// Small pills for the weekdays of a schedule, e.g. ["mon", "wed"].
+export component DayPills inherits HorizontalLayout {
+    in property <[string]> days;
+
+    spacing: MaterialStyleMetrics.spacing_4;
+    alignment: start;
+
+    for day in root.days: Rectangle {
+        border_radius: MaterialStyleMetrics.border_radius_4;
+        background: MaterialPalette.surface_container_highest;
+
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_6;
+            padding_right: MaterialStyleMetrics.padding_6;
+            padding_top: MaterialStyleMetrics.spacing_2;
+            padding_bottom: MaterialStyleMetrics.spacing_2;
+
+            MaterialText {
+                text: Labels.weekday(day);
+                style: MaterialTypography.label_small;
+            }
+        }
+    }
+}

@@ -1,0 +1,39 @@
+import {
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+// One weekday in a schedule: a round toggle; the touch target fills its slot and is at least 48 px tall.
+export component DayToggle inherits Rectangle {
+    in property <string> text;
+    in_out property <bool> checked;
+
+    min_width: MaterialStyleMetrics.size_36;
+    min_height: MaterialStyleMetrics.size_48;
+    horizontal_stretch: 1;
+
+    Rectangle {
+        width: min(root.width, MaterialStyleMetrics.size_40);
+        height: self.width;
+        border_radius: self.width / 2;
+        background: root.checked ? MaterialPalette.primary : touch.has_hover ? MaterialPalette.surface_container_highest : transparent;
+        border_width: root.checked ? 0px : MaterialStyleMetrics.size_1;
+        border_color: MaterialPalette.outline_variant;
+
+        MaterialText {
+            text: root.text;
+            horizontal_alignment: center;
+            vertical_alignment: center;
+            style: MaterialTypography.label_large;
+            color: root.checked ? MaterialPalette.on_primary : MaterialPalette.on_surface_variant;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+        }
+    }
+}

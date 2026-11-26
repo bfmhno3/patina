@@ -1,12 +1,14 @@
 import {
-    Dialog,
+    MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
     TextField,
 } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { PromptKind } from "../types.slint";
+import { PromptDialog } from "prompt_dialog.slint";
 
 // Idle prompts: "when did you stop?" for a forgotten timer or identity mode.
 export component TimeCorrectionDialog inherits Rectangle {
@@ -24,16 +26,18 @@ export component TimeCorrectionDialog inherits Rectangle {
         dlg.show();
     }
 
-    dlg := Dialog {
+    dlg := PromptDialog {
         x: -root.absolute_position.x;
         y: -root.absolute_position.y;
         width: App.window_width;
         height: App.window_height;
         title: root.for_timer ? @tr("Timer still running") : @tr("Still here?");
-        actions: [root.for_timer ? @tr("Still working") : @tr("Still here")];
-        default_action_text: root.for_timer ? @tr("Stop at") : @tr("Away from");
+        icon: root.for_timer ? AppIcons.timer : AppIcons.schedule;
+        error: root.error;
+        cancel_text: root.for_timer ? @tr("Still working") : @tr("Still here");
+        action_text: root.for_timer ? @tr("Stop at") : @tr("Away from");
 
-        default_action_clicked => {
+        accepted => {
             if root.for_timer {
                 root.error = App.correct_timer(root.time_value);
             } else {
@@ -43,31 +47,29 @@ export component TimeCorrectionDialog inherits Rectangle {
                 dlg.close();
             }
         }
-        action_clicked(index) => {
+        cancelled => {
             if root.for_timer {
                 App.keep_timer();
             } else {
                 App.keep_mode();
             }
-            dlg.close();
         }
 
         VerticalLayout {
-            min_width: min(MaterialStyleMetrics.size_344, App.window_width - MaterialStyleMetrics.size_48);
-            spacing: MaterialStyleMetrics.spacing_8;
+            spacing: MaterialStyleMetrics.spacing_12;
 
             MaterialText {
                 text: root.for_timer ? @tr("The timer on {} has run since {}. When did you stop?", App.prompt.label, App.prompt.since) : @tr("{} mode since {}. When did you leave?", App.prompt.label, App.prompt.since);
                 wrap: word_wrap;
                 overflow: clip;
                 style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_surface_variant;
             }
 
             TextField {
                 text <=> root.time_value;
                 label: @tr("Time (HH:MM)");
-                has_error: root.error != "";
-                supporting_text: root.error;
+                leading_icon: AppIcons.schedule;
             }
         }
     }
