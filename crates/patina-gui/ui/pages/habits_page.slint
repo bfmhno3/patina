@@ -11,6 +11,7 @@ import { Labels } from "../labels.slint";
 import { CheckInDialog } from "../components/check_in_dialog.slint";
 import { HabitFormDialog } from "../components/habit_form_dialog.slint";
 import { HabitTile } from "../components/habit_tile.slint";
+import { SectionHeader } from "../components/section_header.slint";
 import { FrequencyUi } from "../types.slint";
 
 export component HabitsPage inherits Rectangle {
@@ -61,6 +62,18 @@ export component HabitsPage inherits Rectangle {
                         text: Labels.weekday(day);
                         style: MaterialTypography.label_small;
                     }
+                }
+            }
+
+            if App.graduated_habits.length > 0: SectionHeader {
+                text: @tr("Graduated");
+            }
+
+            for r in App.graduated_habits: HabitTile {
+                data: r;
+
+                edit_requested => {
+                    form.open(1, r.id, r.name, r.identity, r.cue);
                 }
             }
         }

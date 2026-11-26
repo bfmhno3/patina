@@ -22,6 +22,8 @@ export component HabitTile inherits Rectangle {
 
     min_height: MaterialStyleMetrics.size_72;
 
+    property <bool> off: root.data.paused || root.data.stage == "graduated";
+
     function progress() -> string {
         if root.data.kind == HabitKindUi.count {
             return @tr("{} / {}", root.data.count, root.data.target);
@@ -38,9 +40,9 @@ export component HabitTile inherits Rectangle {
     HorizontalLayout {
         tile := Tile {
             text: root.data.name;
-            supporting_text: root.data.identity + " · " + root.progress() + " · " + @tr("strength {}%", Math.round(root.data.strength * 100)) + (root.data.paused ? " · " + @tr("paused") : "");
+            supporting_text: root.data.identity + " · " + root.progress() + " · " + @tr("strength {}%", Math.round(root.data.strength * 100)) + " · " + Labels.habit_stage(root.data.stage) + (root.data.ready ? " · " + @tr("ready to graduate") : "");
 
-            if !root.data.paused && root.data.kind == HabitKindUi.check && root.data.value < 1: IconButton {
+            if !root.off && root.data.kind == HabitKindUi.check && root.data.value < 1: IconButton {
                 icon: AppIcons.check;
                 tooltip: @tr("Check in");
 
@@ -49,7 +51,7 @@ export component HabitTile inherits Rectangle {
                 }
             }
 
-            if !root.data.paused && root.data.kind == HabitKindUi.count: IconButton {
+            if !root.off && root.data.kind == HabitKindUi.count: IconButton {
                 icon: AppIcons.add;
                 tooltip: @tr("Check in");
 
@@ -58,7 +60,7 @@ export component HabitTile inherits Rectangle {
                 }
             }
 
-            if !root.data.paused && root.data.kind == HabitKindUi.duration: IconButton {
+            if !root.off && root.data.kind == HabitKindUi.duration: IconButton {
                 icon: AppIcons.play_arrow;
                 tooltip: @tr("Start timer");
 
@@ -91,10 +93,17 @@ export component HabitTile inherits Rectangle {
         x: root.width - self.width;
         y: root.height / 2;
         items: [
-            { text: @tr("Check in…"), enabled: !root.data.paused },
-            { text: @tr("Skip…"), enabled: !root.data.paused },
-            { text: root.data.paused ? @tr("Resume") : @tr("Pause"), enabled: true },
+            { text: @tr("Check in…"), enabled: !root.off },
+            { text: @tr("Skip…"), enabled: !root.off },
+            {
+                text: root.data.paused ? @tr("Resume") : @tr("Pause"),
+                enabled: root.data.stage != "graduated"
+            },
             { text: @tr("Edit…"), enabled: true },
+            {
+                text: root.data.stage == "graduated" ? @tr("Reinstate") : @tr("Graduate"),
+                enabled: !root.data.paused
+            },
         ];
 
         activated(index) => {
@@ -109,8 +118,12 @@ export component HabitTile inherits Rectangle {
                 } else {
                     App.pause_habit(root.data.id);
                 }
-            } else {
+            } else if index == 3 {
                 root.edit_requested();
+            } else if root.data.stage == "graduated" {
+                App.reinstate_habit(root.data.id);
+            } else {
+                App.graduate_habit(root.data.id);
             }
         }
     }

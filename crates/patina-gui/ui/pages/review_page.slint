@@ -211,6 +211,56 @@ export component ReviewPage inherits Rectangle {
                         ceiling: 1.0;
                     }
                 }
+
+                if App.review.ready.length > 0: SectionHeader {
+                    text: @tr("Ready to graduate");
+                }
+
+                for r in App.review.ready: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: r.name + " [" + r.identity + "]";
+                        vertical_alignment: center;
+                        horizontal_stretch: 1;
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    TextButton {
+                        text: @tr("Graduate");
+
+                        clicked => {
+                            App.graduate_habit(r.id);
+                        }
+                    }
+                }
+
+                if App.review.graduated.length > 0: SectionHeader {
+                    text: @tr("Graduated (spot check)");
+                }
+
+                for r in App.review.graduated: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: r.name + " [" + r.identity + "]";
+                        vertical_alignment: center;
+                        horizontal_stretch: 1;
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    TextButton {
+                        text: @tr("Reinstate");
+
+                        clicked => {
+                            App.reinstate_habit(r.id);
+                        }
+                    }
+                }
             }
 
             // Step 4: calibration.
