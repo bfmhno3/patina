@@ -375,3 +375,42 @@ fn graph_lists_siblings_by_layer_with_prerequisites() {
     let b = out.find("  b  <- ").expect(&out);
     assert!(l0 < a && a < l1 && l1 < b, "{out}");
 }
+
+#[test]
+fn agent_proposal_is_reviewed_accepted_and_undone_by_source() {
+    let s = Sandbox::new();
+    s.ok(&["init"]);
+    s.ok(&["new", "P", "-i", "life"]);
+    let file = s.dir.path().join("proposal.json");
+    std::fs::write(
+        &file,
+        r#"{"summary":"split P","ops":[{"op":"add_item","key":"a","item":{"title":"a","parent":"P"}}]}"#,
+    )
+    .unwrap();
+    let path = file.to_str().unwrap();
+    let out = s.run_as(Some("agent:x"), &["proposal", "submit", path]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let out = s.run_as(Some("agent:x"), &["done", "P"]);
+    assert_eq!(out.status.code(), Some(1));
+
+    let list = s.ok(&["proposal", "list"]);
+    assert!(list.contains("part 1 [ready]"), "{list}");
+    assert!(list.contains("add \"a\" under \"P\""), "{list}");
+    let short = list.split_whitespace().next().unwrap().to_string();
+    let accepted = s.ok(&["proposal", "accept", &short, "--part", "1"]);
+    assert!(accepted.contains("accepted part(s) 1"), "{accepted}");
+    assert!(s.ok(&["tree"]).contains("a"));
+
+    let sources = s.ok(&["sources"]);
+    assert!(sources.contains("agent:x"), "{sources}");
+    let undone = s.ok(&["undo", "--source", "agent:x"]);
+    assert!(
+        undone.contains("undid 2 command(s) from agent:x"),
+        "{undone}"
+    );
+    assert!(!s.ok(&["tree"]).contains("  a"));
+}

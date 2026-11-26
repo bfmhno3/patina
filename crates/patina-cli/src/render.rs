@@ -10,6 +10,7 @@ use patina_core::event::{
     EventData, Frequency, HabitKind, InterruptOutcome, Repeat, RepeatUnit, Size, TimerTarget,
 };
 use patina_core::ids;
+use patina_core::proposal::{ChangeView, value_text};
 use patina_core::query::{
     Banner, Card, GraphView, HabitView, ItemDetail, ItemView, ModeView, NextView, QueryOutput,
     ReviewView, TimerView, TodayView, TreeNode, ViewStatus,
@@ -282,6 +283,50 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
             let _ = writeln!(out, "undid: {}", o.undone.join(", "));
             for sub in &o.subjects {
                 let _ = writeln!(out, "  {} {}", sref(Some(sub)), sub.label);
+            }
+        }
+        Command::UndoSource(c) => {
+            let n = o
+                .events
+                .iter()
+                .filter(|e| matches!(e.data, EventData::CommandUndone(_)))
+                .count();
+            let _ = writeln!(out, "undid {n} command(s) from {}", c.source);
+        }
+        Command::Propose(_) => {
+            for e in &o.events {
+                if let EventData::ProposalSubmitted(d) = &e.data {
+                    let _ = writeln!(
+                        out,
+                        "proposed {}: {}",
+                        ids::short(&d.proposal.as_uuid(), 6),
+                        d.summary
+                    );
+                }
+            }
+        }
+        Command::AcceptProposal(_) => {
+            for e in &o.events {
+                if let EventData::ProposalAccepted(d) = &e.data {
+                    let parts = |v: &[u32]| {
+                        v.iter()
+                            .map(|u| (u + 1).to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
+                    let _ = write!(out, "accepted part(s) {}", parts(&d.accepted));
+                    if !d.stale.is_empty() {
+                        let _ = write!(out, "; out of date: {}", parts(&d.stale));
+                    }
+                    out.push('\n');
+                }
+            }
+        }
+        Command::RejectProposal(_) => {
+            for e in &o.events {
+                if let EventData::ProposalRejected(d) = &e.data {
+                    let _ = writeln!(out, "rejected {}", ids::short(&d.proposal.as_uuid(), 6));
+                }
             }
         }
         Command::SwitchMode(c) => {
@@ -846,8 +891,73 @@ fn today(t: &TodayView, now: &ZonedDateTime) -> String {
     if t.inbox > 0 {
         let _ = writeln!(out, "inbox: {}", t.inbox);
     }
+    if t.proposals > 0 {
+        let _ = writeln!(
+            out,
+            "proposals: {} pending (patina proposal list)",
+            t.proposals
+        );
+    }
     out.push_str(&hints(&t.mode, t.timer.as_ref(), now));
     out
+}
+
+/// The snake_case key of a unit-like serializable enum.
+fn snake(v: &impl serde::Serialize) -> String {
+    serde_json::to_value(v)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_default()
+}
+
+fn change_lines(c: &ChangeView, out: &mut String) {
+    let fields = |fields: &[patina_core::proposal::FieldChange], out: &mut String| {
+        for f in fields {
+            let _ = writeln!(
+                out,
+                "      {}: {} -> {}",
+                f.field,
+                value_text(&f.old),
+                value_text(&f.new)
+            );
+        }
+    };
+    match c {
+        ChangeView::AddItem {
+            title,
+            parent,
+            fields: f,
+            ..
+        } => {
+            let _ = write!(out, "    add \"{title}\"");
+            if let Some(p) = parent {
+                let _ = write!(out, " under \"{p}\"");
+            }
+            out.push('\n');
+            fields(f, out);
+        }
+        ChangeView::Edit { item, fields: f } => {
+            let _ = writeln!(out, "    edit \"{item}\"");
+            fields(f, out);
+        }
+        ChangeView::Note { item, text } => {
+            let _ = writeln!(out, "    note on \"{item}\": {text}");
+        }
+        ChangeView::Link { item, depends_on } => {
+            let _ = writeln!(out, "    \"{item}\" depends on \"{depends_on}\"");
+        }
+        ChangeView::Unlink { item, depends_on } => {
+            let _ = writeln!(out, "    \"{item}\" no longer depends on \"{depends_on}\"");
+        }
+        ChangeView::Move { item, parent } => match parent {
+            Some(p) => {
+                let _ = writeln!(out, "    move \"{item}\" under \"{p}\"");
+            }
+            None => {
+                let _ = writeln!(out, "    move \"{item}\" to top level");
+            }
+        },
+    }
 }
 
 fn marker(s: ViewStatus) -> &'static str {
@@ -1062,6 +1172,51 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
         QueryOutput::Tree(nodes) => tree(nodes, 0, &mut out),
         QueryOutput::Show(d) => return show(d, tz),
         QueryOutput::Graph(g) => return graph(g),
+        QueryOutput::Proposals(list) => {
+            if list.is_empty() {
+                out.push_str("no proposals\n");
+            }
+            for p in list {
+                let _ = writeln!(
+                    out,
+                    "{}  [{}]  {}  ({}, {})",
+                    p.short,
+                    snake(&p.status),
+                    p.summary,
+                    String::from(p.source.clone()),
+                    stamp(p.submitted_at, now)
+                );
+                for u in &p.units {
+                    let _ = write!(out, "  part {} [{}]", u.index + 1, snake(&u.state));
+                    if !u.needs.is_empty() {
+                        let needs: Vec<String> =
+                            u.needs.iter().map(|n| (n + 1).to_string()).collect();
+                        let _ = write!(out, " needs {}", needs.join(", "));
+                    }
+                    if let Some(problem) = &u.problem {
+                        let _ = write!(out, ": {problem}");
+                    }
+                    out.push('\n');
+                    for c in &u.changes {
+                        change_lines(c, &mut out);
+                    }
+                }
+            }
+        }
+        QueryOutput::Sources(list) => {
+            if list.is_empty() {
+                out.push_str("no AI changes\n");
+            }
+            for s in list {
+                let _ = writeln!(
+                    out,
+                    "{}  {} command(s), last {}",
+                    String::from(s.source.clone()),
+                    s.commands,
+                    stamp(s.last_at, now)
+                );
+            }
+        }
         QueryOutput::Habits(habits) => {
             for h in habits {
                 let ready = if h.graduation_ready {

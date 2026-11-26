@@ -4,12 +4,14 @@
 mod env;
 mod render;
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use jiff::ZonedDateTime;
 use jiff::civil::Date;
+use patina_core::access::{self, Access};
 use patina_core::command::{self, Command, Update};
 use patina_core::engine::Patina;
 use patina_core::event::{AbandonReason, Frequency, HabitKind, Repeat, RepeatUnit, Size};
@@ -192,8 +194,22 @@ enum Cmd {
     Status,
     /// Report problems in the event log.
     Doctor,
-    /// Undo this device's latest command.
-    Undo,
+    /// Undo this device's latest command, or with `--source` every command of an AI source.
+    Undo {
+        /// An `mcp:<client>` or `agent:<name>` source whose commands are all undone.
+        #[arg(long)]
+        source: Option<String>,
+        /// Only commands recorded since this time (HH:MM or YYYY-MM-DD HH:MM).
+        #[arg(long, requires = "source")]
+        since: Option<String>,
+    },
+    /// Review proposals made by AI clients.
+    Proposal {
+        #[command(subcommand)]
+        cmd: ProposalCmd,
+    },
+    /// List the AI sources whose changes can be undone in bulk.
+    Sources,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -496,6 +512,31 @@ enum HabitCmd {
     },
     /// List habits.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+enum ProposalCmd {
+    /// Submit a proposal from a JSON file (`-` reads stdin).
+    Submit { file: PathBuf },
+    /// List pending proposals.
+    List {
+        /// Include accepted and rejected ones.
+        #[arg(long)]
+        all: bool,
+    },
+    /// Accept a proposal, or only some parts of it (parts they need come along).
+    Accept {
+        proposal: String,
+        /// A part number from `proposal list`, starting at 1; repeatable.
+        #[arg(long = "part")]
+        parts: Vec<usize>,
+    },
+    /// Reject a proposal.
+    Reject {
+        proposal: String,
+        #[arg(long)]
+        note: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -856,7 +897,43 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
         Cmd::Graph { item } => Action::Ask(Query::Graph { item }),
         Cmd::Status => Action::Ask(Query::Status),
         Cmd::Doctor => Action::Ask(Query::Doctor),
-        Cmd::Undo => Action::Run(Command::Undo),
+        Cmd::Undo { source, since } => match source {
+            None => Action::Run(Command::Undo),
+            Some(source) => Action::Run(Command::UndoSource(c::UndoSource {
+                source,
+                since: since.map(|t| parse_time(&t, now)).transpose()?,
+            })),
+        },
+        Cmd::Proposal { cmd } => match cmd {
+            ProposalCmd::Submit { file } => {
+                let text = if file.as_os_str() == "-" {
+                    std::io::read_to_string(std::io::stdin()).context("reading stdin")?
+                } else {
+                    std::fs::read_to_string(&file)
+                        .with_context(|| format!("reading {}", file.display()))?
+                };
+                let propose: c::Propose = serde_json::from_str(&text)
+                    .with_context(|| format!("invalid proposal in {}", file.display()))?;
+                Action::Run(Command::Propose(propose))
+            }
+            ProposalCmd::List { all } => Action::Ask(Query::Proposals { all, source: None }),
+            ProposalCmd::Accept { proposal, parts } => {
+                if parts.contains(&0) {
+                    anyhow::bail!("parts are numbered from 1");
+                }
+                Action::Run(Command::AcceptProposal(c::AcceptProposal {
+                    proposal,
+                    units: (!parts.is_empty()).then(|| parts.iter().map(|p| p - 1).collect()),
+                }))
+            }
+            ProposalCmd::Reject { proposal, note } => {
+                Action::Run(Command::RejectProposal(c::RejectProposal {
+                    proposal,
+                    note,
+                }))
+            }
+        },
+        Cmd::Sources => Action::Ask(Query::Sources),
     })
 }
 
@@ -871,7 +948,8 @@ fn run(cli: Cli) -> Result<()> {
     let patina = Patina::new(Store::new(env.root.clone(), env.device));
     let settings = patina.settings()?;
     let today = logical_day(&env.now, &settings)?;
-    let action = action(cli.command, today, &env.now, env.source.is_proposal_level())?;
+    let proposal_level = access::access(&env.source, &settings.mcp) == Access::Propose;
+    let action = action(cli.command, today, &env.now, proposal_level)?;
     match action {
         Action::Run(cmd) => {
             let outcome = patina.run(cmd.clone(), env.now.clone(), env.source.clone())?;
@@ -882,7 +960,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             warn(outcome.warnings);
             // "Stuck" immediately recommends the next thing (design: no dead end).
-            if matches!(cmd, Command::Stuck(_)) && !cli.json && !env.source.is_proposal_level() {
+            if matches!(cmd, Command::Stuck(_)) && !cli.json && !proposal_level {
                 let show = Command::Next(command::NextCmd {
                     action: command::NextAction::Show {
                         identity: None,
