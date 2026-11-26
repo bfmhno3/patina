@@ -97,6 +97,8 @@ pub fn redact(state: &State, visible: &BTreeSet<IdentityId>) -> State {
             m.identity = None;
         }
     }
+    out.suggestion_dismissals
+        .retain(|id, _| visible.contains(id));
     out.interruptions
         .retain(|i| out.items.contains_key(&i.item));
     for r in &mut out.reviews {

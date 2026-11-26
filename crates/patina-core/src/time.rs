@@ -160,6 +160,34 @@ impl Default for RhythmSettings {
     }
 }
 
+/// Identity-switch suggestion parameters (`[suggest]`).
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SuggestSettings {
+    /// Whether suggestions are made at all.
+    pub enabled: bool,
+    /// How many past days to look at.
+    pub lookback_days: u32,
+    /// Minimum matching days.
+    pub min_days: u32,
+    /// Minimum share of sampled days that must match.
+    pub share: f64,
+    /// Minutes a dismissal or a manual switch silences the suggestion.
+    pub snooze_minutes: u32,
+}
+
+impl Default for SuggestSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            lookback_days: 28,
+            min_days: 5,
+            share: 0.6,
+            snooze_minutes: 120,
+        }
+    }
+}
+
 /// User settings from `<data root>/config.toml`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -198,6 +226,8 @@ pub struct Settings {
     pub rhythm: RhythmSettings,
     /// What MCP clients may read.
     pub mcp: McpSettings,
+    /// Identity-switch suggestions.
+    pub suggest: SuggestSettings,
 }
 
 impl Default for Settings {
@@ -220,6 +250,7 @@ impl Default for Settings {
             recommend: Weights::default(),
             rhythm: RhythmSettings::default(),
             mcp: McpSettings::default(),
+            suggest: SuggestSettings::default(),
         }
     }
 }
@@ -265,6 +296,19 @@ impl Settings {
             if value == 0 {
                 return Err(SettingsError::Rhythm(name));
             }
+        }
+        let s = &self.suggest;
+        if !(1..=366).contains(&s.lookback_days) {
+            return Err(SettingsError::Suggest("lookback_days"));
+        }
+        if s.min_days == 0 {
+            return Err(SettingsError::Suggest("min_days"));
+        }
+        if !(s.share.is_finite() && s.share > 0.0 && s.share <= 1.0) {
+            return Err(SettingsError::Suggest("share"));
+        }
+        if s.snooze_minutes == 0 {
+            return Err(SettingsError::Suggest("snooze_minutes"));
         }
         Ok(())
     }

@@ -23,6 +23,7 @@ pub mod review;
 pub mod rhythm;
 pub mod state;
 pub mod store;
+pub mod suggest;
 #[cfg(test)]
 mod testutil;
 pub mod time;

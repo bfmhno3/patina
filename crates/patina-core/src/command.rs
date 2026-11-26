@@ -296,6 +296,8 @@ cmd_structs! {
     pub struct ReinstateHabit { pub habit: String, pub from: Option<Date>, }
     /// Switch identity mode (no identity means away), optionally backdated.
     pub struct SwitchMode { pub identity: Option<String>, pub at: Option<jiff::Timestamp>, }
+    /// Dismiss the identity-switch suggestion for an identity.
+    pub struct DismissSuggestion { pub identity: String, }
     /// Start timing (stopping any running timer), optionally backdated.
     pub struct StartTimer { pub target: TimerRef, pub at: Option<jiff::Timestamp>, }
     /// Stop the running timer, optionally at an earlier time.
@@ -386,6 +388,8 @@ pub enum Command {
     Undo,
     /// Switch identity mode.
     SwitchMode(SwitchMode),
+    /// Dismiss a mode suggestion.
+    DismissSuggestion(DismissSuggestion),
     /// Start a timer.
     StartTimer(StartTimer),
     /// Stop the running timer.
@@ -1307,6 +1311,11 @@ fn build(
         Command::Undo => vec![EventData::CommandUndone(CommandUndone {
             command: undo_target(log, device)?,
         })],
+        Command::DismissSuggestion(c) => {
+            vec![EventData::SuggestionDismissed(SuggestionDismissed {
+                identity: resolve::identity(state, &c.identity)?,
+            })]
+        }
         Command::SwitchMode(c) => {
             let identity = c
                 .identity

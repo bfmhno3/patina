@@ -474,6 +474,8 @@ payloads! {
     pub struct BreakStarted { pub kind: BreakKind, pub minutes: u32, }
     /// `break.snoozed` (observation)
     pub struct BreakSnoozed { pub minutes: u32, }
+    /// `mode.suggestion_dismissed` (observation)
+    pub struct SuggestionDismissed { pub identity: IdentityId, }
 }
 
 /// Typed event payload; serialized as `{"type": ..., "data": ...}`.
@@ -585,6 +587,9 @@ pub enum EventData {
     /// A break reminder was snoozed.
     #[serde(rename = "break.snoozed")]
     BreakSnoozed(BreakSnoozed),
+    /// A mode-switch suggestion was dismissed.
+    #[serde(rename = "mode.suggestion_dismissed")]
+    SuggestionDismissed(SuggestionDismissed),
 }
 
 const KINDS: &[&str] = &[
@@ -623,6 +628,7 @@ const KINDS: &[&str] = &[
     "rhythm.switched",
     "break.started",
     "break.snoozed",
+    "mode.suggestion_dismissed",
 ];
 
 impl EventData {
@@ -661,6 +667,7 @@ impl EventData {
             EventData::CommandUndone(_) => "command.undone",
             EventData::ModeSwitched(_) => "mode.switched",
             EventData::BreakSnoozed(_) => "break.snoozed",
+            EventData::SuggestionDismissed(_) => "mode.suggestion_dismissed",
             EventData::BreakStarted(_) => "break.started",
             EventData::RhythmSwitched(_) => "rhythm.switched",
             EventData::IdentityTargetChanged(_) => "identity.target_changed",
@@ -704,6 +711,7 @@ impl EventData {
             | EventData::RhythmSwitched(_)
             | EventData::BreakStarted(_)
             | EventData::BreakSnoozed(_)
+            | EventData::SuggestionDismissed(_)
             | EventData::CommandUndone(_) => 1,
         }
     }
@@ -716,6 +724,7 @@ impl EventData {
             EventData::RecommendationShown(_)
             | EventData::RecommendationAccepted(_)
             | EventData::RecommendationSkipped(_)
+            | EventData::SuggestionDismissed(_)
             | EventData::BreakSnoozed(_) => Category::Observation,
             _ => Category::Domain,
         }

@@ -155,6 +155,7 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
         EventData::RhythmSwitched(_) => Vec::new(),
         EventData::BreakStarted(_) => Vec::new(),
         EventData::BreakSnoozed(_) => Vec::new(),
+        EventData::SuggestionDismissed(d) => vec![(Identity, d.identity.as_uuid())],
         EventData::CommandUndone(_) => Vec::new(),
     }
 }

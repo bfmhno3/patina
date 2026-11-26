@@ -445,6 +445,8 @@ pub struct State {
     pub last_shown: BTreeMap<DeviceId, Shown>,
     /// Latest skip of the review and triage cards.
     pub card_skips: BTreeMap<CardKind, Timestamp>,
+    /// Latest dismissal of a mode suggestion per identity (effective time).
+    pub suggestion_dismissals: BTreeMap<IdentityId, Timestamp>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -637,6 +639,11 @@ impl State {
                         minutes: d.minutes,
                     },
                 );
+            }
+            EventData::SuggestionDismissed(d) => {
+                self.identity_ok(d.identity)?;
+                self.suggestion_dismissals
+                    .insert(d.identity, event.effective_at);
             }
             EventData::BreakSnoozed(d) => {
                 let at = event.effective_at;

@@ -279,6 +279,8 @@ pub struct TodayView {
     pub rhythm: RhythmView,
     /// A weekly review is due.
     pub review_due: bool,
+    /// Suggested identity switch.
+    pub suggestion: Option<ModeSuggestionView>,
 }
 
 /// The break rhythm at a glance.
@@ -373,6 +375,21 @@ pub struct StatusLine {
     pub mode: ModeView,
     /// The running timer.
     pub timer: Option<TimerView>,
+}
+
+/// A suggestion to switch identity mode.
+#[derive(Clone, Debug, Serialize)]
+pub struct ModeSuggestionView {
+    /// Identity name.
+    pub identity: String,
+    /// Sampled days on which it was active at this time.
+    pub matches: u32,
+    /// Sampled days.
+    pub samples: u32,
+    /// The samples are weekend days.
+    pub weekend: bool,
+    /// Minutes the identity is below this week's target, when positive.
+    pub below_target_minutes: Option<i64>,
 }
 
 /// The identity mode as shown to users.
@@ -554,6 +571,42 @@ impl<'a> View<'a> {
             idle: self.cur.idle,
             last_activity: self.cur.last_activity,
         }
+    }
+
+    pub(crate) fn suggestion_view(&self) -> Result<Option<ModeSuggestionView>, TimeError> {
+        let Some(s) = crate::suggest::mode_suggestion(self.state, self.now, self.settings)? else {
+            return Ok(None);
+        };
+        let Some(identity) = self.state.identities.get(&s.identity) else {
+            return Ok(None);
+        };
+        let below_target_minutes = match identity.weekly_target_minutes {
+            Some(target) => {
+                let week = crate::time::week_start_of(self.today, self.settings)?;
+                let at = week
+                    .to_datetime(jiff::civil::time(
+                        self.settings.day_start_hour as i8,
+                        0,
+                        0,
+                        0,
+                    ))
+                    .to_zoned_datetime(self.now.time_zone().clone())?;
+                let tracked = crate::gauges::time(self, at.timestamp())
+                    .into_iter()
+                    .find(|t| t.identity == identity.name)
+                    .map_or(0, |t| t.tracked_minutes);
+                let left = i64::from(target) - tracked;
+                (left > 0).then_some(left)
+            }
+            None => None,
+        };
+        Ok(Some(ModeSuggestionView {
+            identity: identity.name.clone(),
+            matches: s.matches,
+            samples: s.samples,
+            weekend: s.weekend,
+            below_target_minutes,
+        }))
     }
 
     pub(crate) fn target_subject(&self, target: TimerTarget) -> Subject {
@@ -940,6 +993,7 @@ pub fn run(
                 mode: v.mode_view(),
                 timer: v.timer_view(),
                 rhythm: v.rhythm_view(),
+                suggestion: v.suggestion_view()?,
                 review_due: crate::review::due(state, today, now.time_zone(), settings)?,
             }))
         }

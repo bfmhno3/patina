@@ -45,4 +45,7 @@ pub enum SettingsError {
     /// A habit stage threshold is out of range.
     #[error("{0} is out of range")]
     HabitStage(&'static str),
+    /// A `[suggest]` value is out of range.
+    #[error("suggest.{0} is out of range")]
+    Suggest(&'static str),
 }
