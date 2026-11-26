@@ -224,6 +224,20 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
                 }
             }
         }
+        Command::GraduateHabit(_) => {
+            for e in &o.events {
+                if let EventData::HabitGraduated(d) = &e.data {
+                    let _ = writeln!(out, "graduated {l} from {}", d.from);
+                }
+            }
+        }
+        Command::ReinstateHabit(_) => {
+            for e in &o.events {
+                if let EventData::HabitReinstated(d) = &e.data {
+                    let _ = writeln!(out, "reinstated {l} from {}", d.from);
+                }
+            }
+        }
         Command::AddIdentity(_) => {
             let _ = writeln!(out, "added identity {l}");
         }
@@ -602,6 +616,12 @@ fn review_stats(r: &ReviewView, now: &ZonedDateTime, out: &mut String) {
                 (h.habit.strength * 100.0).round(),
                 signed((h.change * 100.0).round() as i64)
             );
+        }
+    }
+    if !r.graduated.is_empty() {
+        out.push_str("Graduated (spot check)\n");
+        for h in &r.graduated {
+            let _ = writeln!(out, "  {} {} [{}]", h.short, h.name, h.identity);
         }
     }
     let c = &r.calibration;
@@ -988,12 +1008,17 @@ pub fn query(o: &QueryOutput, now: &ZonedDateTime) -> String {
         QueryOutput::Show(d) => return show(d, tz),
         QueryOutput::Habits(habits) => {
             for h in habits {
-                let paused = if h.paused { "  paused" } else { "" };
+                let ready = if h.graduation_ready {
+                    "  ready to graduate"
+                } else {
+                    ""
+                };
                 let _ = writeln!(
                     out,
-                    "{}  {}{paused}",
+                    "{}  {}  {}{ready}",
                     habit_line(h),
-                    frequency_text(&h.frequency)
+                    frequency_text(&h.frequency),
+                    h.stage.key()
                 );
             }
         }

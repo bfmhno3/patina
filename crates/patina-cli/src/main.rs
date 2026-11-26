@@ -480,6 +480,18 @@ enum HabitCmd {
         #[arg(long)]
         from: Option<String>,
     },
+    /// Graduate a habit: nothing is due and its strength freezes.
+    Graduate {
+        habit: String,
+        #[arg(long)]
+        from: Option<String>,
+    },
+    /// Reinstate a graduated habit.
+    Reinstate {
+        habit: String,
+        #[arg(long)]
+        from: Option<String>,
+    },
     /// List habits.
     List,
 }
@@ -743,6 +755,18 @@ fn action(cmd: Cmd, today: Date, now: &ZonedDateTime, proposal_level: bool) -> R
                 habit,
                 from: opt_date(&from, today)?,
             })),
+            HabitCmd::Graduate { habit, from } => {
+                Action::Run(Command::GraduateHabit(c::GraduateHabit {
+                    habit,
+                    from: opt_date(&from, today)?,
+                }))
+            }
+            HabitCmd::Reinstate { habit, from } => {
+                Action::Run(Command::ReinstateHabit(c::ReinstateHabit {
+                    habit,
+                    from: opt_date(&from, today)?,
+                }))
+            }
             HabitCmd::List => Action::Ask(Query::Habits),
         },
         Cmd::Identity { cmd } => match cmd {
