@@ -1,7 +1,8 @@
-//! `patina-mcp`: a read-only MCP server over stdio.
+//! `patina-mcp`: an MCP server over stdio.
 //!
 //! It answers queries against the owner's Patina data, limited to the identities
-//! listed in `[mcp] visible_identities`. It never writes.
+//! listed in `[mcp] visible_identities`. What a client may write depends on its level in
+//! `[mcp]`: nothing, captures and proposals the owner reviews, or direct commands.
 #![forbid(unsafe_code)]
 
 mod server;

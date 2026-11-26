@@ -1,5 +1,5 @@
 use std::io::{BufRead as _, BufReader, Write as _};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -30,8 +30,105 @@ fn item(title: &str, identity: &str) -> command::Command {
     }))
 }
 
-#[test]
-fn lists_tools_and_hides_work_items() {
+/// A running `patina-mcp` over stdio.
+struct Server {
+    child: Child,
+    stdin: ChildStdin,
+    rx: mpsc::Receiver<Value>,
+    next_id: i64,
+}
+
+impl Server {
+    fn start(dir: &tempfile::TempDir) -> Self {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_patina-mcp"))
+            .env("PATINA_DIR", dir.path())
+            .env("PATINA_DEVICE_ID", Uuid::from_u128(DEVICE).to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (tx, rx) = mpsc::channel::<Value>();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                let Ok(line) = line else { break };
+                if let Ok(v) = serde_json::from_str::<Value>(&line)
+                    && tx.send(v).is_err()
+                {
+                    break;
+                }
+            }
+        });
+        let mut server = Self {
+            child,
+            stdin,
+            rx,
+            next_id: 0,
+        };
+        server.request(
+            "initialize",
+            json!({
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "0"}
+            }),
+        );
+        writeln!(
+            server.stdin,
+            "{}",
+            json!({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        )
+        .unwrap();
+        server
+    }
+
+    fn request(&mut self, method: &str, params: Value) -> Value {
+        self.next_id += 1;
+        let id = self.next_id;
+        writeln!(
+            self.stdin,
+            "{}",
+            json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
+        )
+        .unwrap();
+        self.stdin.flush().unwrap();
+        loop {
+            let v = self
+                .rx
+                .recv_timeout(Duration::from_secs(20))
+                .expect("no reply");
+            if v["id"] == json!(id) {
+                return v;
+            }
+        }
+    }
+
+    fn tool_names(&mut self) -> Vec<String> {
+        let tools = self.request("tools/list", json!({}));
+        let mut names: Vec<String> = tools["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_string())
+            .collect();
+        names.sort_unstable();
+        names
+    }
+
+    fn call(&mut self, name: &str, arguments: Value) -> Value {
+        self.request("tools/call", json!({"name": name, "arguments": arguments}))
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn seeded() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let device = DeviceId::from_uuid(Uuid::from_u128(DEVICE));
     let p = Patina::new(Store::new(dir.path().to_path_buf(), device));
@@ -41,60 +138,61 @@ fn lists_tools_and_hides_work_items() {
     p.run(item("secret plan", "work"), now.clone(), Source::Cli)
         .unwrap();
     p.run(item("buy milk", "life"), now, Source::Cli).unwrap();
+    dir
+}
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_patina-mcp"))
-        .env("PATINA_DIR", dir.path())
-        .env("PATINA_DEVICE_ID", Uuid::from_u128(DEVICE).to_string())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let mut stdin = child.stdin.take().unwrap();
-    let stdout = child.stdout.take().unwrap();
-    let (tx, rx) = mpsc::channel::<Value>();
-    std::thread::spawn(move || {
-        for line in BufReader::new(stdout).lines() {
-            let Ok(line) = line else { break };
-            if let Ok(v) = serde_json::from_str::<Value>(&line)
-                && tx.send(v).is_err()
-            {
-                break;
-            }
-        }
-    });
-    let mut send = |v: Value| {
-        writeln!(stdin, "{v}").unwrap();
-        stdin.flush().unwrap();
-    };
-    let response = |id: i64| -> Value {
-        loop {
-            let v = rx.recv_timeout(Duration::from_secs(20)).expect("no reply");
-            if v["id"] == json!(id) {
-                return v;
-            }
-        }
-    };
-
-    send(
-        json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {},
-            "clientInfo": {"name": "test", "version": "0"}
-        }}),
-    );
-    response(1);
-    send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
-    send(json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}));
-    let tools = response(2);
-    let mut names: Vec<&str> = tools["result"]["tools"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
-    names.sort_unstable();
+#[test]
+fn lists_tools_hides_work_items_and_takes_proposals() {
+    let dir = seeded();
+    let mut s = Server::start(&dir);
     assert_eq!(
-        names,
+        s.tool_names(),
+        [
+            "capture",
+            "frontier",
+            "graph",
+            "habits",
+            "identities",
+            "next",
+            "proposals",
+            "propose",
+            "review",
+            "show",
+            "today",
+            "tree"
+        ]
+    );
+    let today = s.call("today", json!({"all": true}));
+    let text = today["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("buy milk"), "{text}");
+    assert!(!text.contains("secret plan"), "{text}");
+
+    let proposed = s.call(
+        "propose",
+        json!({"summary": "add a step", "ops": [
+            {"op": "add_item", "key": "a", "item": {"title": "sip", "parent": "buy milk"}}
+        ]}),
+    );
+    assert_ne!(proposed["result"]["isError"], json!(true), "{proposed}");
+    let listed = s.call("proposals", json!({}));
+    let text = listed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("add a step"), "{text}");
+
+    let denied = s.call("run", json!({"command": {"command": "undo"}}));
+    assert!(denied["error"].is_object(), "{denied}");
+}
+
+#[test]
+fn read_only_level_lists_only_the_read_tools() {
+    let dir = seeded();
+    std::fs::write(
+        dir.path().join("config.toml"),
+        "[mcp]\ndefault_level = \"read_only\"\n",
+    )
+    .unwrap();
+    let mut s = Server::start(&dir);
+    assert_eq!(
+        s.tool_names(),
         [
             "frontier",
             "graph",
@@ -107,16 +205,4 @@ fn lists_tools_and_hides_work_items() {
             "tree"
         ]
     );
-    send(
-        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
-            "name": "today", "arguments": {"all": true}
-        }}),
-    );
-    let today = response(3);
-    let text = today["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("buy milk"), "{text}");
-    assert!(!text.contains("secret plan"), "{text}");
-    drop(send);
-    child.kill().unwrap();
-    child.wait().unwrap();
 }
