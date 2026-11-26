@@ -67,7 +67,7 @@ just vendor-material <version> # Replace vendor/slint-material with an upstream 
 - Follow the Slint and Material rules in [`docs/code-style.md#slint`](docs/code-style.md#slint).
 - The root window inherits `MaterialWindow`. Use `std-widgets.slint` only for `AboutSlint`.
 - `AboutSlint` must stay visible somewhere in the app (Slint Royalty-free License attribution); currently in the Settings page.
-- A custom color scheme, when added, is set once through `MaterialPalette.schemes` (generated with Material Theme Builder) and nowhere else.
+- The verdigris color scheme lives in `ui/theme.slint` (generated from seed `#43B3AE`; regenerate, never hand-edit) and is set once, in `MainWindow` `init`, through `MaterialPalette.schemes`. Layout breakpoints (`App.wide` at 600 px, `App.two_pane` at 1000 px) live in `ui/app.slint`.
 - Popups (`Dialog`, `FullscreenDialog`, `SnackBar`) can only be driven through properties of their owning component, not through elements inside them; each dialog component is a zero-size anchor that sizes the popup to the window with `App.window_width/height`.
 - Material `ListTile` loops inside scroll views; use `components/tile.slint`. `RadioButtonTile` loops inside dialogs; use `components/radio_row.slint`.
 - Icons: the Material library has no public icon set. Use only Material Symbols Outlined 24 px: `just icon <name>` downloads to `crates/patina-gui/ui/icons/<name>.svg`; register it as an `out property <image>` in `export global AppIcons` in `ui/icons.slint` (create the file with the first icon); render with Material `Icon`.
