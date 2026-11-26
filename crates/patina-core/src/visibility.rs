@@ -1,12 +1,13 @@
 //! What an MCP client may see: an allowlist of identities, applied by redacting the state
 //! before any query runs. Pure.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::access::McpLevel;
 use crate::dag;
-use crate::event::TimerTarget;
+use crate::event::{Source, TimerTarget};
 use crate::ids::{IdentityId, ItemId};
 use crate::mode;
 use crate::state::{ItemStatus, State};
@@ -17,12 +18,18 @@ use crate::state::{ItemStatus, State};
 pub struct McpSettings {
     /// Identity names whose items, habits, and time MCP clients may read.
     pub visible_identities: Vec<String>,
+    /// What a client without an entry in `clients` may do.
+    pub default_level: McpLevel,
+    /// Access level per MCP client name.
+    pub clients: BTreeMap<String, McpLevel>,
 }
 
 impl Default for McpSettings {
     fn default() -> Self {
         Self {
             visible_identities: vec!["life".into(), "study".into()],
+            default_level: McpLevel::Propose,
+            clients: BTreeMap::new(),
         }
     }
 }
@@ -99,6 +106,8 @@ pub fn redact(state: &State, visible: &BTreeSet<IdentityId>) -> State {
     }
     out.suggestion_dismissals
         .retain(|id, _| visible.contains(id));
+    out.proposals
+        .retain(|_, p| matches!(p.source, Source::Mcp { .. }));
     out.interruptions
         .retain(|i| out.items.contains_key(&i.item));
     for r in &mut out.reviews {
@@ -159,6 +168,7 @@ mod tests {
         let out = crate::query::run(
             &crate::query::Query::List { identity: None },
             &red,
+            &log.events,
             &[],
             &now,
             &crate::time::Settings::default(),
@@ -174,6 +184,7 @@ mod tests {
                 item: "milk".into(),
             },
             &red,
+            &log.events,
             &[],
             &now,
             &crate::time::Settings::default(),

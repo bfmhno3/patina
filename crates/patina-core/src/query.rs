@@ -11,14 +11,14 @@ use crate::dag;
 use crate::engine::{Error, Subject, SubjectKind};
 use crate::error::TimeError;
 use crate::event::{
-    AbandonReason, Estimate, Frequency, HabitKind, Repeat, RhythmMode, TimerTarget,
+    AbandonReason, Estimate, Event, Frequency, HabitKind, Repeat, RhythmMode, Source, TimerTarget,
 };
 use crate::habit;
 use crate::ids::{self, IdentityId};
 use crate::mode;
 use crate::resolve;
 use crate::rhythm::{self, BreakDue, OnBreak};
-use crate::state::{Habit, Item, ItemStatus, Note, State, Warning};
+use crate::state::{Habit, Item, ItemStatus, Note, Resolution, State, Warning};
 use crate::store::LoadWarning;
 use crate::time::{Settings, logical_day};
 
@@ -89,6 +89,16 @@ pub enum Query {
     Status,
     /// Log problems.
     Doctor,
+    /// Pending proposals, or all of them.
+    Proposals {
+        /// Include accepted and rejected ones.
+        #[serde(default)]
+        all: bool,
+        /// Only proposals of this exact source, such as `mcp:claude-code`.
+        source: Option<String>,
+    },
+    /// Sources with changes that can be undone in bulk.
+    Sources,
 }
 
 /// A child item in a [`GraphView`].
@@ -315,6 +325,8 @@ pub struct TodayView {
     pub rhythm: RhythmView,
     /// A weekly review is due.
     pub review_due: bool,
+    /// Pending proposals.
+    pub proposals: usize,
     /// Suggested identity switch.
     pub suggestion: Option<ModeSuggestionView>,
 }
@@ -511,6 +523,10 @@ pub enum QueryOutput {
     Status(StatusLine),
     /// [`Query::Doctor`]
     Doctor(DoctorView),
+    /// [`Query::Proposals`]
+    Proposals(Vec<ProposalView>),
+    /// [`Query::Sources`]
+    Sources(Vec<SourceView>),
     /// [`Query::Mode`]
     Mode(Box<ModeOutput>),
     /// [`Query::Review`]
@@ -948,6 +964,150 @@ fn tree_node(v: &View<'_>, item: &Item, all: bool, seen: &mut HashSet<ids::ItemI
     }
 }
 
+/// How far a proposal got.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalStatus {
+    /// Waiting for the owner.
+    Pending,
+    /// Accepted, wholly or in part.
+    Accepted,
+    /// Rejected.
+    Rejected,
+}
+
+/// What happened to, or would happen to, one part of a proposal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnitState {
+    /// Can be accepted now.
+    Ready,
+    /// Cannot be applied any more.
+    Stale,
+    /// Was applied.
+    Accepted,
+    /// Was left out when accepting.
+    Skipped,
+    /// The proposal was rejected.
+    Rejected,
+}
+
+/// One part of a proposal.
+#[derive(Clone, Debug, Serialize)]
+pub struct UnitView {
+    /// 0-based index.
+    pub index: usize,
+    /// Parts this one needs, 0-based.
+    pub needs: Vec<usize>,
+    /// State.
+    pub state: UnitState,
+    /// Why it is stale.
+    pub problem: Option<String>,
+    /// What it changes.
+    pub changes: Vec<crate::proposal::ChangeView>,
+}
+
+/// A proposal as shown to the owner.
+#[derive(Clone, Debug, Serialize)]
+pub struct ProposalView {
+    /// Full id.
+    pub id: Uuid,
+    /// Short reference.
+    pub short: String,
+    /// Who submitted it.
+    pub source: Source,
+    /// When.
+    pub submitted_at: Timestamp,
+    /// Summary.
+    pub summary: String,
+    /// Status.
+    pub status: ProposalStatus,
+    /// When it was accepted or rejected.
+    pub resolved_at: Option<Timestamp>,
+    /// Rejection note.
+    pub note: Option<String>,
+    /// The parts.
+    pub units: Vec<UnitView>,
+}
+
+/// A source whose commands can be undone in bulk.
+#[derive(Clone, Debug, Serialize)]
+pub struct SourceView {
+    /// The source.
+    pub source: Source,
+    /// Commands that would be undone.
+    pub commands: usize,
+    /// Latest of them.
+    pub last_at: Timestamp,
+}
+
+fn proposal_view(
+    state: &State,
+    p: &crate::state::Proposal,
+    short_len: usize,
+    now: &ZonedDateTime,
+    settings: &Settings,
+) -> ProposalView {
+    let (units, outcomes) = if p.resolution.is_none() {
+        crate::command::preview_proposal(state, p, now, settings)
+    } else {
+        (crate::proposal::units(&p.ops), Vec::new())
+    };
+    let (status, resolved_at, note) = match &p.resolution {
+        None => (ProposalStatus::Pending, None, None),
+        Some(Resolution::Accepted { at, .. }) => (ProposalStatus::Accepted, Some(*at), None),
+        Some(Resolution::Rejected { at, note }) => {
+            (ProposalStatus::Rejected, Some(*at), note.clone())
+        }
+    };
+    let unit_views = units
+        .iter()
+        .enumerate()
+        .map(|(index, unit)| {
+            let at = u32::try_from(index).unwrap_or(u32::MAX);
+            let (unit_state, problem) = match &p.resolution {
+                None => match outcomes.get(index) {
+                    Some(crate::command::UnitOutcome::Ready(_)) => (UnitState::Ready, None),
+                    Some(crate::command::UnitOutcome::Stale(e)) => {
+                        (UnitState::Stale, Some(e.to_string()))
+                    }
+                    _ => (UnitState::Skipped, None),
+                },
+                Some(Resolution::Accepted {
+                    accepted, stale, ..
+                }) => {
+                    if accepted.contains(&at) {
+                        (UnitState::Accepted, None)
+                    } else if stale.contains(&at) {
+                        (UnitState::Stale, None)
+                    } else {
+                        (UnitState::Skipped, None)
+                    }
+                }
+                Some(Resolution::Rejected { .. }) => (UnitState::Rejected, None),
+            };
+            UnitView {
+                index,
+                needs: unit.needs.clone(),
+                state: unit_state,
+                problem,
+                changes: crate::proposal::changes(state, &p.ops, unit),
+            }
+        })
+        .collect();
+    ProposalView {
+        id: p.id.as_uuid(),
+        short: ids::short(&p.id.as_uuid(), short_len),
+        source: p.source.clone(),
+        submitted_at: p.submitted_at,
+        summary: p.summary.clone(),
+        status,
+        resolved_at,
+        note,
+        units: unit_views,
+    }
+}
+
 /// Runs a query against projected state.
 ///
 /// # Errors
@@ -955,6 +1115,7 @@ fn tree_node(v: &View<'_>, item: &Item, all: bool, seen: &mut HashSet<ids::ItemI
 pub fn run(
     q: &Query,
     state: &State,
+    log: &[Event],
     load_warnings: &[LoadWarning],
     now: &jiff::ZonedDateTime,
     settings: &Settings,
@@ -1031,6 +1192,11 @@ pub fn run(
                 mode: v.mode_view(),
                 timer: v.timer_view(),
                 rhythm: v.rhythm_view(),
+                proposals: state
+                    .proposals
+                    .values()
+                    .filter(|p| p.resolution.is_none())
+                    .count(),
                 suggestion: v.suggestion_view()?,
                 review_due: crate::review::due(state, today, now.time_zone(), settings)?,
             }))
@@ -1196,6 +1362,55 @@ pub fn run(
                 mode: v.mode_view(),
                 timer: v.timer_view(),
             })
+        }
+        Query::Proposals { all, source } => {
+            let all_ids: Vec<Uuid> = state.proposals.keys().map(|i| i.as_uuid()).collect();
+            let len = ids::short_len(all_ids.iter());
+            let mut list: Vec<&crate::state::Proposal> = state
+                .proposals
+                .values()
+                .filter(|p| *all || p.resolution.is_none())
+                .filter(|p| {
+                    source
+                        .as_ref()
+                        .is_none_or(|s| String::from(p.source.clone()) == *s)
+                })
+                .collect();
+            list.sort_by_key(|p| std::cmp::Reverse(p.submitted_at));
+            let views = list
+                .into_iter()
+                .map(|p| proposal_view(state, p, len, now, settings))
+                .collect();
+            QueryOutput::Proposals(views)
+        }
+        Query::Sources => {
+            let mut sources: Vec<Source> = Vec::new();
+            for e in log {
+                if matches!(e.source, Source::Mcp { .. } | Source::Agent { .. })
+                    && !sources.contains(&e.source)
+                {
+                    sources.push(e.source.clone());
+                }
+            }
+            let mut out = Vec::new();
+            for source in sources {
+                let commands = crate::command::bulk_candidates(log, &source, None);
+                let Some(last_at) = log
+                    .iter()
+                    .filter(|e| e.source == source && commands.contains(&e.command))
+                    .map(|e| e.recorded_at)
+                    .max()
+                else {
+                    continue;
+                };
+                out.push(SourceView {
+                    source,
+                    commands: commands.len(),
+                    last_at,
+                });
+            }
+            out.sort_by_key(|s| std::cmp::Reverse(s.last_at));
+            QueryOutput::Sources(out)
         }
         Query::Doctor => QueryOutput::Doctor(DoctorView {
             load: load_warnings.to_vec(),

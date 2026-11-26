@@ -3,7 +3,7 @@
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::ids::{HabitId, IdentityId, ItemId};
+use crate::ids::{HabitId, IdentityId, ItemId, ProposalId};
 use crate::state::{ItemStatus, State};
 
 /// A reference could not be resolved to exactly one entity.
@@ -125,6 +125,12 @@ pub fn habit(state: &State, input: &str) -> Result<HabitId, ResolveError> {
 /// # Errors
 /// [`ResolveError::NotFound`] when no identity has that name.
 pub fn identity(state: &State, input: &str) -> Result<IdentityId, ResolveError> {
+    if let Ok(uuid) = Uuid::parse_str(input.trim()) {
+        let id = IdentityId::from_uuid(uuid);
+        if state.identities.contains_key(&id) {
+            return Ok(id);
+        }
+    }
     let lower = input.trim().to_lowercase();
     state
         .identities
@@ -134,4 +140,21 @@ pub fn identity(state: &State, input: &str) -> Result<IdentityId, ResolveError> 
         .ok_or_else(|| ResolveError::NotFound {
             input: input.to_string(),
         })
+}
+
+/// Resolves a proposal by short id, full id, or exact summary; pending ones win name ties.
+///
+/// # Errors
+/// [`ResolveError`] when nothing or several things match.
+pub fn proposal(state: &State, input: &str) -> Result<ProposalId, ResolveError> {
+    let entries: Vec<Entry<'_>> = state
+        .proposals
+        .values()
+        .map(|p| Entry {
+            id: p.id.as_uuid(),
+            name: &p.summary,
+            open: p.resolution.is_none(),
+        })
+        .collect();
+    resolve_entries(input, &entries).map(ProposalId::from_uuid)
 }

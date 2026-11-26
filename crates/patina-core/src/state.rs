@@ -12,9 +12,12 @@ use uuid::Uuid;
 
 use crate::event::{
     AbandonReason, BreakKind, Category, Estimate, Event, EventData, Frequency, HabitKind,
-    InterruptOutcome, Repeat, RhythmMode, TimerTarget,
+    InterruptOutcome, Repeat, RhythmMode, Source, TimerTarget,
 };
-use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
+use crate::ids::{
+    CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, ProposalId, SegmentId,
+};
+use crate::proposal::ProposalOp;
 use crate::recommend::CardKind;
 
 /// An event that cannot be applied to the current state.
@@ -172,6 +175,15 @@ pub enum Rejection {
     /// Items with children cannot recur.
     #[error("item {0} has children and cannot recur")]
     RecurringWithChildren(ItemId),
+    /// A proposal needs at least one step.
+    #[error("a proposal needs at least one step")]
+    EmptyProposal,
+    /// No such proposal.
+    #[error("unknown proposal {0}")]
+    UnknownProposal(ProposalId),
+    /// The proposal was already accepted or rejected.
+    #[error("proposal {0} is already resolved")]
+    ProposalResolved(ProposalId),
 }
 
 /// An identity (a way of being: work, life, study).
@@ -269,6 +281,8 @@ pub struct Item {
     pub waiting_since: Option<Timestamp>,
     /// Times a recommendation of this item was skipped.
     pub skips: Vec<Timestamp>,
+    /// Last time (recorded) the item was created, triaged, edited, moved, or settled.
+    pub changed_at: Timestamp,
 }
 
 impl Item {
@@ -284,6 +298,44 @@ impl Item {
             ItemStatus::Done | ItemStatus::Abandoned | ItemStatus::Discarded
         )
     }
+}
+
+/// How a proposal ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Resolution {
+    /// Accepted, wholly or in part; units are 0-based.
+    Accepted {
+        /// When.
+        at: Timestamp,
+        /// Units applied.
+        accepted: Vec<u32>,
+        /// Units that were out of date.
+        stale: Vec<u32>,
+    },
+    /// Rejected.
+    Rejected {
+        /// When.
+        at: Timestamp,
+        /// Why.
+        note: Option<String>,
+    },
+}
+
+/// A reviewable batch of plan changes from a restricted client.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Proposal {
+    /// Id.
+    pub id: ProposalId,
+    /// Who submitted it.
+    pub source: Source,
+    /// When it was submitted (recorded time).
+    pub submitted_at: Timestamp,
+    /// One-line summary.
+    pub summary: String,
+    /// The steps.
+    pub ops: Vec<ProposalOp>,
+    /// How it ended; none while pending.
+    pub resolution: Option<Resolution>,
 }
 
 /// One habit check-in.
@@ -449,6 +501,8 @@ pub struct State {
     pub suggestion_dismissals: BTreeMap<IdentityId, Timestamp>,
     /// Segments ended by a later start from another device; their own stop is absorbed.
     pub merge_closed: BTreeSet<SegmentId>,
+    /// Proposals by id.
+    pub proposals: BTreeMap<ProposalId, Proposal>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -472,6 +526,19 @@ fn clean(text: &str) -> Result<(), Rejection> {
         Err(Rejection::EmptyText)
     } else {
         Ok(())
+    }
+}
+
+impl State {
+    fn pending_proposal(&mut self, id: ProposalId) -> Result<&mut Proposal, Rejection> {
+        let p = self
+            .proposals
+            .get_mut(&id)
+            .ok_or(Rejection::UnknownProposal(id))?;
+        if p.resolution.is_some() {
+            return Err(Rejection::ProposalResolved(id));
+        }
+        Ok(p)
     }
 }
 
@@ -1249,7 +1316,55 @@ impl State {
                     self.card_skips.insert(d.card, event.effective_at);
                 }
             }
+            EventData::ProposalSubmitted(d) => {
+                if self.proposals.contains_key(&d.proposal) {
+                    return Err(Rejection::DuplicateId(d.proposal.as_uuid()));
+                }
+                clean(&d.summary)?;
+                if d.ops.is_empty() {
+                    return Err(Rejection::EmptyProposal);
+                }
+                self.proposals.insert(
+                    d.proposal,
+                    Proposal {
+                        id: d.proposal,
+                        source: event.source.clone(),
+                        submitted_at: event.recorded_at,
+                        summary: d.summary.trim().to_string(),
+                        ops: d.ops.clone(),
+                        resolution: None,
+                    },
+                );
+            }
+            EventData::ProposalAccepted(d) => {
+                let p = self.pending_proposal(d.proposal)?;
+                p.resolution = Some(Resolution::Accepted {
+                    at: event.recorded_at,
+                    accepted: d.accepted.clone(),
+                    stale: d.stale.clone(),
+                });
+            }
+            EventData::ProposalRejected(d) => {
+                let p = self.pending_proposal(d.proposal)?;
+                p.resolution = Some(Resolution::Rejected {
+                    at: event.recorded_at,
+                    note: d.note.clone(),
+                });
+            }
             EventData::CommandUndone(_) => {}
+        }
+        let touched = match &event.data {
+            EventData::ItemCaptured(d) => Some(d.item),
+            EventData::ItemCreated(d) => Some(d.item),
+            EventData::ItemTriaged(d) => Some(d.item),
+            EventData::ItemEdited(d) => Some(d.item),
+            EventData::ItemMoved(d) => Some(d.item),
+            EventData::ItemCompleted(d) => Some(d.item),
+            EventData::ItemAbandoned(d) => Some(d.item),
+            _ => None,
+        };
+        if let Some(i) = touched.and_then(|id| self.items.get_mut(&id)) {
+            i.changed_at = event.recorded_at;
         }
         Ok(())
     }
@@ -1285,6 +1400,7 @@ fn new_item(id: ItemId, title: String, created_at: Timestamp) -> Item {
         replanned_at: created_at,
         waiting_since: None,
         skips: Vec::new(),
+        changed_at: created_at,
     }
 }
 

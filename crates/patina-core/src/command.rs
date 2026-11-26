@@ -1,6 +1,6 @@
 //! Commands: the serializable write protocol, and their translation to events.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use jiff::Span;
 use jiff::civil::Date;
@@ -10,12 +10,15 @@ use uuid::{ContextV7, Uuid};
 use crate::calibration;
 use crate::error::TimeError;
 use crate::event::*;
-use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId, new_v7};
+use crate::ids::{
+    CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, ProposalId, SegmentId, new_v7,
+};
 use crate::mode;
+use crate::proposal::{self, ProposalOp, Unit};
 use crate::recommend::{self, Card, CardKind, NextView};
 use crate::resolve::{self, ResolveError};
 use crate::rhythm;
-use crate::state::{Habit, Item, ItemStatus, Rejection, Segment, State, project};
+use crate::state::{Habit, Item, ItemStatus, Proposal, Rejection, Segment, State, project};
 use crate::time::{BACKFILL_DAYS, Settings, logical_day, week_start_of};
 
 /// Set or clear an optional field.
@@ -61,9 +64,15 @@ pub enum CommandError {
     /// Date arithmetic failed.
     #[error(transparent)]
     Time(#[from] TimeError),
-    /// Proposal-level sources may only capture.
-    #[error("this source may only capture into the inbox")]
+    /// A source that may only capture and propose.
+    #[error("this source may only capture into the inbox or submit proposals")]
     ProposalOnly,
+    /// A read-only client tried to write.
+    #[error("this client may only read")]
+    ReadOnly,
+    /// A command reserved for the owner.
+    #[error("only the owner can do this")]
+    OwnerOnly,
     /// Identities exist already.
     #[error("already initialized")]
     AlreadyInitialized,
@@ -170,6 +179,59 @@ pub enum CommandError {
     /// Nothing recommended on this device to act on.
     #[error("no recommendation to act on; run 'patina next' first")]
     NoRecommendation,
+    /// A proposal step names a key no earlier step defines.
+    #[error("unknown proposal key @{key}")]
+    UnknownProposalKey {
+        /// The key.
+        key: String,
+    },
+    /// A proposal key is not 1 to 32 of letters, digits, `_`, `-`.
+    #[error("invalid proposal key {key:?}")]
+    InvalidProposalKey {
+        /// The key.
+        key: String,
+    },
+    /// Two steps define the same key.
+    #[error("duplicate proposal key @{key}")]
+    DuplicateProposalKey {
+        /// The key.
+        key: String,
+    },
+    /// A step of a proposal failed.
+    #[error("proposal step {step}: {error}")]
+    ProposalStep {
+        /// 1-based step number.
+        step: usize,
+        /// Why.
+        error: Box<CommandError>,
+    },
+    /// A part depends on a part that cannot be applied.
+    #[error("depends on part {unit}, which cannot be applied")]
+    StaleDependency {
+        /// 1-based part number.
+        unit: usize,
+    },
+    /// An item changed after the proposal was made.
+    #[error("{item} changed after the proposal was made")]
+    ChangedSince {
+        /// The item's title.
+        item: String,
+    },
+    /// A requested part does not exist.
+    #[error("no part {unit}")]
+    UnknownUnit {
+        /// 1-based part number.
+        unit: usize,
+    },
+    /// No selected part can be applied.
+    #[error("every selected part is out of date; reject the proposal instead")]
+    ProposalStale,
+    /// Bulk undo needs an `mcp:` or `agent:` source.
+    #[error("only mcp:<client> and agent:<name> sources can be undone in bulk")]
+    BulkUndoSource {
+        /// The source as given.
+        input: String,
+    },
 }
 
 macro_rules! cmd_structs {
@@ -328,6 +390,14 @@ cmd_structs! {
     pub struct NextCmd { pub action: NextAction, }
     /// Choose the rhythm mode.
     pub struct SetRhythm { pub mode: RhythmMode, }
+    /// Submit a proposal for the owner to review.
+    pub struct Propose { pub summary: String, pub ops: Vec<ProposalOp>, }
+    /// Accept a proposal; no units means all.
+    pub struct AcceptProposal { pub proposal: String, pub units: Option<Vec<usize>>, }
+    /// Reject a proposal.
+    pub struct RejectProposal { pub proposal: String, pub note: Option<String>, }
+    /// Undo every command of an `mcp:` or `agent:` source.
+    pub struct UndoSource { pub source: String, pub since: Option<jiff::Timestamp>, }
 }
 
 /// A write request; the same type is the CLI JSON, MCP, and IPC protocol.
@@ -408,6 +478,14 @@ pub enum Command {
     StartBreak,
     /// Postpone the pending break reminder.
     SnoozeBreak,
+    /// Submit a proposal.
+    Propose(Propose),
+    /// Accept a proposal.
+    AcceptProposal(AcceptProposal),
+    /// Reject a proposal.
+    RejectProposal(RejectProposal),
+    /// Undo all commands of one source.
+    UndoSource(UndoSource),
 }
 
 /// Everything a command needs besides state.
@@ -748,6 +826,8 @@ struct Built {
     datas: Vec<EventData>,
     effective_at: Option<jiff::Timestamp>,
     card: Option<Box<NextView>>,
+    /// The first `n` payloads are attributed to this source instead of the caller's.
+    attributed: Option<(Source, usize)>,
 }
 
 /// Validates `cmd` against `state` and produces its events.
@@ -761,9 +841,7 @@ pub fn execute(
     cmd: &Command,
     ctx: &Context,
 ) -> Result<Executed, CommandError> {
-    if ctx.source.is_proposal_level() && !matches!(cmd, Command::Capture(_)) {
-        return Err(CommandError::ProposalOnly);
-    }
+    crate::access::check(crate::access::access(&ctx.source, &ctx.settings.mcp), cmd)?;
     if let Command::Capture(c) = cmd {
         return Ok(Executed {
             events: vec![capture(device, &c.text, ctx)?],
@@ -780,13 +858,17 @@ pub fn execute(
     let command = CommandId::from_uuid(gen_.uuid());
     let mut scratch = state.clone();
     let mut events = Vec::with_capacity(built.datas.len());
-    for data in built.datas {
+    for (i, data) in built.datas.into_iter().enumerate() {
+        let source = match &built.attributed {
+            Some((s, n)) if i < *n => s.clone(),
+            _ => ctx.source.clone(),
+        };
         let event = Event {
             id: EventId::from_uuid(gen_.uuid()),
             device,
             effective_at,
             recorded_at: now,
-            source: ctx.source.clone(),
+            source,
             command,
             category: data.category(),
             data,
@@ -812,6 +894,7 @@ fn build(
     let now = ctx.now.timestamp();
     let mut effective_at: Option<jiff::Timestamp> = None;
     let mut card: Option<Box<NextView>> = None;
+    let mut attributed: Option<(Source, usize)> = None;
     let datas = match cmd {
         Command::Capture(_) => Vec::new(),
         Command::Init => {
@@ -1308,6 +1391,119 @@ fn build(
             habit: habit_ref(state, &c.habit)?.id,
             from: c.from.unwrap_or(today),
         })],
+        Command::Propose(c) => {
+            let summary = text(&c.summary)?;
+            if c.ops.is_empty() {
+                return Err(Rejection::EmptyProposal.into());
+            }
+            let ops = proposal::normalize(state, &c.ops)?;
+            let mut scratch = state.clone();
+            let mut keys = HashMap::new();
+            for (i, op) in ops.iter().enumerate() {
+                run_op(&mut scratch, log, device, op, &mut keys, ctx, gen_).map_err(|error| {
+                    CommandError::ProposalStep {
+                        step: i + 1,
+                        error: Box::new(error),
+                    }
+                })?;
+            }
+            vec![EventData::ProposalSubmitted(ProposalSubmitted {
+                proposal: ProposalId::from_uuid(gen_.uuid()),
+                summary,
+                ops,
+            })]
+        }
+        Command::AcceptProposal(c) => {
+            let id = resolve::proposal(state, &c.proposal)?;
+            let p = state
+                .proposals
+                .get(&id)
+                .ok_or(Rejection::UnknownProposal(id))?;
+            if p.resolution.is_some() {
+                return Err(Rejection::ProposalResolved(id).into());
+            }
+            let units = proposal::units(&p.ops);
+            let requested: BTreeSet<usize> = match &c.units {
+                Some(list) => {
+                    if let Some(bad) = list.iter().find(|u| **u >= units.len()) {
+                        return Err(CommandError::UnknownUnit { unit: bad + 1 });
+                    }
+                    list.iter().copied().collect()
+                }
+                None => (0..units.len()).collect(),
+            };
+            let selected = proposal::with_needs(&units, &requested);
+            let outcomes = proposal_outcomes(state, log, device, p, &units, &selected, ctx, gen_);
+            let mut datas = Vec::new();
+            let mut accepted = Vec::new();
+            let mut stale = Vec::new();
+            for (i, outcome) in outcomes.into_iter().enumerate() {
+                match outcome {
+                    UnitOutcome::Ready(d) => {
+                        datas.extend(d);
+                        accepted.push(u32::try_from(i).unwrap_or(u32::MAX));
+                    }
+                    UnitOutcome::Stale(_) => stale.push(u32::try_from(i).unwrap_or(u32::MAX)),
+                    UnitOutcome::Skipped => {}
+                }
+            }
+            if accepted.is_empty() {
+                return Err(CommandError::ProposalStale);
+            }
+            attributed = Some((p.source.clone(), datas.len()));
+            datas.push(EventData::ProposalAccepted(ProposalAccepted {
+                proposal: id,
+                accepted,
+                stale,
+            }));
+            datas
+        }
+        Command::RejectProposal(c) => {
+            let id = resolve::proposal(state, &c.proposal)?;
+            let p = state
+                .proposals
+                .get(&id)
+                .ok_or(Rejection::UnknownProposal(id))?;
+            if p.resolution.is_some() {
+                return Err(Rejection::ProposalResolved(id).into());
+            }
+            vec![EventData::ProposalRejected(ProposalRejected {
+                proposal: id,
+                note: opt_text(&c.note)?,
+            })]
+        }
+        Command::UndoSource(c) => {
+            let bad = || CommandError::BulkUndoSource {
+                input: c.source.clone(),
+            };
+            let source = Source::try_from(c.source.clone()).map_err(|_| bad())?;
+            if !matches!(source, Source::Mcp { .. } | Source::Agent { .. }) {
+                return Err(bad());
+            }
+            let candidates = bulk_candidates(log, &source, c.since);
+            if candidates.is_empty() {
+                return Err(CommandError::NothingToUndo);
+            }
+            let before: HashSet<EventId> = project(log).warnings.iter().map(|w| w.event).collect();
+            let rest: Vec<Event> = log
+                .iter()
+                .filter(|e| !candidates.contains(&e.command) || e.category == Category::Observation)
+                .cloned()
+                .collect();
+            let blocked: Vec<EventId> = project(&rest)
+                .warnings
+                .iter()
+                .map(|w| w.event)
+                .filter(|id| !before.contains(id))
+                .collect();
+            if !blocked.is_empty() {
+                return Err(CommandError::UndoBlocked { events: blocked });
+            }
+            candidates
+                .into_iter()
+                .map(|command| EventData::CommandUndone(CommandUndone { command }))
+                .collect()
+        }
         Command::Undo => vec![EventData::CommandUndone(CommandUndone {
             command: undo_target(log, device)?,
         })],
@@ -1581,7 +1777,177 @@ fn build(
         datas,
         effective_at,
         card,
+        attributed,
     })
+}
+
+/// Runs one proposal step on `scratch`, returning its payloads.
+///
+/// A step that adds an item records the new id under its key.
+fn run_op(
+    scratch: &mut State,
+    log: &[Event],
+    device: DeviceId,
+    op: &ProposalOp,
+    keys: &mut HashMap<String, ItemId>,
+    ctx: &Context,
+    gen_: &Gen,
+) -> Result<Vec<EventData>, CommandError> {
+    let cmd = proposal::to_command(op, keys)?;
+    let built = build(scratch, log, device, &cmd, ctx, gen_)?;
+    for data in &built.datas {
+        apply_scratch(scratch, device, ctx, gen_, data)?;
+    }
+    if let ProposalOp::AddItem { key, .. } = op
+        && let Some(item) = built.datas.iter().find_map(|d| match d {
+            EventData::ItemCreated(c) => Some(c.item),
+            _ => None,
+        })
+    {
+        keys.insert(key.clone(), item);
+    }
+    Ok(built.datas)
+}
+
+/// What applying one unit of a proposal would do.
+pub(crate) enum UnitOutcome {
+    /// The payloads to append.
+    Ready(Vec<EventData>),
+    /// Cannot be applied now.
+    Stale(CommandError),
+    /// Not selected.
+    Skipped,
+}
+
+/// Walks the units in order on one scratch state.
+///
+/// A unit is stale when a unit it needs is not ready, when an item it edits or moves changed
+/// after the proposal was made, or when a step fails.
+#[allow(clippy::too_many_arguments)] // one proposal walk needs the whole command context
+fn proposal_outcomes(
+    state: &State,
+    log: &[Event],
+    device: DeviceId,
+    p: &Proposal,
+    units: &[Unit],
+    selected: &BTreeSet<usize>,
+    ctx: &Context,
+    gen_: &Gen,
+) -> Vec<UnitOutcome> {
+    let mut scratch = state.clone();
+    let mut keys: HashMap<String, ItemId> = HashMap::new();
+    let mut out: Vec<UnitOutcome> = Vec::new();
+    for (index, unit) in units.iter().enumerate() {
+        if !selected.contains(&index) {
+            out.push(UnitOutcome::Skipped);
+            continue;
+        }
+        if let Some(need) = unit
+            .needs
+            .iter()
+            .find(|n| !matches!(out.get(**n), Some(UnitOutcome::Ready(_))))
+        {
+            out.push(UnitOutcome::Stale(CommandError::StaleDependency {
+                unit: need + 1,
+            }));
+            continue;
+        }
+        let mut trial = scratch.clone();
+        let mut trial_keys = keys.clone();
+        let mut datas = Vec::new();
+        let result = (|| -> Result<(), CommandError> {
+            for &i in &unit.ops {
+                let op = &p.ops[i];
+                let target = match op {
+                    ProposalOp::Edit(e) => Some(e.item.as_str()),
+                    ProposalOp::Move(m) => Some(m.item.as_str()),
+                    _ => None,
+                };
+                if let Some(t) = target.filter(|t| !t.starts_with('@'))
+                    && let Ok(id) = resolve::item(state, t)
+                    && let Some(item) = state.items.get(&id)
+                    && item.changed_at > p.submitted_at
+                {
+                    return Err(CommandError::ChangedSince {
+                        item: item.title.clone(),
+                    });
+                }
+                datas.extend(run_op(
+                    &mut trial,
+                    log,
+                    device,
+                    op,
+                    &mut trial_keys,
+                    ctx,
+                    gen_,
+                )?);
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => {
+                scratch = trial;
+                keys = trial_keys;
+                out.push(UnitOutcome::Ready(datas));
+            }
+            Err(e) => out.push(UnitOutcome::Stale(e)),
+        }
+    }
+    out
+}
+
+/// What accepting every part of `p` would do right now, for display.
+pub(crate) fn preview_proposal(
+    state: &State,
+    p: &Proposal,
+    now: &jiff::ZonedDateTime,
+    settings: &Settings,
+) -> (Vec<Unit>, Vec<UnitOutcome>) {
+    let ctx = Context {
+        now: now.clone(),
+        source: p.source.clone(),
+        settings: settings.clone(),
+    };
+    let gen_ = Gen {
+        ctx: ContextV7::new(),
+        now: now.timestamp(),
+    };
+    let units = proposal::units(&p.ops);
+    let all: BTreeSet<usize> = (0..units.len()).collect();
+    let device = DeviceId::from_uuid(Uuid::nil());
+    let outcomes = proposal_outcomes(state, &[], device, p, &units, &all, &ctx, &gen_);
+    (units, outcomes)
+}
+
+/// Commands with at least one domain event from `source` (recorded at or after `since`) that
+/// are neither undo commands nor already undone, newest first.
+pub(crate) fn bulk_candidates(
+    log: &[Event],
+    source: &Source,
+    since: Option<jiff::Timestamp>,
+) -> Vec<CommandId> {
+    let mut undo_commands = HashSet::new();
+    let mut undone = HashSet::new();
+    for e in log {
+        if let EventData::CommandUndone(u) = &e.data {
+            undo_commands.insert(e.command);
+            undone.insert(u.command);
+        }
+    }
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for e in log.iter().rev() {
+        if e.category == Category::Domain
+            && e.source == *source
+            && since.is_none_or(|s| e.recorded_at >= s)
+            && !undo_commands.contains(&e.command)
+            && !undone.contains(&e.command)
+            && seen.insert(e.command)
+        {
+            out.push(e.command);
+        }
+    }
+    out
 }
 
 /// The command `Undo` would undo, after checking nothing later depends on it.

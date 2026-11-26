@@ -6,7 +6,10 @@ use jiff::Timestamp;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, SegmentId};
+use crate::ids::{
+    CommandId, DeviceId, EventId, HabitId, IdentityId, ItemId, ProposalId, SegmentId,
+};
+use crate::proposal::ProposalOp;
 use crate::recommend::{CardKind, Reason};
 use crate::time::Weekday;
 
@@ -59,13 +62,6 @@ pub enum Source {
         /// Agent name.
         name: String,
     },
-}
-
-impl Source {
-    /// Proposal-level sources may only capture.
-    pub fn is_proposal_level(&self) -> bool {
-        matches!(self, Source::Mcp { .. } | Source::Agent { .. })
-    }
 }
 
 /// A source string could not be parsed.
@@ -476,6 +472,25 @@ payloads! {
     pub struct BreakSnoozed { pub minutes: u32, }
     /// `mode.suggestion_dismissed` (observation)
     pub struct SuggestionDismissed { pub identity: IdentityId, }
+    /// `proposal.submitted`; the steps hold full ids and `@key` references only.
+    pub struct ProposalSubmitted {
+        pub proposal: ProposalId,
+        pub summary: String,
+        pub ops: Vec<ProposalOp>,
+    }
+    /// `proposal.accepted`; indices are 0-based units.
+    pub struct ProposalAccepted {
+        pub proposal: ProposalId,
+        pub accepted: Vec<u32>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub stale: Vec<u32>,
+    }
+    /// `proposal.rejected`
+    pub struct ProposalRejected {
+        pub proposal: ProposalId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub note: Option<String>,
+    }
 }
 
 /// Typed event payload; serialized as `{"type": ..., "data": ...}`.
@@ -590,6 +605,15 @@ pub enum EventData {
     /// A mode-switch suggestion was dismissed.
     #[serde(rename = "mode.suggestion_dismissed")]
     SuggestionDismissed(SuggestionDismissed),
+    /// A proposal was submitted.
+    #[serde(rename = "proposal.submitted")]
+    ProposalSubmitted(ProposalSubmitted),
+    /// A proposal was accepted, wholly or in part.
+    #[serde(rename = "proposal.accepted")]
+    ProposalAccepted(ProposalAccepted),
+    /// A proposal was rejected.
+    #[serde(rename = "proposal.rejected")]
+    ProposalRejected(ProposalRejected),
 }
 
 const KINDS: &[&str] = &[
@@ -629,6 +653,9 @@ const KINDS: &[&str] = &[
     "break.started",
     "break.snoozed",
     "mode.suggestion_dismissed",
+    "proposal.submitted",
+    "proposal.accepted",
+    "proposal.rejected",
 ];
 
 impl EventData {
@@ -668,6 +695,9 @@ impl EventData {
             EventData::ModeSwitched(_) => "mode.switched",
             EventData::BreakSnoozed(_) => "break.snoozed",
             EventData::SuggestionDismissed(_) => "mode.suggestion_dismissed",
+            EventData::ProposalSubmitted(_) => "proposal.submitted",
+            EventData::ProposalAccepted(_) => "proposal.accepted",
+            EventData::ProposalRejected(_) => "proposal.rejected",
             EventData::BreakStarted(_) => "break.started",
             EventData::RhythmSwitched(_) => "rhythm.switched",
             EventData::IdentityTargetChanged(_) => "identity.target_changed",
@@ -712,6 +742,9 @@ impl EventData {
             | EventData::BreakStarted(_)
             | EventData::BreakSnoozed(_)
             | EventData::SuggestionDismissed(_)
+            | EventData::ProposalSubmitted(_)
+            | EventData::ProposalAccepted(_)
+            | EventData::ProposalRejected(_)
             | EventData::CommandUndone(_) => 1,
         }
     }

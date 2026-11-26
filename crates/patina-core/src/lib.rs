@@ -6,6 +6,7 @@
 //! nothing here reads the system clock or produces user-interface text.
 #![forbid(unsafe_code)]
 
+pub mod access;
 pub mod calibration;
 pub mod command;
 pub mod dag;
@@ -16,6 +17,7 @@ pub mod gauges;
 pub mod habit;
 pub mod ids;
 pub mod mode;
+pub mod proposal;
 pub mod query;
 pub mod recommend;
 pub mod resolve;

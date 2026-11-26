@@ -156,6 +156,9 @@ fn referenced(state: &State, data: &EventData) -> Vec<(SubjectKind, Uuid)> {
         EventData::BreakStarted(_) => Vec::new(),
         EventData::BreakSnoozed(_) => Vec::new(),
         EventData::SuggestionDismissed(d) => vec![(Identity, d.identity.as_uuid())],
+        EventData::ProposalSubmitted(_) => Vec::new(),
+        EventData::ProposalAccepted(_) => Vec::new(),
+        EventData::ProposalRejected(_) => Vec::new(),
         EventData::CommandUndone(_) => Vec::new(),
     }
 }
@@ -289,6 +292,7 @@ impl Patina {
             source,
             settings,
         };
+        crate::access::check(crate::access::access(&ctx.source, &ctx.settings.mcp), &cmd)?;
         let device = self.store.device();
         let mut guard = self.store.lock()?;
 
@@ -319,7 +323,19 @@ impl Patina {
 
         let log = self.store.load()?;
         let mut state = project(&log.events);
-        let executed = command::execute(&state, &log.events, device, &cmd, &ctx)?;
+        let executed = if matches!(ctx.source, Source::Mcp { .. }) {
+            // MCP clients act on what they can see; the result must also fit the full state.
+            let visible = visibility::visible_ids(&state, &ctx.settings.mcp.visible_identities);
+            let seen = visibility::redact(&state, &visible);
+            let executed = command::execute(&seen, &log.events, device, &cmd, &ctx)?;
+            let mut full = state.clone();
+            for e in &executed.events {
+                full.apply(e).map_err(CommandError::from)?;
+            }
+            executed
+        } else {
+            command::execute(&state, &log.events, device, &cmd, &ctx)?
+        };
         let (events, card) = (executed.events, executed.card);
         guard.append(&events)?;
         let command_id = events
@@ -335,21 +351,25 @@ impl Patina {
         });
 
         let mut undone = Vec::new();
-        let (label_state, refs, projection_warnings) = if matches!(cmd, Command::Undo) {
-            let target = match events.first().map(|e| &e.data) {
-                Some(EventData::CommandUndone(u)) => u.command,
-                _ => command_id,
-            };
+        let is_undo = matches!(cmd, Command::Undo | Command::UndoSource(_));
+        let (label_state, refs, projection_warnings) = if is_undo {
+            let targets: HashSet<CommandId> = events
+                .iter()
+                .filter_map(|e| match &e.data {
+                    EventData::CommandUndone(u) => Some(u.command),
+                    _ => None,
+                })
+                .collect();
             let refs: Vec<_> = log
                 .events
                 .iter()
-                .filter(|e| e.command == target)
+                .filter(|e| targets.contains(&e.command))
                 .flat_map(|e| referenced(&state, &e.data))
                 .collect();
             undone = log
                 .events
                 .iter()
-                .filter(|e| e.command == target && e.category == Category::Domain)
+                .filter(|e| targets.contains(&e.command) && e.category == Category::Domain)
                 .map(|e| e.data.kind().to_string())
                 .collect();
             let mut all = log.events.clone();
@@ -369,7 +389,7 @@ impl Patina {
         };
 
         let subjects = subjects_for(&label_state, &refs);
-        let stopped = if matches!(cmd, Command::Undo) {
+        let stopped = if is_undo {
             None
         } else {
             stopped_view(&label_state, &events, &ctx.now, &ctx.settings)?
@@ -415,7 +435,7 @@ impl Patina {
         let settings = self.store.load_settings()?;
         let log = self.store.load()?;
         let state = project(&log.events);
-        query::run(&q, &state, &log.warnings, &now, &settings)
+        query::run(&q, &state, &log.events, &log.warnings, &now, &settings)
     }
 
     /// Like [`Patina::query`], but over the state redacted to the identities listed in
@@ -429,6 +449,6 @@ impl Patina {
         let state = project(&log.events);
         let visible = visibility::visible_ids(&state, &settings.mcp.visible_identities);
         let state = visibility::redact(&state, &visible);
-        query::run(&q, &state, &log.warnings, &now, &settings)
+        query::run(&q, &state, &log.events, &log.warnings, &now, &settings)
     }
 }
