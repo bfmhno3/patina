@@ -16,6 +16,7 @@ slint::include_modules!();
 mod controller;
 mod convert;
 mod notify;
+mod storage;
 #[cfg(test)]
 mod tests;
 mod wire;
@@ -26,14 +27,19 @@ use controller::Controller;
 const REFRESH_SECS: u64 = 30;
 
 /// Creates the window, wires it to the data under `store`, and runs the event loop.
-fn launch(store: Store, root: std::path::PathBuf) -> anyhow::Result<()> {
+fn launch(store: Store, root: std::path::PathBuf, storage: StorageUi) -> anyhow::Result<()> {
     let window = MainWindow::new()?;
     #[cfg(target_os = "android")]
     {
         // Touch screens have no hover; Material state layers would otherwise stick.
         MaterialWindowAdapter::get(&window).set_disable_hover(true);
     }
-    let ctl = Rc::new(RefCell::new(Controller::new(store, root, window.as_weak())));
+    let ctl = Rc::new(RefCell::new(Controller::new(
+        store,
+        root,
+        window.as_weak(),
+        storage,
+    )));
     wire::connect(&window, ctl.clone());
     ctl.borrow_mut().refresh();
     let timer = slint::Timer::default();
@@ -56,16 +62,27 @@ fn launch(store: Store, root: std::path::PathBuf) -> anyhow::Result<()> {
 pub fn run() -> anyhow::Result<()> {
     let root = patina_core::store::default_root()?;
     let store = Store::new(root.clone(), patina_core::store::device_id()?);
-    launch(store, root)
+    launch(store, root, StorageUi::Desktop)
 }
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
-    let root = app
+    let internal = app
         .internal_data_path()
         .expect("the app has no internal data directory");
     slint::android::init(app).expect("failed to initialize the Slint Android backend");
-    let device = patina_core::store::device_id_in(&root).expect("cannot read the device id");
-    launch(Store::new(root.clone(), device), root).expect("the GUI failed");
+    // The device id stays in the private directory so a sync tool never copies it.
+    let device = patina_core::store::device_id_in(&internal).expect("cannot read the device id");
+    let (root, shared) = storage::choose_root(
+        &internal,
+        std::path::Path::new("/storage/emulated/0/Documents/Patina"),
+        device,
+    );
+    let kind = if shared {
+        StorageUi::Shared
+    } else {
+        StorageUi::Private
+    };
+    launch(Store::new(root.clone(), device), root, kind).expect("the GUI failed");
 }

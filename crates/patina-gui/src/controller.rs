@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::convert::{self, ss};
 use crate::{
     App, IdentityRow, ItemForm, MainWindow, NoticeData, NoticeKind, PickerPurpose, PickerRow,
-    PromptData, PromptKind, SettingsData,
+    PromptData, PromptKind, SettingsData, StorageUi,
 };
 
 /// Which items the Today page shows.
@@ -46,6 +46,7 @@ pub struct Controller {
     patina: Patina,
     root: PathBuf,
     device: DeviceId,
+    storage: StorageUi,
     window: slint::Weak<MainWindow>,
     scope: Scope,
     card_key: Option<CardKey>,
@@ -69,12 +70,18 @@ fn err(e: impl std::fmt::Display) -> String {
 
 impl Controller {
     /// Creates a controller for `store`; `window` receives the view models.
-    pub fn new(store: Store, root: PathBuf, window: slint::Weak<MainWindow>) -> Self {
+    pub fn new(
+        store: Store,
+        root: PathBuf,
+        window: slint::Weak<MainWindow>,
+        storage: StorageUi,
+    ) -> Self {
         let device = store.device();
         Self {
             patina: Patina::new(store),
             root,
             device,
+            storage,
             window,
             scope: Scope::Mode,
             card_key: None,
@@ -992,6 +999,7 @@ impl Controller {
             let settings = self.patina.settings().map_err(err)?;
             let r = &settings.rhythm;
             app.set_settings(SettingsData {
+                storage: self.storage,
                 identities: convert::model(
                     identities
                         .iter()

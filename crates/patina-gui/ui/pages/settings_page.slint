@@ -16,7 +16,7 @@ import { Labels } from "../labels.slint";
 import { ChoiceRow } from "../components/choice_row.slint";
 import { SectionHeader } from "../components/section_header.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
-import { RhythmModeUi } from "../types.slint";
+import { RhythmModeUi, StorageUi } from "../types.slint";
 import { Tile } from "../components/tile.slint";
 
 export component SettingsPage inherits Rectangle {
@@ -151,6 +151,20 @@ export component SettingsPage inherits Rectangle {
                 wrap: word_wrap;
                 overflow: clip;
                 style: MaterialTypography.body_medium;
+            }
+
+            if App.settings.storage == StorageUi.private: MaterialText {
+                text: @tr("Stored privately on this device. To sync with Syncthing, allow \"All files access\" for Patina in Android settings and restart; the data then moves to Documents/Patina.");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_small;
+            }
+
+            if App.settings.storage == StorageUi.shared: MaterialText {
+                text: @tr("Stored in Documents/Patina. Sync events/ and config.toml with Syncthing; the device id stays private.");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_small;
             }
 
             TonalButton {

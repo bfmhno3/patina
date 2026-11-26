@@ -339,10 +339,13 @@ export struct IdentityRow {
     habits: int,
 }
 
+export enum StorageUi { desktop, shared, private }
+
 export struct SettingsData {
     identities: [IdentityRow],
     root: string,
     device: string,
+    storage: StorageUi,
     version: string,
     focus_minutes: int,
     short_break: int,

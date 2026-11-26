@@ -29,6 +29,7 @@ fn harness() -> Harness {
         store,
         dir.path().to_path_buf(),
         window.as_weak(),
+        crate::StorageUi::Desktop,
     )));
     wire::connect(&window, ctl.clone());
     ctl.borrow_mut().refresh();
