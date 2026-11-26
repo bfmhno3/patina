@@ -35,6 +35,8 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
     bind!(on_navigate, |c, page: i32| c.navigate(page));
     bind!(on_open_item, |c, id: SharedString| c.open_item(&id));
     bind!(on_close_detail, |c| c.close_detail());
+    bind!(on_open_graph, |c, id: SharedString| c.open_graph(&id));
+    bind!(on_close_graph, |c| c.close_graph());
     bind!(on_open_settings, |c| c.set_settings_open(true));
     bind!(on_close_settings, |c| c.set_settings_open(false));
     bind!(on_undo, |c| {

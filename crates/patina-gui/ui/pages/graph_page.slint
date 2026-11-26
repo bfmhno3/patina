@@ -1,0 +1,77 @@
+import {
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { GraphNode } from "../components/graph_node.slint";
+
+// The children of one composite item as a layered dependency graph.
+export component GraphPage inherits Rectangle {
+    VerticalLayout {
+        padding: MaterialStyleMetrics.padding_16;
+        spacing: MaterialStyleMetrics.spacing_8;
+
+        HorizontalLayout {
+            alignment: start;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            IconButton {
+                icon: AppIcons.arrow_back;
+                tooltip: @tr("Back");
+
+                clicked => {
+                    App.close_graph();
+                }
+            }
+
+            if App.graph.parent_id != "": IconButton {
+                icon: AppIcons.arrow_upward;
+                tooltip: @tr("Up to parent");
+
+                clicked => {
+                    App.open_graph(App.graph.parent_id);
+                }
+            }
+
+            MaterialText {
+                text: App.graph.root_title;
+                vertical_alignment: center;
+                overflow: elide;
+                style: MaterialTypography.title_large;
+            }
+        }
+
+        if App.graph.nodes.length == 0: MaterialText {
+            text: @tr("No sub-items.");
+            style: MaterialTypography.body_large;
+        }
+
+        if App.graph.nodes.length > 0: Flickable {
+            vertical_stretch: 1;
+            content_width: max(App.graph.width, self.width);
+            content_height: max(App.graph.height, self.height);
+
+            if App.graph.edges != "": Path {
+                x: 0;
+                y: 0;
+                width: App.graph.width;
+                height: App.graph.height;
+                viewbox_x: 0;
+                viewbox_y: 0;
+                viewbox_width: App.graph.width / 1px;
+                viewbox_height: App.graph.height / 1px;
+                commands: App.graph.edges;
+                stroke: MaterialPalette.outline;
+                stroke_width: 1.5px;
+            }
+
+            for n in App.graph.nodes: GraphNode {
+                data: n;
+            }
+        }
+    }
+}

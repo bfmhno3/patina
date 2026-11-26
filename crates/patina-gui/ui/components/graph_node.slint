@@ -1,0 +1,62 @@
+import {
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
+import { GraphNodeData } from "../types.slint";
+
+// One child of the graph's composite item, placed at the coordinates Rust computed.
+export component GraphNode inherits Rectangle {
+    in property <GraphNodeData> data;
+
+    x: root.data.x;
+    y: root.data.y;
+    width: App.graph.node_width;
+    height: App.graph.node_height;
+    border_radius: MaterialStyleMetrics.border_radius_12;
+    border_width: 1px;
+    border_color: MaterialPalette.outline_variant;
+    background: root.data.frontier ? MaterialPalette.primary_container : (root.data.status == "done" || root.data.status == "abandoned") ? MaterialPalette.surface_container_highest : MaterialPalette.secondary_container;
+
+    TouchArea {
+        clicked => {
+            App.open_item(root.data.id);
+        }
+    }
+
+    HorizontalLayout {
+        padding: MaterialStyleMetrics.padding_8;
+        spacing: MaterialStyleMetrics.spacing_4;
+
+        VerticalLayout {
+            horizontal_stretch: 1;
+            alignment: center;
+
+            MaterialText {
+                text: root.data.title;
+                overflow: elide;
+                style: MaterialTypography.title_small;
+            }
+
+            MaterialText {
+                text: Labels.status(root.data.status) + (root.data.composite ? " · " + root.data.open_children + "/" + root.data.children : "");
+                overflow: elide;
+                style: MaterialTypography.body_small;
+            }
+        }
+
+        if root.data.composite: IconButton {
+            icon: AppIcons.account_tree;
+            tooltip: @tr("Open graph");
+
+            clicked => {
+                App.open_graph(root.data.id);
+            }
+        }
+    }
+}

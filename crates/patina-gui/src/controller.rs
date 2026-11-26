@@ -55,6 +55,7 @@ pub struct Controller {
     was_on_break: bool,
     tree_all: bool,
     detail: Option<String>,
+    graph: Option<String>,
     today: Option<Date>,
     mode_name: Option<String>,
     resume: Option<Resume>,
@@ -83,6 +84,7 @@ impl Controller {
             was_on_break: false,
             tree_all: false,
             detail: None,
+            graph: None,
             today: None,
             mode_name: None,
             resume: None,
@@ -204,9 +206,11 @@ impl Controller {
             let app = win.global::<App<'_>>();
             app.set_page(page);
             app.set_detail_open(false);
+            app.set_graph_open(false);
             app.set_settings_open(false);
         }
         self.detail = None;
+        self.graph = None;
         self.refresh();
     }
 
@@ -222,6 +226,25 @@ impl Controller {
         self.detail = None;
         if let Some(win) = self.window.upgrade() {
             win.global::<App<'_>>().set_detail_open(false);
+        }
+        self.refresh();
+    }
+
+    pub fn open_graph(&mut self, id: &str) {
+        self.graph = Some(id.to_string());
+        self.detail = None;
+        if let Some(win) = self.window.upgrade() {
+            let app = win.global::<App<'_>>();
+            app.set_graph_open(true);
+            app.set_detail_open(false);
+        }
+        self.refresh();
+    }
+
+    pub fn close_graph(&mut self) {
+        self.graph = None;
+        if let Some(win) = self.window.upgrade() {
+            win.global::<App<'_>>().set_graph_open(false);
         }
         self.refresh();
     }
@@ -881,7 +904,10 @@ impl Controller {
         self.was_on_break = rhythm.on_break.is_some();
 
         // The card, only while the Today page is visible.
-        let on_today = app.get_page() == 0 && !app.get_detail_open() && !app.get_settings_open();
+        let on_today = app.get_page() == 0
+            && !app.get_detail_open()
+            && !app.get_graph_open()
+            && !app.get_settings_open();
         if on_today {
             let QueryOutput::Next(nv) = self.ask(Query::Next {
                 identity: identity.clone(),
@@ -948,6 +974,16 @@ impl Controller {
                 Err(_) => {
                     self.detail = None;
                     app.set_detail_open(false);
+                }
+            }
+        }
+
+        if let Some(id) = self.graph.clone() {
+            match self.ask(Query::Graph { item: id }) {
+                Ok(QueryOutput::Graph(g)) => app.set_graph(convert::graph_data(&g)),
+                _ => {
+                    self.graph = None;
+                    app.set_graph_open(false);
                 }
             }
         }

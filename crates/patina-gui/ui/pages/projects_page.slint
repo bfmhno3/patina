@@ -1,5 +1,6 @@
 import {
     FloatingActionButton,
+    IconButton,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
@@ -46,6 +47,15 @@ export component ProjectsPage inherits Rectangle {
 
                 clicked => {
                     App.open_item(r.id);
+                }
+
+                if r.depth == 0 && r.children > 0: IconButton {
+                    icon: AppIcons.account_tree;
+                    tooltip: @tr("Graph");
+
+                    clicked => {
+                        App.open_graph(r.id);
+                    }
                 }
             }
         }

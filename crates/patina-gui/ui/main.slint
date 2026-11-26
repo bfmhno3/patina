@@ -19,6 +19,7 @@ import { StatusStrip } from "components/status_strip.slint";
 import { TimeCorrectionDialog } from "components/time_correction_dialog.slint";
 import { HabitsPage } from "pages/habits_page.slint";
 import { InboxPage } from "pages/inbox_page.slint";
+import { GraphPage } from "pages/graph_page.slint";
 import { ItemPage } from "pages/item_page.slint";
 import { ProjectsPage } from "pages/projects_page.slint";
 import { ReviewPage } from "pages/review_page.slint";
@@ -157,12 +158,13 @@ export component MainWindow inherits MaterialWindow {
                 vertical_stretch: 1;
 
                 if App.detail_open: ItemPage { }
-                if !App.detail_open && App.settings_open: SettingsPage { }
-                if !App.detail_open && !App.settings_open && App.page == 0: TodayPage { }
-                if !App.detail_open && !App.settings_open && App.page == 1: InboxPage { }
-                if !App.detail_open && !App.settings_open && App.page == 2: ProjectsPage { }
-                if !App.detail_open && !App.settings_open && App.page == 3: HabitsPage { }
-                if !App.detail_open && !App.settings_open && App.page == 4: ReviewPage { }
+                if !App.detail_open && App.graph_open: GraphPage { }
+                if !App.detail_open && !App.graph_open && App.settings_open: SettingsPage { }
+                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 0: TodayPage { }
+                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 1: InboxPage { }
+                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 2: ProjectsPage { }
+                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 3: HabitsPage { }
+                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 4: ReviewPage { }
             }
 
             if !root.wide: NavigationBar {

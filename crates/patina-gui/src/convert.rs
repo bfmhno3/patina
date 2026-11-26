@@ -6,8 +6,8 @@ use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::{self, AddItem, Triage, Update};
 use patina_core::event::{Frequency, HabitKind, Repeat, RepeatUnit, Size};
 use patina_core::query::{
-    HabitView, ItemDetail, ItemView, NextView, ProjectProgress, ReviewView, RhythmView, TimerView,
-    TodayView, TreeNode, ViewStatus,
+    GraphView, HabitView, ItemDetail, ItemView, NextView, ProjectProgress, ReviewView, RhythmView,
+    TimerView, TodayView, TreeNode, ViewStatus,
 };
 use patina_core::recommend::{self, Card, Reason};
 use patina_core::rhythm::BreakDue;
@@ -16,10 +16,10 @@ use slint::{ModelRc, SharedString};
 
 use crate::{
     BreakKindUi, CardData, CardKind, ConvRow, CountRow, DecisionRow, DetailData, FocusGroup,
-    FrequencyUi, GroupRow, HabitKindUi, HabitRow, InboxRow, InterruptRow, ItemForm, ItemRow,
-    NoteRow, PostponedRow, ProjectRow, ReasonData, ReasonKind, ReviewData, RhythmData,
-    RhythmModeUi, SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow, WaitRow,
-    WeekPoint,
+    FrequencyUi, GraphData, GraphNodeData, GroupRow, HabitKindUi, HabitRow, InboxRow, InterruptRow,
+    ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow, ReasonData, ReasonKind, ReviewData,
+    RhythmData, RhythmModeUi, SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow,
+    WaitRow, WeekPoint,
 };
 
 pub fn ss(s: impl AsRef<str>) -> SharedString {
@@ -837,6 +837,98 @@ pub fn edit_command(d: &ItemDetail, f: &ItemForm, today: Date) -> Result<command
         Some(r) => (Some(r) != cur.repeat).then_some(Update::Set(r)),
     };
     Ok(e)
+}
+
+const NODE_W: f32 = 168.0;
+const NODE_H: f32 = 64.0;
+const GAP_X: f32 = 48.0;
+const GAP_Y: f32 = 16.0;
+const PAD: f32 = 16.0;
+
+/// Lays out one level of the dependency graph from left to right.
+///
+/// Layer 0 keeps input order; later layers are ordered by the mean row of their
+/// prerequisites, then by input order.
+pub fn graph_data(g: &GraphView) -> GraphData {
+    let last = g.nodes.iter().map(|n| n.layer).max().unwrap_or(0);
+    let mut rows: std::collections::HashMap<uuid::Uuid, usize> = std::collections::HashMap::new();
+    for layer in 0..=last {
+        let mut members: Vec<(f32, usize, uuid::Uuid)> = Vec::new();
+        for (idx, n) in g.nodes.iter().enumerate().filter(|(_, n)| n.layer == layer) {
+            let prereq_rows: Vec<f32> = g
+                .edges
+                .iter()
+                .filter(|e| e.to == n.item.id)
+                .filter_map(|e| rows.get(&e.from))
+                .map(|r| *r as f32)
+                .collect();
+            let key = if prereq_rows.is_empty() {
+                f32::MAX
+            } else {
+                prereq_rows.iter().sum::<f32>() / prereq_rows.len() as f32
+            };
+            members.push((if layer == 0 { 0.0 } else { key }, idx, n.item.id));
+        }
+        members.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        for (row, (_, _, id)) in members.into_iter().enumerate() {
+            rows.insert(id, row);
+        }
+    }
+    let pos = |id: &uuid::Uuid, layer: u32| -> (f32, f32) {
+        let row = rows.get(id).copied().unwrap_or(0);
+        (
+            PAD + layer as f32 * (NODE_W + GAP_X),
+            PAD + row as f32 * (NODE_H + GAP_Y),
+        )
+    };
+    let layer_of: std::collections::HashMap<uuid::Uuid, u32> =
+        g.nodes.iter().map(|n| (n.item.id, n.layer)).collect();
+    let mut nodes = Vec::new();
+    let (mut width, mut height) = (0.0f32, 0.0f32);
+    for n in &g.nodes {
+        let (x, y) = pos(&n.item.id, n.layer);
+        width = width.max(x + NODE_W + PAD);
+        height = height.max(y + NODE_H + PAD);
+        nodes.push(GraphNodeData {
+            id: ss(n.item.id.to_string()),
+            title: ss(&n.item.title),
+            status: ss(status_key(n.item.status)),
+            x,
+            y,
+            composite: n.item.children > 0,
+            frontier: n.frontier,
+            open_children: int(n.item.open_children),
+            children: int(n.item.children),
+        });
+    }
+    let mut edges = Vec::new();
+    for e in &g.edges {
+        let (Some(fl), Some(tl)) = (layer_of.get(&e.from), layer_of.get(&e.to)) else {
+            continue;
+        };
+        let (fx, fy) = pos(&e.from, *fl);
+        let (tx, ty) = pos(&e.to, *tl);
+        let (x1, y1, x2, y2) = (fx + NODE_W, fy + NODE_H / 2.0, tx, ty + NODE_H / 2.0);
+        let mx = (x1 + x2) / 2.0;
+        edges.push(format!(
+            "M {x1:.1} {y1:.1} C {mx:.1} {y1:.1} {mx:.1} {y2:.1} {x2:.1} {y2:.1} M {:.1} {:.1} L {x2:.1} {y2:.1} L {:.1} {:.1}",
+            x2 - 6.0,
+            y2 - 4.0,
+            x2 - 6.0,
+            y2 + 4.0
+        ));
+    }
+    GraphData {
+        root_id: ss(g.root.id.to_string()),
+        root_title: ss(&g.root.title),
+        parent_id: ss(g.root.parent.map(|p| p.to_string()).unwrap_or_default()),
+        width,
+        height,
+        node_width: NODE_W,
+        node_height: NODE_H,
+        edges: ss(edges.join(" ")),
+        nodes: model(nodes),
+    }
 }
 
 #[cfg(test)]

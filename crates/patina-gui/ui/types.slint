@@ -126,6 +126,30 @@ export struct RhythmData {
     resume_is_habit: bool,
 }
 
+export struct GraphNodeData {
+    id: string,
+    title: string,
+    status: string,
+    x: length,
+    y: length,
+    composite: bool,
+    frontier: bool,
+    open_children: int,
+    children: int,
+}
+
+export struct GraphData {
+    root_id: string,
+    root_title: string,
+    parent_id: string,
+    width: length,
+    height: length,
+    node_width: length,
+    node_height: length,
+    edges: string,
+    nodes: [GraphNodeData],
+}
+
 export struct SuggestionData {
     identity: string,
     weekend: bool,

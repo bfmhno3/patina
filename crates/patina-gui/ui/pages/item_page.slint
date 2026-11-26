@@ -265,6 +265,7 @@ export component ItemPage inherits Rectangle {
             { text: @tr("Depends on…"), enabled: true },
             { text: @tr("Stuck…"), enabled: !App.detail.is_external },
             { text: @tr("Abandon…"), enabled: true },
+            { text: @tr("Show graph"), enabled: App.detail.item.children > 0 },
         ];
 
         activated(index) => {
@@ -281,8 +282,10 @@ export component ItemPage inherits Rectangle {
                 link_picker.open();
             } else if index == 5 {
                 stuck.open(App.detail.item.id);
-            } else {
+            } else if index == 6 {
                 abandon.open(App.detail.item.id);
+            } else {
+                App.open_graph(App.detail.item.id);
             }
         }
     }
