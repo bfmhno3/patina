@@ -292,6 +292,9 @@ pub fn outcome(cmd: &Command, o: &CommandOutcome, now: &ZonedDateTime) -> String
             }
             out.push('\n');
         }
+        Command::DismissSuggestion(_) => {
+            let _ = writeln!(out, "dismissed suggestion for {l}");
+        }
         Command::CompleteReview(_) => {
             out.push_str("review recorded\n");
             for sub in &o.subjects {
@@ -757,6 +760,20 @@ fn today(t: &TodayView, now: &ZonedDateTime) -> String {
     let mut sections = 0;
     if let Some(scope) = &t.scope {
         let _ = writeln!(out, "[{scope}]");
+    }
+    if let Some(s) = &t.suggestion {
+        let _ = write!(
+            out,
+            "suggest: switch to {} (usual on {} at this time: {}/{} days)",
+            s.identity,
+            if s.weekend { "weekends" } else { "weekdays" },
+            s.matches,
+            s.samples
+        );
+        if let Some(m) = s.below_target_minutes {
+            let _ = write!(out, ", {} below target this week", hm(m));
+        }
+        out.push('\n');
     }
     if banner(&t.banner, &mut out) {
         sections += 1;
