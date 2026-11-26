@@ -124,3 +124,48 @@ fn devices_interleave_by_recorded_at() {
         .collect();
     assert_eq!(ids, [1, 2, 3]);
 }
+
+#[test]
+fn sync_conflict_copies_are_ignored_with_one_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = store(&dir, 1);
+    s.lock()
+        .unwrap()
+        .append(&[event(1, 1, "2026-11-24T01:00:00Z")])
+        .unwrap();
+    let events = dir.path().join("events");
+    let log_file = events.join(format!("{}.jsonl", Uuid::from_u128(1)));
+    let copy = events.join(format!(
+        "{}.sync-conflict-20261124-010000-ABCDEFG.jsonl",
+        Uuid::from_u128(1)
+    ));
+    std::fs::copy(&log_file, &copy).unwrap();
+    let log = s.load().unwrap();
+    assert_eq!(log.events.len(), 1);
+    assert_eq!(log.warnings.len(), 1);
+    assert!(matches!(log.warnings[0].problem, LoadProblem::ForeignFile));
+    assert_eq!(log.warnings[0].file, copy);
+}
+
+#[test]
+fn the_same_event_in_two_device_files_loads_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = store(&dir, 1);
+    s.lock()
+        .unwrap()
+        .append(&[event(1, 1, "2026-11-24T01:00:00Z")])
+        .unwrap();
+    let events = dir.path().join("events");
+    std::fs::copy(
+        events.join(format!("{}.jsonl", Uuid::from_u128(1))),
+        events.join(format!("{}.jsonl", Uuid::from_u128(2))),
+    )
+    .unwrap();
+    let log = s.load().unwrap();
+    assert_eq!(log.events.len(), 1);
+    assert_eq!(log.warnings.len(), 1);
+    assert!(matches!(
+        log.warnings[0].problem,
+        LoadProblem::DuplicateEvent { .. }
+    ));
+}

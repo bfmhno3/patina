@@ -189,12 +189,27 @@ impl Store {
     pub fn load(&self) -> Result<Log, StoreError> {
         let dir = self.events_dir();
         let mut files = Vec::new();
+        let mut warnings = Vec::new();
         match fs::read_dir(&dir) {
             Ok(rd) => {
                 for entry in rd {
                     let path = entry.map_err(io(&dir))?.path();
-                    if path.extension().is_some_and(|e| e == "jsonl") {
+                    if path.extension().is_none_or(|e| e != "jsonl") {
+                        continue;
+                    }
+                    // Only `<device uuid>.jsonl` is a device log; sync tools leave conflict copies.
+                    let is_log = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(|s| s.parse::<uuid::Uuid>().is_ok());
+                    if is_log {
                         files.push(path);
+                    } else {
+                        warnings.push(LoadWarning {
+                            file: path,
+                            line: 0,
+                            problem: LoadProblem::ForeignFile,
+                        });
                     }
                 }
             }
@@ -202,8 +217,9 @@ impl Store {
             Err(e) => return Err(io(&dir)(e)),
         }
         files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        warnings.sort_by(|a, b| a.file.cmp(&b.file));
         let mut events = Vec::new();
-        let mut warnings = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         for path in files {
             let bytes = fs::read(&path).map_err(io(&path))?;
             let text = String::from_utf8_lossy(&bytes);
@@ -212,7 +228,17 @@ impl Store {
                     continue;
                 }
                 match Event::from_line(line) {
-                    Ok(e) => events.push(e),
+                    Ok(e) => {
+                        if seen.insert(e.id) {
+                            events.push(e);
+                        } else {
+                            warnings.push(LoadWarning {
+                                file: path.clone(),
+                                line: n + 1,
+                                problem: LoadProblem::DuplicateEvent { id: e.id.as_uuid() },
+                            });
+                        }
+                    }
                     Err(err) => warnings.push(LoadWarning {
                         file: path.clone(),
                         line: n + 1,
@@ -307,6 +333,13 @@ pub enum LoadProblem {
         /// Stored version.
         version: u32,
     },
+    /// Not a device log (for example a sync conflict copy); not read.
+    ForeignFile,
+    /// The same event id appeared again, for example in a copied device file.
+    DuplicateEvent {
+        /// The repeated id.
+        id: uuid::Uuid,
+    },
 }
 
 impl From<UpgradeError> for LoadProblem {
@@ -329,6 +362,8 @@ impl std::fmt::Display for LoadProblem {
             LoadProblem::UnsupportedVersion { kind, version } => {
                 write!(f, "unsupported version {version} of {kind}")
             }
+            LoadProblem::ForeignFile => write!(f, "not a device log; ignored"),
+            LoadProblem::DuplicateEvent { id } => write!(f, "duplicate event {id}"),
         }
     }
 }

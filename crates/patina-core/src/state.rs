@@ -447,6 +447,8 @@ pub struct State {
     pub card_skips: BTreeMap<CardKind, Timestamp>,
     /// Latest dismissal of a mode suggestion per identity (effective time).
     pub suggestion_dismissals: BTreeMap<IdentityId, Timestamp>,
+    /// Segments ended by a later start from another device; their own stop is absorbed.
+    pub merge_closed: BTreeSet<SegmentId>,
 }
 
 fn habit_shape_ok(kind: &HabitKind, frequency: &Frequency) -> bool {
@@ -1104,9 +1106,7 @@ impl State {
                 if self.segments.contains_key(&d.segment) {
                     return Err(Rejection::DuplicateId(d.segment.as_uuid()));
                 }
-                if let Some(running) = self.running {
-                    return Err(Rejection::TimerRunning(running));
-                }
+                let running = self.running;
                 match d.target {
                     TimerTarget::Item(id) => {
                         if self.open_item(id)?.is_external() {
@@ -1127,6 +1127,16 @@ impl State {
                     .max_by_key(|s| s.end)
                 {
                     return Err(Rejection::SegmentOverlap(latest.id));
+                }
+                if let Some(r) = running {
+                    // Two devices started timers offline: the later start ends the earlier segment.
+                    if start < self.segments.get(&r).map_or(start, |s| s.start) {
+                        return Err(Rejection::TimerRunning(r));
+                    }
+                    if let Some(seg) = self.segments.get_mut(&r) {
+                        seg.end = Some(start);
+                    }
+                    self.merge_closed.insert(r);
                 }
                 self.segments.insert(
                     d.segment,
@@ -1151,6 +1161,9 @@ impl State {
                     .get(&d.segment)
                     .ok_or(Rejection::UnknownSegment(d.segment))?;
                 if self.running != Some(d.segment) {
+                    if self.merge_closed.contains(&d.segment) {
+                        return Ok(());
+                    }
                     return Err(Rejection::SegmentNotRunning(d.segment));
                 }
                 if event.effective_at < seg.start {
@@ -1366,7 +1379,7 @@ mod tests {
     }
 
     #[test]
-    fn merged_log_with_two_running_timers_warns_once() {
+    fn merged_log_with_two_running_timers_ends_the_earlier_at_the_later_start() {
         let mut log = TestLog::new();
         let id = log.identity("work");
         let a = log.item("a", id, None);
@@ -1379,10 +1392,43 @@ mod tests {
                 target: TimerTarget::Item(item),
             }));
         }
+        log.push(EventData::TimerStopped(TimerStopped { segment: s1 }));
+        let state = log.state();
+        assert!(state.warnings.is_empty(), "{:?}", state.warnings);
+        assert_eq!(state.running, Some(s2));
+        assert_eq!(state.segments[&s1].end, Some(state.segments[&s2].start));
+        assert!(state.items[&b].timed);
+    }
+
+    #[test]
+    fn a_start_backdated_before_the_running_start_is_still_rejected() {
+        let mut log = TestLog::new();
+        let id = log.identity("work");
+        let a = log.item("a", id, None);
+        let b = log.item("b", id, None);
+        let s1 = SegmentId::from_uuid(log.uuid());
+        let s2 = SegmentId::from_uuid(log.uuid());
+        let t1: jiff::Timestamp = "2026-11-24T10:00:00Z".parse().unwrap();
+        let t0: jiff::Timestamp = "2026-11-24T09:00:00Z".parse().unwrap();
+        log.push_at(
+            EventData::TimerStarted(TimerStarted {
+                segment: s1,
+                target: TimerTarget::Item(a),
+            }),
+            t1,
+            t1,
+        );
+        log.push_at(
+            EventData::TimerStarted(TimerStarted {
+                segment: s2,
+                target: TimerTarget::Item(b),
+            }),
+            t0,
+            t1,
+        );
         let state = log.state();
         assert_eq!(state.warnings.len(), 1);
         assert_eq!(state.warnings[0].rejection, Rejection::TimerRunning(s1));
         assert_eq!(state.running, Some(s1));
-        assert!(!state.items[&b].timed);
     }
 }
