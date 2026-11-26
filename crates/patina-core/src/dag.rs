@@ -1,6 +1,6 @@
 //! Dependency and hierarchy queries over a projected state. Pure.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use jiff::civil::Date;
 
@@ -122,6 +122,43 @@ pub fn subtree(state: &State, id: ItemId) -> Vec<ItemId> {
         }
     }
     out
+}
+
+/// The layer of each of `ids` within the dependency graph restricted to `ids`.
+///
+/// A node without prerequisites among `ids` is layer 0, otherwise one more than its
+/// deepest prerequisite. An edge that would close a cycle is ignored.
+pub fn layers(state: &State, ids: &[ItemId]) -> HashMap<ItemId, u32> {
+    fn layer_of(
+        state: &State,
+        id: ItemId,
+        set: &HashSet<ItemId>,
+        memo: &mut HashMap<ItemId, u32>,
+        stack: &mut HashSet<ItemId>,
+    ) -> u32 {
+        if let Some(l) = memo.get(&id) {
+            return *l;
+        }
+        stack.insert(id);
+        let mut layer = 0;
+        if let Some(item) = state.items.get(&id) {
+            for p in &item.depends_on {
+                if set.contains(p) && !stack.contains(p) {
+                    layer = layer.max(layer_of(state, *p, set, memo, stack) + 1);
+                }
+            }
+        }
+        stack.remove(&id);
+        memo.insert(id, layer);
+        layer
+    }
+    let set: HashSet<ItemId> = ids.iter().copied().collect();
+    let mut memo = HashMap::new();
+    let mut stack = HashSet::new();
+    for id in ids {
+        layer_of(state, *id, &set, &mut memo, &mut stack);
+    }
+    memo
 }
 
 /// Open, non-external items that can be worked on now.
@@ -329,5 +366,24 @@ mod tests {
         let front: HashSet<ItemId> = frontier(&s, today).into_iter().collect();
         assert_eq!(front, HashSet::from([b]));
         assert_eq!(unlocks(&s, b, today, &front), 1);
+    }
+
+    #[test]
+    fn layers_follow_prerequisite_chains_and_survive_cycles() {
+        let mut log = TestLog::new();
+        let id = log.identity("work");
+        let a = log.item("a", id, None);
+        let b = log.item("b", id, None);
+        let c = log.item("c", id, None);
+        let d = log.item("d", id, None);
+        log.edge(b, a);
+        log.edge(c, b);
+        let mut s = log.state();
+        let l = layers(&s, &[a, b, c, d]);
+        assert_eq!((l[&a], l[&b], l[&c], l[&d]), (0, 1, 2, 0));
+        // A merged log can hold a cycle that the projection did not reject.
+        s.items.get_mut(&a).unwrap().depends_on.insert(c);
+        let l = layers(&s, &[a, b, c]);
+        assert_eq!(l.len(), 3);
     }
 }

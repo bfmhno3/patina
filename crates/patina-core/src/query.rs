@@ -76,6 +76,11 @@ pub enum Query {
         /// Item reference.
         item: String,
     },
+    /// The children of a composite item as a layered dependency graph.
+    Graph {
+        /// Item reference.
+        item: String,
+    },
     /// All habits.
     Habits,
     /// All identities.
@@ -84,6 +89,37 @@ pub enum Query {
     Status,
     /// Log problems.
     Doctor,
+}
+
+/// A child item in a [`GraphView`].
+#[derive(Clone, Debug, Serialize)]
+pub struct GraphNode {
+    /// The item.
+    pub item: ItemView,
+    /// Longest prerequisite chain among the siblings.
+    pub layer: u32,
+    /// The item is on the actionable frontier.
+    pub frontier: bool,
+}
+
+/// A dependency between two children.
+#[derive(Clone, Debug, Serialize)]
+pub struct GraphEdge {
+    /// The prerequisite.
+    pub from: Uuid,
+    /// The dependent.
+    pub to: Uuid,
+}
+
+/// One level of the dependency graph.
+#[derive(Clone, Debug, Serialize)]
+pub struct GraphView {
+    /// The composite item.
+    pub root: ItemView,
+    /// Its children, without discarded ones.
+    pub nodes: Vec<GraphNode>,
+    /// Dependencies between those children.
+    pub edges: Vec<GraphEdge>,
 }
 
 /// Status shown to users; derived from stored status plus the graph.
@@ -465,6 +501,8 @@ pub enum QueryOutput {
     Tree(Vec<TreeNode>),
     /// [`Query::Show`]
     Show(Box<ItemDetail>),
+    /// [`Query::Graph`]
+    Graph(Box<GraphView>),
     /// [`Query::Habits`]
     Habits(Vec<HabitView>),
     /// [`Query::Identities`]
@@ -1065,6 +1103,50 @@ pub fn run(
                         .collect();
                     (!est.is_empty()).then(|| est.iter().sum())
                 },
+            }))
+        }
+        Query::Graph { item } => {
+            let id = resolve::item(state, item)?;
+            let root = state
+                .items
+                .get(&id)
+                .ok_or(crate::state::Rejection::UnknownItem(id))
+                .map_err(crate::command::CommandError::from)?;
+            let children: Vec<ids::ItemId> = root
+                .children
+                .iter()
+                .copied()
+                .filter(|c| {
+                    state
+                        .items
+                        .get(c)
+                        .is_some_and(|c| c.status != ItemStatus::Discarded)
+                })
+                .collect();
+            let layers = dag::layers(state, &children);
+            let front: HashSet<ids::ItemId> = dag::frontier(state, today).into_iter().collect();
+            let mut nodes = Vec::new();
+            let mut edges = Vec::new();
+            for c in &children {
+                let Some(child) = state.items.get(c) else {
+                    continue;
+                };
+                nodes.push(GraphNode {
+                    item: v.item(child),
+                    layer: layers.get(c).copied().unwrap_or(0),
+                    frontier: front.contains(c),
+                });
+                for p in child.depends_on.iter().filter(|p| children.contains(p)) {
+                    edges.push(GraphEdge {
+                        from: p.as_uuid(),
+                        to: c.as_uuid(),
+                    });
+                }
+            }
+            QueryOutput::Graph(Box::new(GraphView {
+                root: v.item(root),
+                nodes,
+                edges,
             }))
         }
         Query::Habits => {
