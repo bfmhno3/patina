@@ -4,46 +4,52 @@ import {
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     Switch,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { EmptyState } from "../components/empty_state.slint";
 import { ItemTile } from "../components/item_tile.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
+import { Section } from "../components/section.slint";
 
 export component ProjectsPage inherits Rectangle {
-    ScrollView {
-        width: 100%;
-        height: 100%;
+    PageScroll {
+        bottom_space: MaterialStyleMetrics.size_90;
 
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
-            padding_bottom: MaterialStyleMetrics.size_90;
-            spacing: MaterialStyleMetrics.spacing_4;
+        PageHeader {
+            title: @tr("Projects");
 
             HorizontalLayout {
-                alignment: start;
-                spacing: MaterialStyleMetrics.spacing_16;
+                spacing: MaterialStyleMetrics.spacing_8;
+                alignment: center;
 
                 MaterialText {
                     text: @tr("Show settled");
                     vertical_alignment: center;
-                    style: MaterialTypography.body_large;
+                    style: MaterialTypography.body_medium;
                 }
 
-                Switch {
-                    checked: App.show_settled;
+                VerticalLayout {
+                    alignment: center;
 
-                    checked_state_changed(checked) => {
-                        App.set_show_settled(checked);
+                    Switch {
+                        checked: App.show_settled;
+
+                        checked_state_changed(checked) => {
+                            App.set_show_settled(checked);
+                        }
                     }
                 }
             }
+        }
 
-            for r in App.tree: ItemTile {
+        if App.tree.length > 0: Section {
+            for r[i] in App.tree: ItemTile {
                 data: r;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
@@ -58,6 +64,12 @@ export component ProjectsPage inherits Rectangle {
                     }
                 }
             }
+        }
+
+        if App.tree.length == 0: EmptyState {
+            icon: AppIcons.account_tree;
+            title: @tr("No projects yet");
+            text: @tr("Create one with New item.");
         }
     }
 

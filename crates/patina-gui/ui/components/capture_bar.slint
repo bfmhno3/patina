@@ -1,28 +1,107 @@
-import { MaterialStyleMetrics, TextField } from "@material";
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 
-export component CaptureBar inherits Rectangle {
+// Quick capture: a rounded input that appends to the inbox on Enter.
+export component CaptureBar inherits VerticalLayout {
     property <string> error;
+    property <length> computed_x;
 
-    min_height: root.error != "" ? MaterialStyleMetrics.size_90 : MaterialStyleMetrics.size_72;
-    max_height: self.min_height;
+    spacing: MaterialStyleMetrics.spacing_4;
 
-    HorizontalLayout {
-        padding: MaterialStyleMetrics.padding_8;
+    Rectangle {
+        min_height: MaterialStyleMetrics.size_48;
+        border_radius: self.height / 2;
+        background: MaterialPalette.surface_container_high;
+        border_width: root.error != "" || input.has_focus ? MaterialStyleMetrics.size_2 : 0px;
+        border_color: root.error != "" ? MaterialPalette.error : MaterialPalette.primary;
 
-        field := TextField {
-            label: @tr("Capture a thought");
-            supporting_text: root.error;
-            has_error: root.error != "";
+        TouchArea {
+            clicked => {
+                input.focus();
+            }
+        }
 
-            accepted(text) => {
-                if text != "" {
-                    root.error = App.capture(text);
-                    if root.error == "" {
-                        self.text = "";
-                    }
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_16;
+            padding_right: MaterialStyleMetrics.padding_16;
+            spacing: MaterialStyleMetrics.spacing_12;
+
+            VerticalLayout {
+                alignment: center;
+
+                Icon {
+                    source: AppIcons.edit_note;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_surface_variant;
                 }
             }
+
+            Rectangle {
+                horizontal_stretch: 1;
+                clip: true;
+
+                input := TextInput {
+                    x: min(0px, max(parent.width - self.width - self.text_cursor_width, root.computed_x));
+                    width: max(parent.width - self.text_cursor_width, self.preferred_width);
+                    height: 100%;
+                    single_line: true;
+                    vertical_alignment: center;
+                    font_size: MaterialTypography.body_large.font_size;
+                    font_weight: MaterialTypography.body_large.font_weight;
+                    color: MaterialPalette.on_surface;
+                    selection_background_color: MaterialPalette.secondary_container;
+                    selection_foreground_color: MaterialPalette.on_surface;
+
+                    // Keeps the cursor visible while typing past the right edge.
+                    cursor_position_changed(cursor_position) => {
+                        if cursor_position.x + root.computed_x < 0 {
+                            root.computed_x = -cursor_position.x;
+                        } else if cursor_position.x + root.computed_x > parent.width - self.text_cursor_width {
+                            root.computed_x = parent.width - cursor_position.x - self.text_cursor_width;
+                        }
+                    }
+
+                    accepted => {
+                        if self.text != "" {
+                            root.error = App.capture(self.text);
+                            if root.error == "" {
+                                self.text = "";
+                            }
+                        }
+                    }
+
+                    edited => {
+                        root.error = "";
+                    }
+                }
+
+                if input.text == "": MaterialText {
+                    text: @tr("Capture a thought");
+                    x: 0;
+                    width: parent.width;
+                    vertical_alignment: center;
+                    overflow: elide;
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_large;
+                }
+            }
+        }
+    }
+
+    if root.error != "": HorizontalLayout {
+        padding_left: MaterialStyleMetrics.padding_16;
+
+        MaterialText {
+            text: root.error;
+            color: MaterialPalette.error;
+            style: MaterialTypography.body_small;
         }
     }
 }

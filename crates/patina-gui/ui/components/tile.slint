@@ -1,4 +1,5 @@
 import {
+    Icon,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
@@ -6,15 +7,17 @@ import {
     StateLayerArea,
 } from "@material";
 
-// A list row: title, one supporting line, trailing children. Material's own list tile
-// sizes itself from its content, which loops inside scroll views, so the height is fixed.
+// A list row: optional leading icon, title, one supporting line, trailing children. Material's
+// own list tile sizes itself from its content, which loops inside scroll views, so the height is fixed.
 export component Tile inherits Rectangle {
     in property <string> text;
     in property <string> supporting_text;
+    in property <image> leading_icon;
+    in property <bool> divider;
 
     callback clicked();
 
-    min_height: MaterialStyleMetrics.size_72;
+    min_height: MaterialStyleMetrics.size_64;
 
     StateLayerArea {
         color: MaterialPalette.on_surface;
@@ -24,13 +27,23 @@ export component Tile inherits Rectangle {
         }
 
         HorizontalLayout {
-            padding_left: MaterialStyleMetrics.padding_16;
+            padding_left: root.leading_icon.width > 0 ? MaterialStyleMetrics.padding_8 : MaterialStyleMetrics.padding_16;
             padding_right: MaterialStyleMetrics.padding_8;
             padding_top: MaterialStyleMetrics.padding_8;
             padding_bottom: MaterialStyleMetrics.padding_8;
             spacing: MaterialStyleMetrics.spacing_8;
 
-            VerticalLayout {
+            if root.leading_icon.width > 0: Rectangle {
+                width: MaterialStyleMetrics.size_48;
+
+                Icon {
+                    source: root.leading_icon;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_surface_variant;
+                }
+            }
+
+            text_column := VerticalLayout {
                 alignment: center;
                 horizontal_stretch: 1;
 
@@ -50,5 +63,13 @@ export component Tile inherits Rectangle {
 
             @children
         }
+    }
+
+    if root.divider: Rectangle {
+        x: text_column.x;
+        y: 0;
+        width: root.width - self.x;
+        height: MaterialStyleMetrics.size_1;
+        background: MaterialPalette.outline_variant;
     }
 }

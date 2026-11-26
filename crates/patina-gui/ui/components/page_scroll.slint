@@ -1,0 +1,28 @@
+import { MaterialStyleMetrics, ScrollView } from "@material";
+import { App } from "../app.slint";
+
+// A scrolling page column, centered with a maximum width on wide windows.
+export component PageScroll inherits Rectangle {
+    // Space kept free at the bottom, for a floating action button.
+    in property <length> bottom_space: 0;
+
+    property <length> side: max(App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.padding_16, (root.width - 840px) / 2);
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        HorizontalLayout {
+            padding_left: root.side;
+            padding_right: root.side;
+
+            VerticalLayout {
+                alignment: start;
+                padding_bottom: max(MaterialStyleMetrics.padding_24, root.bottom_space);
+                spacing: MaterialStyleMetrics.spacing_16;
+
+                @children
+            }
+        }
+    }
+}

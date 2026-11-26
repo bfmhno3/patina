@@ -1,4 +1,5 @@
 import {
+    Icon,
     IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
@@ -14,88 +15,197 @@ import { StuckDialog } from "stuck_dialog.slint";
 
 // What is running or paused right now, plus urgent items of other identities.
 export component StatusStrip inherits Rectangle {
-    background: MaterialPalette.surface_container;
+    property <bool> any: App.timer.running || App.rhythm.on_break || App.today.banner_items.length > 0 || App.today.banner_habits.length > 0;
 
     layout := VerticalLayout {
-        padding: MaterialStyleMetrics.padding_8;
-        spacing: MaterialStyleMetrics.spacing_4;
+        spacing: MaterialStyleMetrics.spacing_8;
+        padding_bottom: root.any ? MaterialStyleMetrics.padding_8 : 0px;
 
-        if App.timer.running: HorizontalLayout {
-            spacing: MaterialStyleMetrics.spacing_4;
+        if App.timer.running: Rectangle {
+            border_radius: MaterialStyleMetrics.border_radius_16;
+            background: MaterialPalette.tertiary_container;
 
-            MaterialText {
-                text: @tr("Timing {} · {}", App.timer.label, Labels.minutes(App.timer.minutes));
-                horizontal_stretch: 1;
-                vertical_alignment: center;
-                style: MaterialTypography.title_small;
-            }
+            HorizontalLayout {
+                padding_left: MaterialStyleMetrics.padding_16;
+                padding_right: MaterialStyleMetrics.padding_4;
+                padding_top: MaterialStyleMetrics.padding_4;
+                padding_bottom: MaterialStyleMetrics.padding_4;
+                spacing: MaterialStyleMetrics.spacing_12;
 
-            IconButton {
-                icon: AppIcons.stop;
-                tooltip: @tr("Stop");
+                VerticalLayout {
+                    alignment: center;
 
-                clicked => {
-                    App.stop_timer();
+                    Icon {
+                        source: AppIcons.timer;
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: MaterialPalette.on_tertiary_container;
+                    }
                 }
-            }
 
-            IconButton {
-                icon: AppIcons.hourglass_empty;
-                tooltip: @tr("Stuck");
-                enabled: !App.timer.is_habit;
+                VerticalLayout {
+                    horizontal_stretch: 1;
+                    alignment: center;
 
-                clicked => {
-                    stuck.open("");
+                    MaterialText {
+                        text: @tr("Timing");
+                        color: MaterialPalette.on_tertiary_container;
+                        style: MaterialTypography.label_medium;
+                    }
+
+                    MaterialText {
+                        text: App.timer.label;
+                        overflow: elide;
+                        color: MaterialPalette.on_tertiary_container;
+                        style: MaterialTypography.title_medium;
+                    }
                 }
-            }
 
-            IconButton {
-                icon: AppIcons.bolt;
-                tooltip: @tr("Interrupt");
-
-                clicked => {
-                    interrupt.open();
+                MaterialText {
+                    text: Labels.minutes(App.timer.minutes);
+                    vertical_alignment: center;
+                    color: MaterialPalette.on_tertiary_container;
+                    style: MaterialTypography.title_medium;
                 }
-            }
 
-            IconButton {
-                icon: AppIcons.coffee;
-                tooltip: @tr("Break");
+                VerticalLayout {
+                    alignment: center;
 
-                clicked => {
-                    App.start_break();
+                    IconButton {
+                        icon: AppIcons.stop;
+                        tooltip: @tr("Stop");
+
+                        clicked => {
+                            App.stop_timer();
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    IconButton {
+                        icon: AppIcons.hourglass_empty;
+                        tooltip: @tr("Stuck");
+                        enabled: !App.timer.is_habit;
+
+                        clicked => {
+                            stuck.open("");
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    IconButton {
+                        icon: AppIcons.bolt;
+                        tooltip: @tr("Interrupt");
+
+                        clicked => {
+                            interrupt.open();
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    IconButton {
+                        icon: AppIcons.coffee;
+                        tooltip: @tr("Break");
+
+                        clicked => {
+                            App.start_break();
+                        }
+                    }
                 }
             }
         }
 
-        if App.rhythm.on_break: HorizontalLayout {
-            spacing: MaterialStyleMetrics.spacing_8;
+        if App.rhythm.on_break: Rectangle {
+            border_radius: MaterialStyleMetrics.border_radius_16;
+            background: MaterialPalette.secondary_container;
 
-            MaterialText {
-                text: @tr("On a {} break until {}", Labels.break_kind(App.rhythm.break_kind), App.rhythm.break_ends);
-                vertical_alignment: center;
-                style: MaterialTypography.title_small;
-            }
+            HorizontalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_12;
 
-            if App.rhythm.resume_label != "": TextButton {
-                text: @tr("Resume {}", App.rhythm.resume_label);
+                VerticalLayout {
+                    alignment: center;
 
-                clicked => {
-                    App.resume();
+                    Icon {
+                        source: AppIcons.coffee;
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: MaterialPalette.on_secondary_container;
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("On a {} break until {}", Labels.break_kind(App.rhythm.break_kind), App.rhythm.break_ends);
+                    horizontal_stretch: 1;
+                    vertical_alignment: center;
+                    color: MaterialPalette.on_secondary_container;
+                    style: MaterialTypography.title_small;
+                }
+
+                if App.rhythm.resume_label != "": TextButton {
+                    text: @tr("Resume {}", App.rhythm.resume_label);
+
+                    clicked => {
+                        App.resume();
+                    }
                 }
             }
         }
 
-        for item in App.today.banner_items: MaterialText {
-            text: item.identity + ": " + item.title + (item.deadline != "" ? " · " + @tr("due {}", item.deadline) : "") + (item.follow_up != "" ? " · " + @tr("follow up {}", item.follow_up) : "");
-            style: MaterialTypography.body_small;
-            color: MaterialPalette.on_surface_variant;
-        }
+        if App.today.banner_items.length + App.today.banner_habits.length > 0: Rectangle {
+            border_radius: MaterialStyleMetrics.border_radius_16;
+            background: MaterialPalette.surface_container_high;
 
-        for habit in App.today.banner_habits: MaterialText {
-            text: habit.identity + ": " + habit.name;
-            style: MaterialTypography.body_small;
-            color: MaterialPalette.on_surface_variant;
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_12;
+                spacing: MaterialStyleMetrics.spacing_4;
+
+                for item in App.today.banner_items: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Icon {
+                            source: AppIcons.warning;
+                            width: MaterialStyleMetrics.icon_size_18;
+                            colorize: MaterialPalette.error;
+                        }
+                    }
+
+                    MaterialText {
+                        text: item.identity + ": " + item.title + (item.deadline != "" ? " · " + @tr("due {}", item.deadline) : "") + (item.follow_up != "" ? " · " + @tr("follow up {}", item.follow_up) : "");
+                        overflow: elide;
+                        style: MaterialTypography.body_medium;
+                    }
+                }
+
+                for habit in App.today.banner_habits: HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Icon {
+                            source: AppIcons.event_repeat;
+                            width: MaterialStyleMetrics.icon_size_18;
+                            colorize: MaterialPalette.primary;
+                        }
+                    }
+
+                    MaterialText {
+                        text: habit.identity + ": " + habit.name;
+                        overflow: elide;
+                        style: MaterialTypography.body_medium;
+                    }
+                }
+            }
         }
     }
 

@@ -6,16 +6,19 @@ import {
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     TextButton,
     TextField,
     TonalButton,
+    TonalIconButton,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { ChoiceRow } from "../components/choice_row.slint";
-import { SectionHeader } from "../components/section_header.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
+import { PropertyRow } from "../components/property_row.slint";
+import { Section } from "../components/section.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
 import { RhythmModeUi, StorageUi } from "../types.slint";
 import { Tile } from "../components/tile.slint";
@@ -27,40 +30,23 @@ export component SettingsPage inherits Rectangle {
     property <string> target_for;
     property <string> rhythm_value: Labels.rhythm_mode(App.rhythm.mode);
 
-    ScrollView {
-        width: 100%;
-        height: 100%;
+    PageScroll {
+        PageHeader {
+            title: @tr("Settings");
+            leading_icon: AppIcons.arrow_back;
+            leading_tooltip: @tr("Back");
 
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
-            spacing: MaterialStyleMetrics.spacing_8;
-
-            HorizontalLayout {
-                alignment: start;
-                spacing: MaterialStyleMetrics.spacing_8;
-
-                IconButton {
-                    icon: AppIcons.arrow_back;
-                    tooltip: @tr("Back");
-
-                    clicked => {
-                        App.close_settings();
-                    }
-                }
-
-                MaterialText {
-                    text: @tr("Settings");
-                    vertical_alignment: center;
-                    style: MaterialTypography.headline_small;
-                }
+            leading_clicked => {
+                App.close_settings();
             }
+        }
 
-            SectionHeader {
-                text: @tr("Identities");
-            }
+        Section {
+            title: @tr("Identities");
 
-            for identity in App.settings.identities: Tile {
+            for identity[i] in App.settings.identities: Tile {
+                leading_icon: AppIcons.person;
+                divider: i > 0;
                 text: identity.name;
                 supporting_text: (identity.target != "" ? @tr("target {} h/week", identity.target) + " · " : "") + @tr("{} open items, {} habits", identity.open_items, identity.habits);
 
@@ -84,22 +70,26 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            if root.identity_error != "": MaterialText {
-                text: root.identity_error;
-                color: MaterialPalette.error;
-                style: MaterialTypography.body_medium;
+        if root.identity_error != "": MaterialText {
+            text: root.identity_error;
+            color: MaterialPalette.error;
+            style: MaterialTypography.body_medium;
+        }
+
+        HorizontalLayout {
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            TextField {
+                text <=> root.new_identity;
+                label: @tr("New identity");
             }
 
-            HorizontalLayout {
-                spacing: MaterialStyleMetrics.spacing_8;
+            VerticalLayout {
+                alignment: center;
 
-                TextField {
-                    text <=> root.new_identity;
-                    label: @tr("New identity");
-                }
-
-                IconButton {
+                TonalIconButton {
                     icon: AppIcons.add;
                     tooltip: @tr("Add identity");
 
@@ -111,91 +101,114 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            SectionHeader {
-                text: @tr("Break reminders");
+        Section {
+            title: @tr("Break reminders");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                ChoiceRow {
+                    options: [
+                        Labels.rhythm_mode(RhythmModeUi.fixed),
+                        Labels.rhythm_mode(RhythmModeUi.flowtime),
+                        Labels.rhythm_mode(RhythmModeUi.off)
+                    ];
+                    by_value: true;
+                    value <=> root.rhythm_value;
+
+                    chosen(index) => {
+                        App.set_rhythm(index == 0 ? RhythmModeUi.fixed : index == 1 ? RhythmModeUi.flowtime : RhythmModeUi.off);
+                    }
+                }
+
+                MaterialText {
+                    text: @tr("Focus {} min, short break {} min, long break {} min after {} rounds. Flowtime: one break minute per {} focus minutes. Snooze {} min. Edit config.toml to change these.", App.settings.focus_minutes, App.settings.short_break, App.settings.long_break, App.settings.rounds, App.settings.flow_ratio, App.settings.snooze);
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_medium;
+                }
+            }
+        }
+
+        Section {
+            title: @tr("Data");
+
+            PropertyRow {
+                icon: AppIcons.folder;
+                label: @tr("Location");
+                value: App.settings.root;
             }
 
-            ChoiceRow {
-                options: [
-                    Labels.rhythm_mode(RhythmModeUi.fixed),
-                    Labels.rhythm_mode(RhythmModeUi.flowtime),
-                    Labels.rhythm_mode(RhythmModeUi.off)
-                ];
-                by_value: true;
-                value <=> root.rhythm_value;
+            PropertyRow {
+                icon: AppIcons.devices;
+                label: @tr("Device");
+                value: App.settings.device;
+                divider: true;
+            }
 
-                chosen(index) => {
-                    App.set_rhythm(index == 0 ? RhythmModeUi.fixed : index == 1 ? RhythmModeUi.flowtime : RhythmModeUi.off);
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                if App.settings.storage == StorageUi.private: MaterialText {
+                    text: @tr("Stored privately on this device. To sync with Syncthing, allow \"All files access\" for Patina in Android settings and restart; the data then moves to Documents/Patina.");
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_small;
+                }
+
+                if App.settings.storage == StorageUi.shared: MaterialText {
+                    text: @tr("Stored in Documents/Patina. Sync events/ and config.toml with Syncthing; the device id stays private.");
+                    wrap: word_wrap;
+                    overflow: clip;
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_small;
+                }
+
+                HorizontalLayout {
+                    alignment: start;
+
+                    TonalButton {
+                        text: @tr("Undo last command");
+                        icon: AppIcons.undo;
+
+                        clicked => {
+                            App.undo();
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.sources_error != "": MaterialText {
+            text: root.sources_error;
+            wrap: word_wrap;
+            overflow: clip;
+            color: MaterialPalette.error;
+            style: MaterialTypography.body_medium;
+        }
+
+        Section {
+            title: @tr("AI changes");
+
+            if App.settings.sources.length == 0: VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+
+                MaterialText {
+                    text: @tr("No AI changes to undo.");
+                    color: MaterialPalette.on_surface_variant;
+                    style: MaterialTypography.body_medium;
                 }
             }
 
-            MaterialText {
-                text: @tr("Focus {} min, short break {} min, long break {} min after {} rounds. Flowtime: one break minute per {} focus minutes. Snooze {} min. Edit config.toml to change these.", App.settings.focus_minutes, App.settings.short_break, App.settings.long_break, App.settings.rounds, App.settings.flow_ratio, App.settings.snooze);
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            SectionHeader {
-                text: @tr("Data");
-            }
-
-            MaterialText {
-                text: @tr("Location: {}", App.settings.root);
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            MaterialText {
-                text: @tr("Device: {}", App.settings.device);
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            if App.settings.storage == StorageUi.private: MaterialText {
-                text: @tr("Stored privately on this device. To sync with Syncthing, allow \"All files access\" for Patina in Android settings and restart; the data then moves to Documents/Patina.");
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_small;
-            }
-
-            if App.settings.storage == StorageUi.shared: MaterialText {
-                text: @tr("Stored in Documents/Patina. Sync events/ and config.toml with Syncthing; the device id stays private.");
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_small;
-            }
-
-            TonalButton {
-                text: @tr("Undo last command");
-                icon: AppIcons.undo;
-
-                clicked => {
-                    App.undo();
-                }
-            }
-
-            SectionHeader {
-                text: @tr("AI changes");
-            }
-
-            if App.settings.sources.length == 0: MaterialText {
-                text: @tr("No AI changes to undo.");
-                style: MaterialTypography.body_medium;
-            }
-
-            if root.sources_error != "": MaterialText {
-                text: root.sources_error;
-                wrap: word_wrap;
-                overflow: clip;
-                color: MaterialPalette.error;
-                style: MaterialTypography.body_medium;
-            }
-
-            for s in App.settings.sources: Tile {
+            for s[i] in App.settings.sources: Tile {
+                leading_icon: AppIcons.smart_toy;
+                divider: i > 0;
                 text: s.source;
                 supporting_text: @tr("{} commands, last {}", s.commands, s.last);
 
@@ -207,18 +220,23 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            SectionHeader {
-                text: @tr("About");
+        Section {
+            title: @tr("About");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                MaterialText {
+                    text: @tr("Patina {}", App.settings.version);
+                    style: MaterialTypography.body_large;
+                }
+
+                // Slint Royalty-free License attribution; never remove.
+                AboutSlint { }
             }
-
-            MaterialText {
-                text: @tr("Patina {}", App.settings.version);
-                style: MaterialTypography.body_large;
-            }
-
-            // Slint Royalty-free License attribution; never remove.
-            AboutSlint { }
         }
     }
 

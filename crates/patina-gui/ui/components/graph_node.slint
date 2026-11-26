@@ -14,14 +14,17 @@ import { GraphNodeData } from "../types.slint";
 export component GraphNode inherits Rectangle {
     in property <GraphNodeData> data;
 
+    property <bool> settled: root.data.status == "done" || root.data.status == "abandoned";
+    property <color> text_color: root.data.frontier ? MaterialPalette.on_primary_container : root.settled ? MaterialPalette.on_surface_variant : MaterialPalette.on_surface;
+
     x: root.data.x;
     y: root.data.y;
     width: App.graph.node_width;
     height: App.graph.node_height;
     border_radius: MaterialStyleMetrics.border_radius_12;
-    border_width: 1px;
+    border_width: root.data.frontier ? 0px : MaterialStyleMetrics.size_1;
     border_color: MaterialPalette.outline_variant;
-    background: root.data.frontier ? MaterialPalette.primary_container : (root.data.status == "done" || root.data.status == "abandoned") ? MaterialPalette.surface_container_highest : MaterialPalette.secondary_container;
+    background: root.data.frontier ? MaterialPalette.primary_container : root.settled ? MaterialPalette.surface_container_highest : MaterialPalette.surface_container_high;
 
     TouchArea {
         clicked => {
@@ -40,12 +43,14 @@ export component GraphNode inherits Rectangle {
             MaterialText {
                 text: root.data.title;
                 overflow: elide;
+                color: root.text_color;
                 style: MaterialTypography.title_small;
             }
 
             MaterialText {
                 text: Labels.status(root.data.status) + (root.data.composite ? " · " + root.data.open_children + "/" + root.data.children : "");
                 overflow: elide;
+                color: root.text_color;
                 style: MaterialTypography.body_small;
             }
         }

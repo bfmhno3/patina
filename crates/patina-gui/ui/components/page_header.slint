@@ -1,0 +1,59 @@
+import {
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { App } from "../app.slint";
+
+// Page title with an optional back button and trailing actions as children.
+export component PageHeader inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <image> leading_icon;
+    in property <string> leading_tooltip;
+
+    callback leading_clicked();
+
+    min_height: MaterialStyleMetrics.size_64;
+
+    HorizontalLayout {
+        padding_top: MaterialStyleMetrics.padding_8;
+        padding_bottom: MaterialStyleMetrics.padding_8;
+        spacing: MaterialStyleMetrics.spacing_8;
+
+        if root.leading_icon.width > 0: VerticalLayout {
+            alignment: center;
+
+            IconButton {
+                icon: root.leading_icon;
+                tooltip: root.leading_tooltip;
+
+                clicked => {
+                    root.leading_clicked();
+                }
+            }
+        }
+
+        VerticalLayout {
+            horizontal_stretch: 1;
+            alignment: center;
+
+            MaterialText {
+                text: root.title;
+                overflow: elide;
+                style: App.wide ? MaterialTypography.headline_medium : MaterialTypography.headline_small;
+            }
+
+            if root.subtitle != "": MaterialText {
+                text: root.subtitle;
+                overflow: elide;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.body_medium;
+            }
+        }
+
+        @children
+    }
+}

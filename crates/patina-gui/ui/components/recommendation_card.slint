@@ -1,5 +1,6 @@
 import {
     FilledButton,
+    Icon,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
@@ -8,26 +9,51 @@ import {
     TonalButton,
 } from "@material";
 import { App } from "../app.slint";
+import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { CardKind } from "../types.slint";
 import { TextPromptDialog } from "text_prompt_dialog.slint";
 
+// Icon and label above a card title.
+component Overline inherits HorizontalLayout {
+    in property <image> icon;
+    in property <string> text;
+
+    spacing: MaterialStyleMetrics.spacing_8;
+
+    VerticalLayout {
+        alignment: center;
+
+        Icon {
+            source: root.icon;
+            width: MaterialStyleMetrics.icon_size_18;
+            colorize: MaterialPalette.on_primary_container;
+        }
+    }
+
+    MaterialText {
+        text: root.text;
+        vertical_alignment: center;
+        style: MaterialTypography.label_large;
+        color: MaterialPalette.on_primary_container;
+    }
+}
+
 // The one recommended thing to do next.
 export component RecommendationCard inherits Rectangle {
     background: MaterialPalette.primary_container;
-    border_radius: MaterialStyleMetrics.border_radius_12;
+    border_radius: MaterialStyleMetrics.border_radius_28;
 
     layout := VerticalLayout {
-        padding: MaterialStyleMetrics.padding_16;
+        padding: App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.padding_20;
         spacing: MaterialStyleMetrics.spacing_8;
 
         if App.card.kind == CardKind.item || App.card.kind == CardKind.break_down: VerticalLayout {
             spacing: MaterialStyleMetrics.spacing_4;
 
-            MaterialText {
+            Overline {
+                icon: App.card.kind == CardKind.item ? AppIcons.bolt : AppIcons.call_split;
                 text: App.card.kind == CardKind.item ? @tr("Next up") : @tr("This one looks big");
-                style: MaterialTypography.label_medium;
-                color: MaterialPalette.on_primary_container;
             }
 
             MaterialText {
@@ -35,26 +61,44 @@ export component RecommendationCard inherits Rectangle {
                 wrap: word_wrap;
                 overflow: clip;
                 style: MaterialTypography.title_large;
+                font_weight: MaterialTypography.medium;
                 color: MaterialPalette.on_primary_container;
             }
 
             if App.card.item.path != "": MaterialText {
                 text: App.card.item.path;
-                style: MaterialTypography.body_small;
-                color: MaterialPalette.on_primary_container;
-            }
-
-            for reason in App.card.reasons: MaterialText {
-                text: "· " + Labels.reason(reason);
                 style: MaterialTypography.body_medium;
                 color: MaterialPalette.on_primary_container;
             }
 
+            for reason in App.card.reasons: HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+
+                VerticalLayout {
+                    alignment: center;
+
+                    Rectangle {
+                        width: MaterialStyleMetrics.size_6;
+                        height: MaterialStyleMetrics.size_6;
+                        border_radius: MaterialStyleMetrics.size_3;
+                        background: MaterialPalette.on_primary_container;
+                    }
+                }
+
+                MaterialText {
+                    text: Labels.reason(reason);
+                    style: MaterialTypography.body_medium;
+                    color: MaterialPalette.on_primary_container;
+                }
+            }
+
             HorizontalLayout {
+                alignment: start;
                 spacing: MaterialStyleMetrics.spacing_8;
                 padding_top: MaterialStyleMetrics.padding_8;
 
                 if App.card.kind == CardKind.item: FilledButton {
+                    icon: AppIcons.play_arrow;
                     text: @tr("Start");
 
                     clicked => {
@@ -63,6 +107,7 @@ export component RecommendationCard inherits Rectangle {
                 }
 
                 if App.card.kind == CardKind.break_down: FilledButton {
+                    icon: AppIcons.call_split;
                     text: @tr("Split");
 
                     clicked => {
@@ -71,6 +116,7 @@ export component RecommendationCard inherits Rectangle {
                 }
 
                 TonalButton {
+                    icon: AppIcons.skip_next;
                     text: @tr("Skip");
 
                     clicked => {
@@ -91,16 +137,23 @@ export component RecommendationCard inherits Rectangle {
         if App.card.kind == CardKind.review: VerticalLayout {
             spacing: MaterialStyleMetrics.spacing_8;
 
+            Overline {
+                icon: AppIcons.rate_review;
+                text: @tr("Weekly review");
+            }
+
             MaterialText {
                 text: App.card.since != "" ? @tr("The weekly review is due (last: {})", App.card.since) : @tr("The weekly review is due");
                 wrap: word_wrap;
                 overflow: clip;
-                style: MaterialTypography.title_medium;
+                style: MaterialTypography.title_large;
                 color: MaterialPalette.on_primary_container;
             }
 
             HorizontalLayout {
+                alignment: start;
                 spacing: MaterialStyleMetrics.spacing_8;
+                padding_top: MaterialStyleMetrics.padding_8;
 
                 FilledButton {
                     text: @tr("Start review");
@@ -111,6 +164,7 @@ export component RecommendationCard inherits Rectangle {
                 }
 
                 TonalButton {
+                    icon: AppIcons.skip_next;
                     text: @tr("Skip");
 
                     clicked => {
@@ -123,16 +177,23 @@ export component RecommendationCard inherits Rectangle {
         if App.card.kind == CardKind.triage: VerticalLayout {
             spacing: MaterialStyleMetrics.spacing_8;
 
+            Overline {
+                icon: AppIcons.inbox;
+                text: @tr("Inbox");
+            }
+
             MaterialText {
                 text: @tr("{} thoughts are waiting in the inbox", App.card.inbox);
                 wrap: word_wrap;
                 overflow: clip;
-                style: MaterialTypography.title_medium;
+                style: MaterialTypography.title_large;
                 color: MaterialPalette.on_primary_container;
             }
 
             HorizontalLayout {
+                alignment: start;
                 spacing: MaterialStyleMetrics.spacing_8;
+                padding_top: MaterialStyleMetrics.padding_8;
 
                 FilledButton {
                     text: @tr("Triage");
@@ -143,6 +204,7 @@ export component RecommendationCard inherits Rectangle {
                 }
 
                 TonalButton {
+                    icon: AppIcons.skip_next;
                     text: @tr("Skip");
 
                     clicked => {
@@ -155,9 +217,14 @@ export component RecommendationCard inherits Rectangle {
         if App.card.kind == CardKind.empty: VerticalLayout {
             spacing: MaterialStyleMetrics.spacing_4;
 
+            Overline {
+                icon: AppIcons.task_alt;
+                text: @tr("All clear");
+            }
+
             MaterialText {
                 text: @tr("Nothing to do here");
-                style: MaterialTypography.title_medium;
+                style: MaterialTypography.title_large;
                 color: MaterialPalette.on_primary_container;
             }
 

@@ -1,0 +1,33 @@
+import { Icon, MaterialPalette, MaterialStyleMetrics } from "@material";
+
+// A tinted card with a leading icon; children set their own colors to `tone_foreground`.
+export component InfoCard inherits Rectangle {
+    in property <image> icon;
+    in property <color> tone_background: MaterialPalette.secondary_container;
+    in property <color> tone_foreground: MaterialPalette.on_secondary_container;
+
+    background: root.tone_background;
+    border_radius: MaterialStyleMetrics.border_radius_16;
+
+    HorizontalLayout {
+        padding: MaterialStyleMetrics.padding_16;
+        spacing: MaterialStyleMetrics.spacing_16;
+
+        VerticalLayout {
+            alignment: start;
+
+            Icon {
+                source: root.icon;
+                width: MaterialStyleMetrics.icon_size_24;
+                colorize: root.tone_foreground;
+            }
+        }
+
+        VerticalLayout {
+            horizontal_stretch: 1;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            @children
+        }
+    }
+}

@@ -6,7 +6,6 @@ import {
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     TextButton,
     TextField,
     TonalButton,
@@ -18,8 +17,9 @@ import { AbandonDialog } from "../components/abandon_dialog.slint";
 import { BarChart } from "../components/bar_chart.slint";
 import { ChoiceRow } from "../components/choice_row.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
 import { ItemTile } from "../components/item_tile.slint";
-import { SectionHeader } from "../components/section_header.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
 import { WeekChart } from "../components/week_chart.slint";
 
@@ -65,42 +65,45 @@ export component ReviewPage inherits Rectangle {
         return @tr("7 · Conclusion");
     }
 
-    ScrollView {
-        width: 100%;
-        height: 100%;
+    PageScroll {
+        PageHeader {
+            title: @tr("Weekly review");
+            subtitle: (App.review.since != "" ? @tr("Since {}", App.review.since) : @tr("Since the beginning")) + (App.review.due ? " · " + @tr("A review is due") : "");
+        }
 
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
-            spacing: MaterialStyleMetrics.spacing_8;
+        ChoiceRow {
+            options: [@tr("Full"), @tr("Minimal")];
+            current: root.mode_index;
 
-            MaterialText {
-                text: App.review.since != "" ? @tr("Since {}", App.review.since) : @tr("Since the beginning");
-                style: MaterialTypography.title_medium;
+            chosen(index) => {
+                App.review_minimal = index == 1;
+                root.position = 0;
             }
+        }
 
-            if App.review.due: MaterialText {
-                text: @tr("A review is due");
-                style: MaterialTypography.label_large;
-                color: MaterialPalette.primary;
+        HorizontalLayout {
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            for i in root.count(): Rectangle {
+                horizontal_stretch: 1;
+                height: MaterialStyleMetrics.size_4;
+                border_radius: MaterialStyleMetrics.size_2;
+                background: i <= root.position ? MaterialPalette.primary : MaterialPalette.surface_container_highest;
             }
+        }
 
-            ChoiceRow {
-                options: [@tr("Full"), @tr("Minimal")];
-                current: root.mode_index;
+        MaterialText {
+            text: root.step_title();
+            style: MaterialTypography.title_large;
+        }
 
-                chosen(index) => {
-                    App.review_minimal = index == 1;
-                    root.position = 0;
-                }
-            }
+        // Step 1: progress and project completion.
+        if root.step() == 1: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
 
-            SectionHeader {
-                text: root.step_title();
-            }
-
-            // Step 1: progress and project completion.
-            if root.step() == 1: VerticalLayout {
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_4;
 
                 if App.review.completed.length == 0: MaterialText {
@@ -153,9 +156,15 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            // Step 2: time allocation against targets, and interruptions.
-            if root.step() == 2: VerticalLayout {
+        // Step 2: time allocation against targets, and interruptions.
+        if root.step() == 2: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_8;
 
                 for t in App.review.time: VerticalLayout {
@@ -191,9 +200,15 @@ export component ReviewPage inherits Rectangle {
                     style: MaterialTypography.body_small;
                 }
             }
+        }
 
-            // Step 3: habit strength.
-            if root.step() == 3: VerticalLayout {
+        // Step 3: habit strength.
+        if root.step() == 3: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_8;
 
                 for t in App.review.habits: VerticalLayout {
@@ -212,8 +227,12 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
 
-                if App.review.ready.length > 0: SectionHeader {
+                if App.review.ready.length > 0: MaterialText {
                     text: @tr("Ready to graduate");
+                    vertical_alignment: center;
+                    min_height: MaterialStyleMetrics.size_40;
+                    color: MaterialPalette.primary;
+                    style: MaterialTypography.title_small;
                 }
 
                 for r in App.review.ready: HorizontalLayout {
@@ -237,8 +256,12 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
 
-                if App.review.graduated.length > 0: SectionHeader {
+                if App.review.graduated.length > 0: MaterialText {
                     text: @tr("Graduated (spot check)");
+                    vertical_alignment: center;
+                    min_height: MaterialStyleMetrics.size_40;
+                    color: MaterialPalette.primary;
+                    style: MaterialTypography.title_small;
                 }
 
                 for r in App.review.graduated: HorizontalLayout {
@@ -262,9 +285,15 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            // Step 4: calibration.
-            if root.step() == 4: VerticalLayout {
+        // Step 4: calibration.
+        if root.step() == 4: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_8;
 
                 MaterialText {
@@ -290,9 +319,15 @@ export component ReviewPage inherits Rectangle {
                     style: MaterialTypography.body_medium;
                 }
             }
+        }
 
-            // Step 5: backlog decisions.
-            if root.step() == 5: VerticalLayout {
+        // Step 5: backlog decisions.
+        if root.step() == 5: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_4;
 
                 if root.action_error != "": MaterialText {
@@ -399,6 +434,7 @@ export component ReviewPage inherits Rectangle {
                 }
 
                 for e in App.review.inbox: HorizontalLayout {
+                    alignment: start;
                     spacing: MaterialStyleMetrics.spacing_8;
 
                     MaterialText {
@@ -424,9 +460,15 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            // Step 6: notes of the window.
-            if root.step() == 6: VerticalLayout {
+        // Step 6: notes of the window.
+        if root.step() == 6: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_4;
 
                 if App.review.notes.length == 0: MaterialText {
@@ -441,9 +483,15 @@ export component ReviewPage inherits Rectangle {
                     style: MaterialTypography.body_medium;
                 }
             }
+        }
 
-            // Step 7: conclusion and next week's focus.
-            if root.step() == 7: VerticalLayout {
+        // Step 7: conclusion and next week's focus.
+        if root.step() == 7: Rectangle {
+            background: MaterialPalette.surface_container;
+            border_radius: MaterialStyleMetrics.border_radius_16;
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
                 spacing: MaterialStyleMetrics.spacing_8;
 
                 TextField {
@@ -510,26 +558,28 @@ export component ReviewPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            HorizontalLayout {
-                spacing: MaterialStyleMetrics.spacing_8;
+        HorizontalLayout {
+            spacing: MaterialStyleMetrics.spacing_8;
 
-                TonalButton {
-                    text: @tr("Back");
-                    enabled: root.position > 0;
+            TextButton {
+                icon: AppIcons.arrow_back;
+                text: @tr("Back");
+                enabled: root.position > 0;
 
-                    clicked => {
-                        root.position -= 1;
-                    }
+                clicked => {
+                    root.position -= 1;
                 }
+            }
 
-                TonalButton {
-                    text: @tr("Next");
-                    enabled: root.position < root.count() - 1;
+            Rectangle { }
 
-                    clicked => {
-                        root.position += 1;
-                    }
+            if root.position < root.count() - 1: FilledButton {
+                text: @tr("Next");
+
+                clicked => {
+                    root.position += 1;
                 }
             }
         }

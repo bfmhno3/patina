@@ -1,24 +1,29 @@
 import {
-    FilledButton,
+    CircularProgressIndicator,
+    Icon,
     IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
     PopupMenu,
-    TonalButton,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
-import { HabitKindUi, HabitRow } from "../types.slint";
-import { Tile } from "tile.slint";
+import { FrequencyUi, HabitKindUi, HabitRow } from "../types.slint";
 
-// One habit: strength bar, today's progress, primary action by kind, overflow menu.
+// One habit: progress ring with the primary action by kind, strength, overflow menu.
 export component HabitTile inherits Rectangle {
     in property <HabitRow> data;
 
     callback check_in_requested(kind: HabitKindUi);
     callback skip_requested(kind: HabitKindUi);
     callback edit_requested();
+
+    in property <bool> divider;
+    // Also show the frequency and weekdays.
+    in property <bool> detailed;
 
     min_height: MaterialStyleMetrics.size_72;
 
@@ -38,36 +43,126 @@ export component HabitTile inherits Rectangle {
     }
 
     HorizontalLayout {
-        tile := Tile {
-            text: root.data.name;
-            supporting_text: root.data.identity + " · " + root.progress() + " · " + @tr("strength {}%", Math.round(root.data.strength * 100)) + " · " + Labels.habit_stage(root.data.stage) + (root.data.ready ? " · " + @tr("ready to graduate") : "");
+        padding_left: MaterialStyleMetrics.padding_8;
+        padding_right: MaterialStyleMetrics.padding_8;
+        padding_top: MaterialStyleMetrics.padding_8;
+        padding_bottom: MaterialStyleMetrics.padding_8;
+        spacing: MaterialStyleMetrics.spacing_8;
 
-            if !root.off && root.data.kind == HabitKindUi.check && root.data.value < 1: IconButton {
-                icon: AppIcons.check;
-                tooltip: @tr("Check in");
+        // Leading slot: progress ring with the primary action on top.
+        Rectangle {
+            width: MaterialStyleMetrics.size_48;
 
-                clicked => {
-                    App.check_in(root.data.id, 0, -1, "");
-                }
+            CircularProgressIndicator {
+                height: MaterialStyleMetrics.size_40;
+                progress: root.data.week_target > 0 && root.data.kind == HabitKindUi.check ? min(root.data.week_value / root.data.week_target, 1) : min(root.data.value, 1);
             }
 
-            if !root.off && root.data.kind == HabitKindUi.count: IconButton {
-                icon: AppIcons.add;
-                tooltip: @tr("Check in");
-
-                clicked => {
-                    root.check_in_requested(root.data.kind);
-                }
+            if root.data.paused: Icon {
+                source: AppIcons.pause;
+                width: MaterialStyleMetrics.icon_size_18;
+                colorize: MaterialPalette.on_surface_variant;
             }
 
-            if !root.off && root.data.kind == HabitKindUi.duration: IconButton {
-                icon: AppIcons.play_arrow;
-                tooltip: @tr("Start timer");
+            if !root.data.paused && root.data.stage == "graduated": Icon {
+                source: AppIcons.star;
+                width: MaterialStyleMetrics.icon_size_18;
+                colorize: MaterialPalette.tertiary;
+            }
+
+            if !root.data.paused && root.data.stage != "graduated" && root.data.kind == HabitKindUi.check: Icon {
+                source: AppIcons.check;
+                width: MaterialStyleMetrics.icon_size_18;
+                colorize: root.data.value >= 1 ? MaterialPalette.primary : MaterialPalette.on_surface_variant;
+            }
+
+            if !root.data.paused && root.data.stage != "graduated" && root.data.kind == HabitKindUi.count: Icon {
+                source: AppIcons.add;
+                width: MaterialStyleMetrics.icon_size_18;
+                colorize: MaterialPalette.on_surface_variant;
+            }
+
+            if !root.data.paused && root.data.stage != "graduated" && root.data.kind == HabitKindUi.duration: Icon {
+                source: AppIcons.play_arrow;
+                width: MaterialStyleMetrics.icon_size_18;
+                colorize: MaterialPalette.on_surface_variant;
+            }
+
+            TouchArea {
+                enabled: !root.off && !(root.data.kind == HabitKindUi.check && root.data.value >= 1);
 
                 clicked => {
-                    App.start_habit_timer(root.data.id);
+                    if root.data.kind == HabitKindUi.check {
+                        App.check_in(root.data.id, 0, -1, "");
+                    } else if root.data.kind == HabitKindUi.count {
+                        root.check_in_requested(root.data.kind);
+                    } else {
+                        App.start_habit_timer(root.data.id);
+                    }
                 }
             }
+        }
+
+        text_column := VerticalLayout {
+            horizontal_stretch: 1;
+            alignment: center;
+            spacing: MaterialStyleMetrics.spacing_2;
+
+            MaterialText {
+                text: root.data.name;
+                overflow: elide;
+                style: MaterialTypography.body_large;
+            }
+
+            MaterialText {
+                text: root.progress() + " · " + root.data.identity + (root.detailed ? " · " + (root.data.frequency == FrequencyUi.daily ? @tr("Every day") : root.data.frequency == FrequencyUi.weekly ? @tr("{} times a week", root.data.times) : @tr("On specific weekdays")) : "") + (root.data.ready ? " · " + @tr("ready to graduate") : "");
+                overflow: elide;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.body_medium;
+            }
+
+            if root.detailed && root.data.days.length > 0: HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_4;
+
+                for day in root.data.days: Rectangle {
+                    border_radius: MaterialStyleMetrics.border_radius_4;
+                    background: MaterialPalette.surface_container_highest;
+
+                    HorizontalLayout {
+                        padding_left: MaterialStyleMetrics.padding_6;
+                        padding_right: MaterialStyleMetrics.padding_6;
+                        padding_top: MaterialStyleMetrics.spacing_2;
+                        padding_bottom: MaterialStyleMetrics.spacing_2;
+
+                        MaterialText {
+                            text: Labels.weekday(day);
+                            style: MaterialTypography.label_small;
+                        }
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            MaterialText {
+                text: @tr("{}%", Math.round(root.data.strength * 100));
+                horizontal_alignment: right;
+                color: MaterialPalette.primary;
+                style: MaterialTypography.title_small;
+            }
+
+            MaterialText {
+                text: Labels.habit_stage(root.data.stage);
+                horizontal_alignment: right;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.label_small;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
 
             IconButton {
                 icon: AppIcons.more_vert;
@@ -80,13 +175,12 @@ export component HabitTile inherits Rectangle {
         }
     }
 
-    // Strength bar along the bottom edge of the row.
-    Rectangle {
-        y: parent.height - self.height;
-        height: MaterialStyleMetrics.size_2;
-        width: parent.width * root.data.strength;
-        x: 0;
-        background: MaterialPalette.primary;
+    if root.divider: Rectangle {
+        x: text_column.x;
+        y: 0;
+        width: root.width - self.x;
+        height: MaterialStyleMetrics.size_1;
+        background: MaterialPalette.outline_variant;
     }
 
     menu := PopupMenu {

@@ -1,0 +1,33 @@
+import {
+    Icon,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+// A small icon and text in a tone color, for dates and waiting state.
+export component MetaTag inherits HorizontalLayout {
+    in property <image> icon;
+    in property <string> text;
+    in property <color> tone;
+
+    spacing: MaterialStyleMetrics.spacing_4;
+
+    VerticalLayout {
+        alignment: center;
+
+        Icon {
+            source: root.icon;
+            width: MaterialStyleMetrics.size_16;
+            colorize: root.tone;
+        }
+    }
+
+    MaterialText {
+        text: root.text;
+        overflow: elide;
+        vertical_alignment: center;
+        color: root.tone;
+        style: MaterialTypography.label_large;
+    }
+}

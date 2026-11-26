@@ -2,21 +2,24 @@ import {
     CheckBox,
     CheckState,
     FilledButton,
+    Icon,
     IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     TextButton,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
+import { EmptyState } from "../components/empty_state.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
 import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
+import { Section } from "../components/section.slint";
 import { PickerPurpose } from "../types.slint";
-import { SectionHeader } from "../components/section_header.slint";
 import { Tile } from "../components/tile.slint";
 
 export component InboxPage inherits Rectangle {
@@ -24,45 +27,62 @@ export component InboxPage inherits Rectangle {
     property <string> error;
     property <string> proposal_error;
 
-    ScrollView {
-        width: 100%;
-        height: 100%;
+    PageScroll {
+        PageHeader {
+            title: @tr("Inbox");
+            subtitle: App.inbox.length > 0 ? @tr("{} to triage", App.inbox.length) : "";
+        }
 
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
-            spacing: MaterialStyleMetrics.spacing_4;
+        if root.proposal_error != "": MaterialText {
+            text: root.proposal_error;
+            wrap: word_wrap;
+            overflow: clip;
+            color: MaterialPalette.error;
+            style: MaterialTypography.body_medium;
+        }
 
-            if App.proposals.length > 0: SectionHeader {
-                text: @tr("Proposals");
-            }
+        if App.proposals.length > 0: Section {
+            title: @tr("Proposals");
 
-            if root.proposal_error != "": MaterialText {
-                text: root.proposal_error;
-                wrap: word_wrap;
-                overflow: clip;
-                color: MaterialPalette.error;
-                style: MaterialTypography.body_medium;
-            }
-
-            for p in App.proposals: Rectangle {
-                background: MaterialPalette.surface_container;
-                border_radius: MaterialStyleMetrics.border_radius_12;
+            for p[i] in App.proposals: VerticalLayout {
+                if i > 0: Rectangle {
+                    height: MaterialStyleMetrics.size_1;
+                    background: MaterialPalette.outline_variant;
+                }
 
                 VerticalLayout {
                     padding: MaterialStyleMetrics.padding_16;
                     spacing: MaterialStyleMetrics.spacing_8;
 
-                    MaterialText {
-                        text: p.summary;
-                        wrap: word_wrap;
-                        overflow: clip;
-                        style: MaterialTypography.title_medium;
-                    }
+                    HorizontalLayout {
+                        spacing: MaterialStyleMetrics.spacing_12;
 
-                    MaterialText {
-                        text: p.source + " · " + p.submitted;
-                        style: MaterialTypography.body_small;
+                        VerticalLayout {
+                            alignment: start;
+
+                            Icon {
+                                source: AppIcons.smart_toy;
+                                width: MaterialStyleMetrics.icon_size_24;
+                                colorize: MaterialPalette.primary;
+                            }
+                        }
+
+                        VerticalLayout {
+                            horizontal_stretch: 1;
+
+                            MaterialText {
+                                text: p.summary;
+                                wrap: word_wrap;
+                                overflow: clip;
+                                style: MaterialTypography.title_medium;
+                            }
+
+                            MaterialText {
+                                text: p.source + " · " + p.submitted;
+                                color: MaterialPalette.on_surface_variant;
+                                style: MaterialTypography.body_small;
+                            }
+                        }
                     }
 
                     for u in p.units: HorizontalLayout {
@@ -140,20 +160,19 @@ export component InboxPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            if App.inbox.length == 0: MaterialText {
-                text: @tr("The inbox is empty. Capture a thought above.");
-                style: MaterialTypography.body_large;
-            }
+        if root.error != "": MaterialText {
+            text: root.error;
+            wrap: word_wrap;
+            overflow: clip;
+            style: MaterialTypography.body_medium;
+        }
 
-            if root.error != "": MaterialText {
-                text: root.error;
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            for entry in App.inbox: Tile {
+        if App.inbox.length > 0: Section {
+            for entry[i] in App.inbox: Tile {
+                leading_icon: AppIcons.lightbulb;
+                divider: i > 0;
                 text: entry.text;
                 supporting_text: entry.captured + (entry.identity_hint != "" ? " · " + entry.identity_hint : "");
 
@@ -185,6 +204,12 @@ export component InboxPage inherits Rectangle {
                     }
                 }
             }
+        }
+
+        if App.inbox.length == 0: EmptyState {
+            icon: AppIcons.inbox;
+            title: @tr("Inbox zero");
+            text: @tr("The inbox is empty. Capture a thought above.");
         }
     }
 

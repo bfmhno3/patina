@@ -1,0 +1,41 @@
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+export component EmptyState inherits VerticalLayout {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> text;
+
+    alignment: center;
+    padding: MaterialStyleMetrics.padding_30;
+    spacing: MaterialStyleMetrics.spacing_8;
+
+    HorizontalLayout {
+        alignment: center;
+
+        Icon {
+            source: root.icon;
+            width: MaterialStyleMetrics.size_48;
+            colorize: MaterialPalette.on_surface_variant;
+        }
+    }
+
+    MaterialText {
+        text: root.title;
+        horizontal_alignment: center;
+        style: MaterialTypography.title_medium;
+    }
+
+    if root.text != "": MaterialText {
+        text: root.text;
+        horizontal_alignment: center;
+        wrap: word_wrap;
+        color: MaterialPalette.on_surface_variant;
+        style: MaterialTypography.body_medium;
+    }
+}

@@ -1,8 +1,7 @@
 import {
     IconButton,
+    MaterialPalette,
     MaterialStyleMetrics,
-    MaterialText,
-    MaterialTypography,
     MaterialWindow,
     NavigationBar,
     NavigationItem,
@@ -16,6 +15,7 @@ import { CaptureBar } from "components/capture_bar.slint";
 import { ModeDialog } from "components/mode_dialog.slint";
 import { NoticeBar } from "components/notice_bar.slint";
 import { StatusStrip } from "components/status_strip.slint";
+import { Theme } from "theme.slint";
 import { TimeCorrectionDialog } from "components/time_correction_dialog.slint";
 import { HabitsPage } from "pages/habits_page.slint";
 import { InboxPage } from "pages/inbox_page.slint";
@@ -39,7 +39,8 @@ export component MainWindow inherits MaterialWindow {
     preferred_height: 720px;
     min_width: 360px;
 
-    property <bool> wide: App.window_width >= 600px;
+    property <bool> two_pane: App.two_pane;
+    property <bool> full_detail: App.detail_open && !App.two_pane;
     property <int> prompt_seq: App.prompt.seq;
     property <int> notice_seq: App.notice.seq;
     property <[NavigationItem]> nav_items: [
@@ -81,6 +82,7 @@ export component MainWindow inherits MaterialWindow {
     ];
 
     init => {
+        MaterialPalette.schemes = Theme.schemes;
         App.window_width = root.width;
         App.window_height = root.height;
     }
@@ -91,6 +93,10 @@ export component MainWindow inherits MaterialWindow {
 
     changed height => {
         App.window_height = root.height;
+    }
+
+    changed two_pane => {
+        App.refresh();
     }
 
     changed prompt_seq => {
@@ -106,7 +112,7 @@ export component MainWindow inherits MaterialWindow {
     }
 
     HorizontalLayout {
-        if root.wide: NavigationRail {
+        if App.wide: NavigationRail {
             alignment: start;
             horizontal_stretch: 0;
             items: root.nav_items;
@@ -120,54 +126,88 @@ export component MainWindow inherits MaterialWindow {
         VerticalLayout {
             horizontal_stretch: 1;
 
+            // When wide, the rail already gives the left margin.
+            VerticalLayout {
+                padding_left: App.wide ? 0px : MaterialStyleMetrics.padding_16;
+                padding_right: MaterialStyleMetrics.padding_16;
+
+                HorizontalLayout {
+                    min_height: MaterialStyleMetrics.size_64;
+                    padding_top: MaterialStyleMetrics.padding_8;
+                    padding_bottom: MaterialStyleMetrics.padding_8;
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    CaptureBar {
+                        horizontal_stretch: 1;
+                        max_width: MaterialStyleMetrics.size_640;
+                    }
+
+                    if App.wide: Rectangle { }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TonalButton {
+                            icon: AppIcons.person;
+                            text: App.mode_label != "" ? App.mode_label : @tr("Away");
+
+                            clicked => {
+                                mode_dialog.open();
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        IconButton {
+                            icon: AppIcons.settings;
+                            tooltip: @tr("Settings");
+
+                            clicked => {
+                                App.open_settings();
+                            }
+                        }
+                    }
+                }
+
+                StatusStrip { }
+            }
+
             HorizontalLayout {
-                padding: MaterialStyleMetrics.padding_8;
-                spacing: MaterialStyleMetrics.spacing_8;
-
-                MaterialText {
-                    text: @tr("Patina");
-                    vertical_alignment: center;
-                    style: MaterialTypography.title_large;
-                }
-
-                Rectangle { }
-
-                TonalButton {
-                    text: App.mode_label != "" ? App.mode_label : @tr("Away");
-
-                    clicked => {
-                        mode_dialog.open();
-                    }
-                }
-
-                IconButton {
-                    icon: AppIcons.settings;
-                    tooltip: @tr("Settings");
-
-                    clicked => {
-                        App.open_settings();
-                    }
-                }
-            }
-
-            CaptureBar { }
-
-            StatusStrip { }
-
-            Rectangle {
                 vertical_stretch: 1;
+                padding_right: App.wide ? MaterialStyleMetrics.padding_16 : 0px;
+                padding_bottom: App.wide ? MaterialStyleMetrics.padding_16 : 0px;
+                spacing: MaterialStyleMetrics.padding_16;
 
-                if App.detail_open: ItemPage { }
-                if !App.detail_open && App.graph_open: GraphPage { }
-                if !App.detail_open && !App.graph_open && App.settings_open: SettingsPage { }
-                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 0: TodayPage { }
-                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 1: InboxPage { }
-                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 2: ProjectsPage { }
-                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 3: HabitsPage { }
-                if !App.detail_open && !App.graph_open && !App.settings_open && App.page == 4: ReviewPage { }
+                // Exactly one page: detail (narrow), graph, settings, then the current tab.
+                Rectangle {
+                    horizontal_stretch: 1;
+                    background: App.wide ? MaterialPalette.surface_container_low : transparent;
+                    border_radius: App.wide ? MaterialStyleMetrics.border_radius_16 : 0px;
+                    clip: true;
+
+                    if root.full_detail: ItemPage { }
+                    if !root.full_detail && App.graph_open: GraphPage { }
+                    if !root.full_detail && !App.graph_open && App.settings_open: SettingsPage { }
+                    if !root.full_detail && !App.graph_open && !App.settings_open && App.page == 0: TodayPage { }
+                    if !root.full_detail && !App.graph_open && !App.settings_open && App.page == 1: InboxPage { }
+                    if !root.full_detail && !App.graph_open && !App.settings_open && App.page == 2: ProjectsPage { }
+                    if !root.full_detail && !App.graph_open && !App.settings_open && App.page == 3: HabitsPage { }
+                    if !root.full_detail && !App.graph_open && !App.settings_open && App.page == 4: ReviewPage { }
+                }
+
+                if App.detail_open && App.two_pane: Rectangle {
+                    horizontal_stretch: 1;
+                    background: MaterialPalette.surface_container_low;
+                    border_radius: MaterialStyleMetrics.border_radius_16;
+                    clip: true;
+
+                    ItemPage { }
+                }
             }
 
-            if !root.wide: NavigationBar {
+            if !App.wide: NavigationBar {
                 items: root.nav_items;
                 current_index <=> App.page;
 

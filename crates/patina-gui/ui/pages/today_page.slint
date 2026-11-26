@@ -1,12 +1,11 @@
 import {
     FilledButton,
-    IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
-    ScrollView,
     TextButton,
+    VerticalDivider,
 } from "@material";
 import { App } from "../app.slint";
 import { Labels } from "../labels.slint";
@@ -16,97 +15,94 @@ import { CheckInDialog } from "../components/check_in_dialog.slint";
 import { ChoiceRow } from "../components/choice_row.slint";
 import { HabitFormDialog } from "../components/habit_form_dialog.slint";
 import { HabitTile } from "../components/habit_tile.slint";
+import { InfoCard } from "../components/info_card.slint";
 import { ItemTile } from "../components/item_tile.slint";
+import { MetaTag } from "../components/meta_tag.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
 import { RecommendationCard } from "../components/recommendation_card.slint";
-import { SectionHeader } from "../components/section_header.slint";
+import { Section } from "../components/section.slint";
 
 export component TodayPage inherits Rectangle {
     property <bool> actionable_open;
     property <string> scope_text: @tr("Mode");
 
-    ScrollView {
-        width: 100%;
-        height: 100%;
+    PageScroll {
+        PageHeader {
+            title: @tr("Today");
+            subtitle: App.today.today;
+        }
 
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
+        if !App.today.has_identities: InfoCard {
+            icon: AppIcons.lightbulb;
+
+            MaterialText {
+                text: @tr("Welcome to Patina. Start with the default identities: work, life, study.");
+                wrap: word_wrap;
+                overflow: clip;
+                color: MaterialPalette.on_secondary_container;
+                style: MaterialTypography.body_large;
+            }
+
+            HorizontalLayout {
+                alignment: start;
+
+                FilledButton {
+                    text: @tr("Create default identities");
+
+                    clicked => {
+                        App.init_identities();
+                    }
+                }
+            }
+        }
+
+        if App.today.suggestion.identity != "": InfoCard {
+            icon: AppIcons.person;
+
+            MaterialText {
+                text: @tr("You are usually in {} at this time on {} ({} of {} days). Switch now?", App.today.suggestion.identity, App.today.suggestion.weekend ? @tr("weekends") : @tr("weekdays"), App.today.suggestion.matches, App.today.suggestion.samples);
+                wrap: word_wrap;
+                overflow: clip;
+                color: MaterialPalette.on_secondary_container;
+                style: MaterialTypography.body_large;
+            }
+
+            if App.today.suggestion.below_target >= 0: MaterialText {
+                text: @tr("{} is {} below this week's target.", App.today.suggestion.identity, Labels.minutes(App.today.suggestion.below_target));
+                wrap: word_wrap;
+                overflow: clip;
+                color: MaterialPalette.on_secondary_container;
+                style: MaterialTypography.body_medium;
+            }
+
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
+                alignment: end;
+
+                TextButton {
+                    text: @tr("Not now");
+
+                    clicked => {
+                        App.dismiss_suggestion(App.today.suggestion.identity);
+                    }
+                }
+
+                FilledButton {
+                    text: @tr("Switch");
+
+                    clicked => {
+                        App.switch_mode(App.today.suggestion.identity);
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
             spacing: MaterialStyleMetrics.spacing_8;
 
-            if !App.today.has_identities: Rectangle {
-                background: MaterialPalette.secondary_container;
-                border_radius: MaterialStyleMetrics.border_radius_12;
-
-                onboarding := VerticalLayout {
-                    padding: MaterialStyleMetrics.padding_16;
-                    spacing: MaterialStyleMetrics.spacing_8;
-
-                    MaterialText {
-                        text: @tr("Welcome to Patina. Start with the default identities: work, life, study.");
-                        wrap: word_wrap;
-                        overflow: clip;
-                        color: MaterialPalette.on_secondary_container;
-                        style: MaterialTypography.body_large;
-                    }
-
-                    FilledButton {
-                        text: @tr("Create default identities");
-
-                        clicked => {
-                            App.init_identities();
-                        }
-                    }
-                }
-            }
-
-            if App.today.suggestion.identity != "": Rectangle {
-                background: MaterialPalette.secondary_container;
-                border_radius: MaterialStyleMetrics.border_radius_12;
-
-                VerticalLayout {
-                    padding: MaterialStyleMetrics.padding_16;
-                    spacing: MaterialStyleMetrics.spacing_8;
-
-                    MaterialText {
-                        text: @tr("You are usually in {} at this time on {} ({} of {} days). Switch now?", App.today.suggestion.identity, App.today.suggestion.weekend ? @tr("weekends") : @tr("weekdays"), App.today.suggestion.matches, App.today.suggestion.samples);
-                        wrap: word_wrap;
-                        overflow: clip;
-                        color: MaterialPalette.on_secondary_container;
-                        style: MaterialTypography.body_large;
-                    }
-
-                    if App.today.suggestion.below_target >= 0: MaterialText {
-                        text: @tr("{} is {} below this week's target.", App.today.suggestion.identity, Labels.minutes(App.today.suggestion.below_target));
-                        wrap: word_wrap;
-                        overflow: clip;
-                        color: MaterialPalette.on_secondary_container;
-                        style: MaterialTypography.body_medium;
-                    }
-
-                    HorizontalLayout {
-                        spacing: MaterialStyleMetrics.spacing_8;
-                        alignment: end;
-
-                        TextButton {
-                            text: @tr("Not now");
-
-                            clicked => {
-                                App.dismiss_suggestion(App.today.suggestion.identity);
-                            }
-                        }
-
-                        FilledButton {
-                            text: @tr("Switch");
-
-                            clicked => {
-                                App.switch_mode(App.today.suggestion.identity);
-                            }
-                        }
-                    }
-                }
-            }
-
             ChoiceRow {
+                horizontal_stretch: 0;
                 options: [@tr("Mode"), @tr("All")];
                 by_value: true;
                 value <=> root.scope_text;
@@ -116,7 +112,16 @@ export component TodayPage inherits Rectangle {
                 }
             }
 
+            VerticalLayout {
+                alignment: center;
+
+                VerticalDivider {
+                    height: MaterialStyleMetrics.size_24;
+                }
+            }
+
             ChoiceRow {
+                horizontal_stretch: 1;
                 options: App.identities;
                 by_value: true;
                 value <=> root.scope_text;
@@ -125,31 +130,37 @@ export component TodayPage inherits Rectangle {
                     App.set_scope(2, App.identities[index]);
                 }
             }
+        }
 
-            RecommendationCard { }
+        RecommendationCard { }
 
-            if App.today.needs_decision.length > 0: SectionHeader {
-                text: @tr("Needs decision");
-            }
+        if App.today.needs_decision.length > 0: Section {
+            title: @tr("Needs decision");
 
-            for decision in App.today.needs_decision: VerticalLayout {
+            for decision[i] in App.today.needs_decision: VerticalLayout {
                 ItemTile {
                     data: decision.item;
                     actions: false;
+                    divider: i > 0;
 
                     clicked => {
                         App.open_item(decision.item.id);
                     }
                 }
 
-                for gone in decision.abandoned: MaterialText {
-                    text: @tr("Abandoned prerequisite: {}", gone.title);
-                    style: MaterialTypography.body_small;
-                    color: MaterialPalette.error;
+                for gone in decision.abandoned: HorizontalLayout {
+                    padding_left: MaterialStyleMetrics.padding_16 + MaterialStyleMetrics.size_48;
+
+                    MetaTag {
+                        icon: AppIcons.block;
+                        text: @tr("Abandoned prerequisite: {}", gone.title);
+                        tone: MaterialPalette.error;
+                    }
                 }
 
                 HorizontalLayout {
                     alignment: end;
+                    padding_right: MaterialStyleMetrics.padding_8;
 
                     TextButton {
                         text: @tr("Unlink");
@@ -168,49 +179,53 @@ export component TodayPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            if App.today.follow_ups.length > 0: SectionHeader {
-                text: @tr("Follow up");
-            }
+        if App.today.follow_ups.length > 0: Section {
+            title: @tr("Follow up");
 
-            for r in App.today.follow_ups: ItemTile {
+            for r[i] in App.today.follow_ups: ItemTile {
                 data: r;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
                 }
             }
+        }
 
-            if App.today.deadlines.length > 0: SectionHeader {
-                text: @tr("Deadlines");
-            }
+        if App.today.deadlines.length > 0: Section {
+            title: @tr("Deadlines");
 
-            for r in App.today.deadlines: ItemTile {
+            for r[i] in App.today.deadlines: ItemTile {
                 data: r;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
                 }
             }
+        }
 
-            if App.today.scheduled.length > 0: SectionHeader {
-                text: @tr("Planned for today");
-            }
+        if App.today.scheduled.length > 0: Section {
+            title: @tr("Planned for today");
 
-            for r in App.today.scheduled: ItemTile {
+            for r[i] in App.today.scheduled: ItemTile {
                 data: r;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
                 }
             }
+        }
 
-            if App.today.habits.length > 0: SectionHeader {
-                text: @tr("Habits");
-            }
+        if App.today.habits.length > 0: Section {
+            title: @tr("Habits");
 
-            for r in App.today.habits: HabitTile {
+            for r[i] in App.today.habits: HabitTile {
                 data: r;
+                divider: i > 0;
 
                 check_in_requested(kind) => {
                     check_in.open(r.id, kind, false);
@@ -222,25 +237,22 @@ export component TodayPage inherits Rectangle {
                     habit_form.open(1, r.id, r.name, r.identity, r.cue);
                 }
             }
+        }
 
-            if App.today.actionable.length > 0: HorizontalLayout {
-                SectionHeader {
-                    text: @tr("Actionable ({})", App.today.actionable.length);
-                }
+        if App.today.actionable.length > 0: Section {
+            title: @tr("Actionable");
+            trailing_text: @tr("{}", App.today.actionable.length);
+            collapsible: true;
+            expanded: root.actionable_open;
 
-                IconButton {
-                    icon: root.actionable_open ? AppIcons.expand_less : AppIcons.expand_more;
-                    tooltip: @tr("Show or hide");
-
-                    clicked => {
-                        root.actionable_open = !root.actionable_open;
-                    }
-                }
+            toggled => {
+                root.actionable_open = !root.actionable_open;
             }
 
             if root.actionable_open: VerticalLayout {
-                for r in App.today.actionable: ItemTile {
+                for r[i] in App.today.actionable: ItemTile {
                     data: r;
+                    divider: i > 0;
 
                     clicked => {
                         App.open_item(r.id);

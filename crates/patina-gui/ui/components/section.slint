@@ -1,0 +1,72 @@
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+import { AppIcons } from "../icons.slint";
+
+// A titled card of rows. Rows add their own dividers; a collapsed caller omits its rows.
+export component Section inherits VerticalLayout {
+    in property <string> title;
+    in property <string> trailing_text;
+    in property <bool> collapsible;
+    in property <bool> expanded: true;
+
+    callback toggled();
+
+    spacing: MaterialStyleMetrics.spacing_8;
+
+    if root.title != "": Rectangle {
+        min_height: MaterialStyleMetrics.size_48;
+
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_4;
+            padding_right: MaterialStyleMetrics.padding_4;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            MaterialText {
+                text: root.title;
+                vertical_alignment: center;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.title_small;
+            }
+
+            if root.trailing_text != "": MaterialText {
+                text: root.trailing_text;
+                vertical_alignment: center;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.label_large;
+            }
+
+            Rectangle { }
+
+            if root.collapsible: VerticalLayout {
+                alignment: center;
+
+                Icon {
+                    source: root.expanded ? AppIcons.expand_less : AppIcons.expand_more;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_surface_variant;
+                }
+            }
+        }
+
+        if root.collapsible: TouchArea {
+            clicked => {
+                root.toggled();
+            }
+        }
+    }
+
+    Rectangle {
+        background: MaterialPalette.surface_container;
+        border_radius: MaterialStyleMetrics.border_radius_16;
+        clip: true;
+
+        VerticalLayout {
+            @children
+        }
+    }
+}

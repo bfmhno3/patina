@@ -1007,7 +1007,7 @@ impl Controller {
 
         // The card, only while the Today page is visible.
         let on_today = app.get_page() == 0
-            && !app.get_detail_open()
+            && (!app.get_detail_open() || app.get_two_pane())
             && !app.get_graph_open()
             && !app.get_settings_open();
         if on_today {

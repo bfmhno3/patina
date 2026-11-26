@@ -258,14 +258,10 @@ export global Labels {
         return text;
     }
 
-    // One line of context under an item title.
-    public pure function item_info(r: ItemRow) -> string {
-        return (r.path != "" ? r.path + " · " : "") + (r.identity != "" ? r.identity + " · " : "")
-            + status(r.status)
-            + (r.deadline != "" ? " · " + @tr("due {}", r.deadline) : "")
-            + (r.scheduled != "" ? " · " + @tr("planned {}", r.scheduled) : "")
-            + (r.follow_up != "" ? " · " + @tr("follow up {}", r.follow_up) : "")
-            + (r.waiting_for != "" ? " · " + @tr("waiting for {}", r.waiting_for) : "")
+    // The context line under an item title; dates and waiting state are shown as tags.
+    public pure function item_meta(r: ItemRow) -> string {
+        return (r.path != "" ? r.path + " · " : "") + r.identity
+            + (r.status != "todo" ? " · " + status(r.status) : "")
             + (r.estimate != "" ? " · " + r.estimate : "")
             + (r.tracked_minutes > 0 ? " · " + minutes(r.tracked_minutes) : "");
     }

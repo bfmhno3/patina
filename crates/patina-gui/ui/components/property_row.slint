@@ -1,0 +1,61 @@
+import {
+    Icon,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+} from "@material";
+
+// A labelled value with a leading icon, for detail and settings cards.
+export component PropertyRow inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> value;
+    in property <bool> divider;
+
+    min_height: MaterialStyleMetrics.size_56;
+
+    HorizontalLayout {
+        padding_left: MaterialStyleMetrics.padding_16;
+        padding_right: MaterialStyleMetrics.padding_16;
+        padding_top: MaterialStyleMetrics.padding_8;
+        padding_bottom: MaterialStyleMetrics.padding_8;
+        spacing: MaterialStyleMetrics.spacing_16;
+
+        VerticalLayout {
+            alignment: center;
+
+            Icon {
+                source: root.icon;
+                width: MaterialStyleMetrics.icon_size_24;
+                colorize: MaterialPalette.on_surface_variant;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal_stretch: 1;
+
+            MaterialText {
+                text: root.label;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.label_medium;
+            }
+
+            MaterialText {
+                text: root.value;
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_large;
+            }
+        }
+    }
+
+    if root.divider: Rectangle {
+        x: MaterialStyleMetrics.padding_16 + MaterialStyleMetrics.icon_size_24 + MaterialStyleMetrics.spacing_16;
+        y: 0;
+        width: root.width - self.x;
+        height: MaterialStyleMetrics.size_1;
+        background: MaterialPalette.outline_variant;
+    }
+}

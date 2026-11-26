@@ -2,52 +2,48 @@ import {
     IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
-    MaterialText,
-    MaterialTypography,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
+import { EmptyState } from "../components/empty_state.slint";
 import { GraphNode } from "../components/graph_node.slint";
+import { PageHeader } from "../components/page_header.slint";
 
 // The children of one composite item as a layered dependency graph.
 export component GraphPage inherits Rectangle {
     VerticalLayout {
-        padding: MaterialStyleMetrics.padding_16;
+        padding_left: App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.padding_16;
+        padding_right: App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.padding_16;
+        padding_bottom: MaterialStyleMetrics.padding_16;
         spacing: MaterialStyleMetrics.spacing_8;
 
-        HorizontalLayout {
-            alignment: start;
-            spacing: MaterialStyleMetrics.spacing_8;
+        PageHeader {
+            title: App.graph.root_title;
+            leading_icon: AppIcons.arrow_back;
+            leading_tooltip: @tr("Back");
 
-            IconButton {
-                icon: AppIcons.arrow_back;
-                tooltip: @tr("Back");
-
-                clicked => {
-                    App.close_graph();
-                }
+            leading_clicked => {
+                App.close_graph();
             }
 
-            if App.graph.parent_id != "": IconButton {
-                icon: AppIcons.arrow_upward;
-                tooltip: @tr("Up to parent");
+            if App.graph.parent_id != "": VerticalLayout {
+                alignment: center;
 
-                clicked => {
-                    App.open_graph(App.graph.parent_id);
+                IconButton {
+                    icon: AppIcons.arrow_upward;
+                    tooltip: @tr("Up to parent");
+
+                    clicked => {
+                        App.open_graph(App.graph.parent_id);
+                    }
                 }
-            }
-
-            MaterialText {
-                text: App.graph.root_title;
-                vertical_alignment: center;
-                overflow: elide;
-                style: MaterialTypography.title_large;
             }
         }
 
-        if App.graph.nodes.length == 0: MaterialText {
-            text: @tr("No sub-items.");
-            style: MaterialTypography.body_large;
+        if App.graph.nodes.length == 0: EmptyState {
+            icon: AppIcons.account_tree;
+            title: @tr("No sub-items.");
+            text: "";
         }
 
         if App.graph.nodes.length > 0: Flickable {
@@ -65,7 +61,7 @@ export component GraphPage inherits Rectangle {
                 viewbox_width: App.graph.width / 1px;
                 viewbox_height: App.graph.height / 1px;
                 commands: App.graph.edges;
-                stroke: MaterialPalette.outline;
+                stroke: MaterialPalette.outline_variant;
                 stroke_width: 1.5px;
             }
 

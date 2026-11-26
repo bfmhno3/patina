@@ -1,49 +1,188 @@
-import { IconButton, MaterialStyleMetrics } from "@material";
+import {
+    Icon,
+    IconButton,
+    MaterialPalette,
+    MaterialStyleMetrics,
+    MaterialText,
+    MaterialTypography,
+    StateLayerArea,
+} from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { ItemRow } from "../types.slint";
-import { Tile } from "tile.slint";
+import { MetaTag } from "meta_tag.slint";
 
-// One item as a list row: title, context line, quick start and done.
+// One item as a list row: completion ring or status icon, title, context, quick start.
 export component ItemTile inherits Rectangle {
     in property <ItemRow> data;
     in property <bool> actions: true;
+    in property <bool> divider;
 
     callback clicked();
 
-    min_height: MaterialStyleMetrics.size_72;
+    property <bool> actionable: root.data.status == "todo" || root.data.status == "in_progress";
+    property <bool> selected: App.two_pane && App.detail_open && App.detail.item.id == root.data.id;
+    property <color> ring_color: root.data.important ? MaterialPalette.tertiary : MaterialPalette.on_surface_variant;
 
-    HorizontalLayout {
-        padding_left: root.data.depth * MaterialStyleMetrics.padding_16;
+    min_height: MaterialStyleMetrics.size_64;
+    background: root.selected ? MaterialPalette.secondary_container : transparent;
 
-        tile := Tile {
-            text: (root.data.important ? "★ " : "") + root.data.title;
-            supporting_text: Labels.item_info(root.data);
+    StateLayerArea {
+        color: MaterialPalette.on_surface;
 
-            clicked => {
-                root.clicked();
-            }
+        clicked => {
+            root.clicked();
+        }
 
-            if root.actions && (root.data.status == "todo" || root.data.status == "in_progress"): IconButton {
-                icon: AppIcons.play_arrow;
-                tooltip: @tr("Start timer");
+        HorizontalLayout {
+            padding_left: MaterialStyleMetrics.padding_8 + root.data.depth * MaterialStyleMetrics.padding_24;
+            padding_right: MaterialStyleMetrics.padding_8;
+            spacing: MaterialStyleMetrics.spacing_4;
 
-                clicked => {
-                    App.start_timer(root.data.id);
+            // Leading slot.
+            Rectangle {
+                width: MaterialStyleMetrics.size_48;
+
+                if root.actions && root.actionable: Rectangle {
+                    Rectangle {
+                        width: MaterialStyleMetrics.size_20;
+                        height: self.width;
+                        border_radius: self.width / 2;
+                        border_width: MaterialStyleMetrics.size_2;
+                        border_color: done_area.has_hover ? MaterialPalette.primary : root.ring_color;
+
+                        if done_area.has_hover: Icon {
+                            source: AppIcons.check;
+                            width: MaterialStyleMetrics.icon_size_18;
+                            colorize: MaterialPalette.primary;
+                        }
+                    }
+
+                    done_area := TouchArea {
+                        clicked => {
+                            App.complete(root.data.id, "");
+                        }
+                    }
+                }
+
+                if !(root.actions && root.actionable) && root.data.status == "done": Icon {
+                    source: AppIcons.check_circle;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.primary;
+                }
+
+                if !(root.actions && root.actionable) && root.data.status == "abandoned": Icon {
+                    source: AppIcons.block;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_surface_variant;
+                }
+
+                if !(root.actions && root.actionable) && (root.data.status == "waiting" || root.data.status == "blocked"): Icon {
+                    source: AppIcons.hourglass_empty;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.tertiary;
+                }
+
+                if !(root.actions && root.actionable) && root.data.status == "deferred": Icon {
+                    source: AppIcons.visibility_off;
+                    width: MaterialStyleMetrics.icon_size_24;
+                    colorize: MaterialPalette.on_surface_variant;
+                }
+
+                if !(root.actions && root.actionable) && root.data.status != "done" && root.data.status != "abandoned" && root.data.status != "waiting" && root.data.status != "blocked" && root.data.status != "deferred": Rectangle {
+                    width: MaterialStyleMetrics.size_20;
+                    height: self.width;
+                    border_radius: self.width / 2;
+                    border_width: MaterialStyleMetrics.size_2;
+                    border_color: root.ring_color;
                 }
             }
 
-            if root.actions && (root.data.status == "todo" || root.data.status == "in_progress"): IconButton {
-                icon: AppIcons.check;
-                tooltip: @tr("Done");
+            text_column := VerticalLayout {
+                horizontal_stretch: 1;
+                alignment: center;
+                spacing: MaterialStyleMetrics.spacing_2;
 
-                clicked => {
-                    App.complete(root.data.id, "");
+                HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_4;
+
+                    if root.data.important: VerticalLayout {
+                        alignment: center;
+
+                        Icon {
+                            source: AppIcons.star;
+                            width: MaterialStyleMetrics.size_16;
+                            colorize: MaterialPalette.tertiary;
+                        }
+                    }
+
+                    MaterialText {
+                        text: root.data.title;
+                        overflow: elide;
+                        style: MaterialTypography.body_large;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: MaterialStyleMetrics.spacing_12;
+
+                    if root.data.deadline != "": MetaTag {
+                        icon: AppIcons.event;
+                        text: @tr("due {}", root.data.deadline);
+                        tone: MaterialPalette.error;
+                    }
+
+                    if root.data.scheduled != "": MetaTag {
+                        icon: AppIcons.today;
+                        text: @tr("planned {}", root.data.scheduled);
+                        tone: MaterialPalette.primary;
+                    }
+
+                    if root.data.follow_up != "": MetaTag {
+                        icon: AppIcons.schedule;
+                        text: @tr("follow up {}", root.data.follow_up);
+                        tone: MaterialPalette.tertiary;
+                    }
+
+                    if root.data.waiting_for != "": MetaTag {
+                        icon: AppIcons.hourglass_empty;
+                        text: @tr("waiting for {}", root.data.waiting_for);
+                        tone: MaterialPalette.tertiary;
+                    }
+
+                    MaterialText {
+                        text: Labels.item_meta(root.data);
+                        horizontal_stretch: 1;
+                        overflow: elide;
+                        color: MaterialPalette.on_surface_variant;
+                        style: MaterialTypography.body_medium;
+                    }
+                }
+            }
+
+            if root.actions && root.actionable: VerticalLayout {
+                alignment: center;
+
+                IconButton {
+                    icon: AppIcons.play_arrow;
+                    tooltip: @tr("Start timer");
+
+                    clicked => {
+                        App.start_timer(root.data.id);
+                    }
                 }
             }
 
             @children
         }
+    }
+
+    if root.divider: Rectangle {
+        x: text_column.x;
+        y: 0;
+        width: root.width - self.x;
+        height: MaterialStyleMetrics.size_1;
+        background: MaterialPalette.outline_variant;
     }
 }

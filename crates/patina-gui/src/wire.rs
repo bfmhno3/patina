@@ -33,6 +33,7 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
     bind!(on_set_scope, |c, kind: i32, name: SharedString| c
         .set_scope(kind, &name));
     bind!(on_navigate, |c, page: i32| c.navigate(page));
+    bind!(on_refresh, |c| c.refresh());
     bind!(on_open_item, |c, id: SharedString| c.open_item(&id));
     bind!(on_close_detail, |c| c.close_detail());
     bind!(on_toggle_unit, |c, id: SharedString, index: i32| c

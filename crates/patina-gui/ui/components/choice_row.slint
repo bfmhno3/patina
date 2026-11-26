@@ -1,11 +1,13 @@
 import {
+    Icon,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
 } from "@material";
+import { AppIcons } from "../icons.slint";
 
-// A single-choice row of labelled options.
+// A single-choice row of labelled chips. Chips hug their text; overflow scrolls sideways.
 export component ChoiceRow inherits Rectangle {
     in property <[string]> options;
     // Selection by position, or by text when `by_value` is set.
@@ -15,34 +17,66 @@ export component ChoiceRow inherits Rectangle {
     callback chosen(index: int);
 
     min_height: MaterialStyleMetrics.size_48;
+    preferred_width: row.preferred_width;
 
     pure function is_selected(index: int, option: string) -> bool {
         return root.by_value ? option == root.value || (root.value == "" && index == 0) : index == root.current;
     }
 
-    HorizontalLayout {
-        spacing: MaterialStyleMetrics.spacing_8;
+    Flickable {
+        width: 100%;
+        height: 100%;
+        content_width: max(row.preferred_width, self.width);
+        interactive: row.preferred_width > self.width;
 
-        for option[index] in root.options: Rectangle {
-            min_width: MaterialStyleMetrics.size_48;
-            border_radius: MaterialStyleMetrics.border_radius_8;
-            border_width: MaterialStyleMetrics.size_1;
-            border_color: root.is_selected(index, option) ? MaterialPalette.secondary_container : MaterialPalette.outline;
-            background: root.is_selected(index, option) ? MaterialPalette.secondary_container : transparent;
+        row := HorizontalLayout {
+            alignment: start;
+            spacing: MaterialStyleMetrics.spacing_8;
 
-            MaterialText {
-                text: option;
-                horizontal_alignment: center;
-                vertical_alignment: center;
-                style: MaterialTypography.label_large;
-                color: root.is_selected(index, option) ? MaterialPalette.on_secondary_container : MaterialPalette.on_surface;
-            }
+            for option[index] in root.options: Rectangle {
+                // The touch target is the full 48 px column; the chip inside is 32 px.
+                min_height: MaterialStyleMetrics.size_48;
+                preferred_width: chip_layout.preferred_width;
 
-            TouchArea {
-                clicked => {
-                    root.current = index;
-                    root.value = option;
-                    root.chosen(index);
+                Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    width: parent.width;
+                    height: MaterialStyleMetrics.size_32;
+                    border_radius: MaterialStyleMetrics.border_radius_8;
+                    border_width: root.is_selected(index, option) ? 0px : MaterialStyleMetrics.size_1;
+                    border_color: MaterialPalette.outline_variant;
+                    background: root.is_selected(index, option) ? MaterialPalette.secondary_container : transparent;
+
+                    chip_layout := HorizontalLayout {
+                        padding_left: root.is_selected(index, option) ? MaterialStyleMetrics.padding_8 : MaterialStyleMetrics.padding_16;
+                        padding_right: MaterialStyleMetrics.padding_16;
+                        spacing: MaterialStyleMetrics.spacing_8;
+
+                        if root.is_selected(index, option): VerticalLayout {
+                            alignment: center;
+
+                            Icon {
+                                source: AppIcons.check;
+                                width: MaterialStyleMetrics.icon_size_18;
+                                colorize: MaterialPalette.on_secondary_container;
+                            }
+                        }
+
+                        MaterialText {
+                            text: option;
+                            vertical_alignment: center;
+                            style: MaterialTypography.label_large;
+                            color: root.is_selected(index, option) ? MaterialPalette.on_secondary_container : MaterialPalette.on_surface_variant;
+                        }
+                    }
+                }
+
+                TouchArea {
+                    clicked => {
+                        root.current = index;
+                        root.value = option;
+                        root.chosen(index);
+                    }
                 }
             }
         }

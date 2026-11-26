@@ -1,13 +1,12 @@
 import {
     FilledButton,
+    Icon,
     IconButton,
     MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
     PopupMenu,
-    ScrollView,
-    TextButton,
     TextField,
     TonalButton,
 } from "@material";
@@ -15,10 +14,13 @@ import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
 import { Labels } from "../labels.slint";
 import { AbandonDialog } from "../components/abandon_dialog.slint";
+import { InfoCard } from "../components/info_card.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
 import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
 import { ItemTile } from "../components/item_tile.slint";
-import { SectionHeader } from "../components/section_header.slint";
+import { PageScroll } from "../components/page_scroll.slint";
+import { PropertyRow } from "../components/property_row.slint";
+import { Section } from "../components/section.slint";
 import { StuckDialog } from "../components/stuck_dialog.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
 import { ItemForm, PickerPurpose } from "../types.slint";
@@ -46,128 +48,41 @@ export component ItemPage inherits Rectangle {
         };
     }
 
-    function dates() -> string {
-        return (App.detail.item.deadline != "" ? @tr("Due {}", App.detail.item.deadline) + "  " : "")
-            + (App.detail.item.scheduled != "" ? @tr("Planned {}", App.detail.item.scheduled) + "  " : "")
-            + (App.detail.defer != "" ? @tr("Hidden until {}", App.detail.defer) + "  " : "")
-            + (App.detail.waiting_for != "" ? @tr("Waiting for {}", App.detail.waiting_for) + "  " : "")
-            + (App.detail.follow_up != "" ? @tr("Follow up {}", App.detail.follow_up) : "");
-    }
-
-    ScrollView {
-        width: 100%;
-        height: 100%;
-
-        VerticalLayout {
-            alignment: start;
-            padding: MaterialStyleMetrics.padding_16;
+    PageScroll {
+        HorizontalLayout {
+            min_height: MaterialStyleMetrics.size_64;
             spacing: MaterialStyleMetrics.spacing_8;
 
-            HorizontalLayout {
-                alignment: start;
-                spacing: MaterialStyleMetrics.spacing_8;
+            VerticalLayout {
+                alignment: center;
 
                 IconButton {
-                    icon: AppIcons.arrow_back;
-                    tooltip: @tr("Back");
+                    icon: App.two_pane ? AppIcons.close : AppIcons.arrow_back;
+                    tooltip: App.two_pane ? @tr("Close") : @tr("Back");
 
                     clicked => {
                         App.close_detail();
                     }
                 }
-
-                MaterialText {
-                    text: App.detail.item.title;
-                    vertical_alignment: center;
-                    style: MaterialTypography.headline_small;
-                }
             }
 
-            MaterialText {
-                text: Labels.item_info(App.detail.item);
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-                color: MaterialPalette.on_surface_variant;
-            }
+            Rectangle { }
 
-            if root.dates() != "": MaterialText {
-                text: root.dates();
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
+            if App.detail.settled == "": VerticalLayout {
+                alignment: center;
 
-            if App.detail.tags_raw != "": MaterialText {
-                text: App.detail.tags_raw;
-                style: MaterialTypography.body_medium;
-            }
-
-            MaterialText {
-                text: @tr("Size {} · estimate {} · children {} · tracked {}", Labels.size(App.detail.size), App.detail.item.estimate_minutes > 0 ? Labels.minutes(App.detail.item.estimate_minutes) : "–", App.detail.children_estimate_minutes >= 0 ? Labels.minutes(App.detail.children_estimate_minutes) : "–", Labels.minutes(App.detail.item.tracked_minutes));
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            if App.detail.repeat_kind != 0: MaterialText {
-                text: App.detail.repeat_kind == 1 ? @tr("Repeats every {} {}", App.detail.repeat_n, Labels.repeat_unit(App.detail.repeat_unit)) : @tr("Repeats {} days after completion", App.detail.repeat_n);
-                style: MaterialTypography.body_medium;
-            }
-
-            if App.detail.left_off != "": MaterialText {
-                text: @tr("Left off: {}", App.detail.left_off);
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-                color: MaterialPalette.tertiary;
-            }
-
-            if App.detail.settled != "": MaterialText {
-                text: (App.detail.item.status == "done" ? @tr("Completed {}", App.detail.settled) : @tr("Abandoned {}", App.detail.settled))
-                    + (App.detail.completion_note != "" ? " · " + App.detail.completion_note : "")
-                    + (App.detail.abandon_reason != "" ? " · " + Labels.abandon_reason(Math.round(App.detail.abandon_reason.to_float())) : "")
-                    + (App.detail.abandon_note != "" ? " · " + App.detail.abandon_note : "");
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
-
-            if root.action_error != "": MaterialText {
-                text: root.action_error;
-                wrap: word_wrap;
-                overflow: clip;
-                color: MaterialPalette.error;
-            }
-
-            if App.detail.settled == "": HorizontalLayout {
-                spacing: MaterialStyleMetrics.spacing_8;
-
-                if !App.detail.is_external: FilledButton {
-                    text: @tr("Start");
-                    icon: AppIcons.play_arrow;
-
-                    clicked => {
-                        App.start_timer(App.detail.item.id);
-                    }
-                }
-
-                TonalButton {
-                    text: @tr("Done…");
-                    icon: AppIcons.check;
-
-                    clicked => {
-                        complete.open("");
-                    }
-                }
-
-                TextButton {
-                    text: @tr("Edit…");
+                IconButton {
+                    icon: AppIcons.edit;
+                    tooltip: @tr("Edit…");
 
                     clicked => {
                         form.open(3, App.detail.item.id, root.edit_form(), "");
                     }
                 }
+            }
+
+            if App.detail.settled == "": VerticalLayout {
+                alignment: center;
 
                 IconButton {
                     icon: AppIcons.more_vert;
@@ -178,40 +93,232 @@ export component ItemPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            SectionHeader {
-                text: @tr("Notes");
+        VerticalLayout {
+            spacing: MaterialStyleMetrics.spacing_4;
+
+            if App.detail.item.path != "": MaterialText {
+                text: App.detail.item.path;
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.label_large;
             }
 
-            for note in App.detail.notes: MaterialText {
-                text: note.day + "  " + note.text;
-                wrap: word_wrap;
-                overflow: clip;
-                style: MaterialTypography.body_medium;
-            }
+            HorizontalLayout {
+                spacing: MaterialStyleMetrics.spacing_8;
 
-            TextField {
-                label: @tr("Add a note");
-                has_error: root.note_error != "";
-                supporting_text: root.note_error;
+                if App.detail.item.important: VerticalLayout {
+                    alignment: center;
 
-                accepted(text) => {
-                    if text != "" {
-                        root.note_error = App.add_note(App.detail.item.id, text);
-                        if root.note_error == "" {
-                            self.text = "";
-                        }
+                    Icon {
+                        source: AppIcons.star;
+                        width: MaterialStyleMetrics.icon_size_24;
+                        colorize: MaterialPalette.tertiary;
                     }
+                }
+
+                MaterialText {
+                    text: App.detail.item.title;
+                    horizontal_stretch: 1;
+                    wrap: word_wrap;
+                    overflow: clip;
+                    style: MaterialTypography.headline_small;
                 }
             }
 
-            if App.detail.prerequisites.length > 0: SectionHeader {
-                text: @tr("Depends on");
+            MaterialText {
+                text: Labels.status(App.detail.item.status);
+                color: MaterialPalette.on_surface_variant;
+                style: MaterialTypography.label_large;
+            }
+        }
+
+        if App.detail.settled == "": HorizontalLayout {
+            alignment: start;
+            spacing: MaterialStyleMetrics.spacing_8;
+
+            if !App.detail.is_external: FilledButton {
+                text: @tr("Start");
+                icon: AppIcons.play_arrow;
+
+                clicked => {
+                    App.start_timer(App.detail.item.id);
+                }
             }
 
-            for r in App.detail.prerequisites: ItemTile {
+            TonalButton {
+                text: @tr("Done…");
+                icon: AppIcons.check;
+
+                clicked => {
+                    complete.open("");
+                }
+            }
+        }
+
+        if root.action_error != "": MaterialText {
+            text: root.action_error;
+            wrap: word_wrap;
+            overflow: clip;
+            color: MaterialPalette.error;
+        }
+
+        if App.detail.left_off != "": InfoCard {
+            icon: AppIcons.lightbulb;
+            tone_background: MaterialPalette.tertiary_container;
+            tone_foreground: MaterialPalette.on_tertiary_container;
+
+            MaterialText {
+                text: @tr("Left off: {}", App.detail.left_off);
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_tertiary_container;
+            }
+        }
+
+        if App.detail.settled != "": InfoCard {
+            icon: App.detail.item.status == "done" ? AppIcons.check_circle : AppIcons.block;
+            tone_background: MaterialPalette.surface_container_high;
+            tone_foreground: MaterialPalette.on_surface;
+
+            MaterialText {
+                text: (App.detail.item.status == "done" ? @tr("Completed {}", App.detail.settled) : @tr("Abandoned {}", App.detail.settled))
+                    + (App.detail.completion_note != "" ? " · " + App.detail.completion_note : "")
+                    + (App.detail.abandon_reason != "" ? " · " + Labels.abandon_reason(Math.round(App.detail.abandon_reason.to_float())) : "")
+                    + (App.detail.abandon_note != "" ? " · " + App.detail.abandon_note : "");
+                wrap: word_wrap;
+                overflow: clip;
+                style: MaterialTypography.body_medium;
+                color: MaterialPalette.on_surface;
+            }
+        }
+
+        Section {
+            title: @tr("Details");
+
+            PropertyRow {
+                icon: AppIcons.person;
+                label: @tr("Identity");
+                value: App.detail.item.identity;
+            }
+
+            if App.detail.item.deadline != "": PropertyRow {
+                icon: AppIcons.event;
+                label: @tr("Due");
+                value: App.detail.item.deadline;
+                divider: true;
+            }
+
+            if App.detail.item.scheduled != "": PropertyRow {
+                icon: AppIcons.today;
+                label: @tr("Planned");
+                value: App.detail.item.scheduled;
+                divider: true;
+            }
+
+            if App.detail.defer != "": PropertyRow {
+                icon: AppIcons.visibility_off;
+                label: @tr("Hidden until");
+                value: App.detail.defer;
+                divider: true;
+            }
+
+            if App.detail.waiting_for != "": PropertyRow {
+                icon: AppIcons.hourglass_empty;
+                label: @tr("Waiting for");
+                value: App.detail.waiting_for;
+                divider: true;
+            }
+
+            if App.detail.follow_up != "": PropertyRow {
+                icon: AppIcons.schedule;
+                label: @tr("Follow up");
+                value: App.detail.follow_up;
+                divider: true;
+            }
+
+            if App.detail.tags_raw != "": PropertyRow {
+                icon: AppIcons.sell;
+                label: @tr("Tags");
+                value: App.detail.tags_raw;
+                divider: true;
+            }
+
+            PropertyRow {
+                icon: AppIcons.straighten;
+                label: @tr("Estimate");
+                value: Labels.size(App.detail.size) + (App.detail.item.estimate_minutes > 0 ? " · " + Labels.minutes(App.detail.item.estimate_minutes) : "") + (App.detail.children_estimate_minutes >= 0 ? " · " + @tr("children {}", Labels.minutes(App.detail.children_estimate_minutes)) : "");
+                divider: true;
+            }
+
+            PropertyRow {
+                icon: AppIcons.timer;
+                label: @tr("Tracked");
+                value: Labels.minutes(App.detail.item.tracked_minutes);
+                divider: true;
+            }
+
+            if App.detail.repeat_kind != 0: PropertyRow {
+                icon: AppIcons.event_repeat;
+                label: @tr("Repeats");
+                value: App.detail.repeat_kind == 1 ? @tr("Repeats every {} {}", App.detail.repeat_n, Labels.repeat_unit(App.detail.repeat_unit)) : @tr("Repeats {} days after completion", App.detail.repeat_n);
+                divider: true;
+            }
+        }
+
+        Section {
+            title: @tr("Notes");
+
+            for note[i] in App.detail.notes: Rectangle {
+                if i > 0: Rectangle {
+                    y: 0;
+                    height: MaterialStyleMetrics.size_1;
+                    background: MaterialPalette.outline_variant;
+                }
+
+                VerticalLayout {
+                    padding: MaterialStyleMetrics.padding_16;
+                    spacing: MaterialStyleMetrics.spacing_2;
+
+                    MaterialText {
+                        text: note.day;
+                        color: MaterialPalette.on_surface_variant;
+                        style: MaterialTypography.label_medium;
+                    }
+
+                    MaterialText {
+                        text: note.text;
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.body_medium;
+                    }
+                }
+            }
+        }
+
+        TextField {
+            label: @tr("Add a note");
+            has_error: root.note_error != "";
+            supporting_text: root.note_error;
+
+            accepted(text) => {
+                if text != "" {
+                    root.note_error = App.add_note(App.detail.item.id, text);
+                    if root.note_error == "" {
+                        self.text = "";
+                    }
+                }
+            }
+        }
+
+        if App.detail.prerequisites.length > 0: Section {
+            title: @tr("Depends on");
+
+            for r[i] in App.detail.prerequisites: ItemTile {
                 data: r;
                 actions: false;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
@@ -226,26 +333,28 @@ export component ItemPage inherits Rectangle {
                     }
                 }
             }
+        }
 
-            if App.detail.dependents.length > 0: SectionHeader {
-                text: @tr("Blocks");
-            }
+        if App.detail.dependents.length > 0: Section {
+            title: @tr("Blocks");
 
-            for r in App.detail.dependents: ItemTile {
+            for r[i] in App.detail.dependents: ItemTile {
                 data: r;
                 actions: false;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
                 }
             }
+        }
 
-            if App.detail.children.length > 0: SectionHeader {
-                text: @tr("Sub-items");
-            }
+        if App.detail.children.length > 0: Section {
+            title: @tr("Sub-items");
 
-            for r in App.detail.children: ItemTile {
+            for r[i] in App.detail.children: ItemTile {
                 data: r;
+                divider: i > 0;
 
                 clicked => {
                     App.open_item(r.id);
@@ -256,7 +365,7 @@ export component ItemPage inherits Rectangle {
 
     more := PopupMenu {
         x: root.width - self.width - MaterialStyleMetrics.padding_16;
-        y: MaterialStyleMetrics.size_200;
+        y: MaterialStyleMetrics.size_56;
         items: [
             { text: @tr("Mark as started"), enabled: App.detail.item.status == "todo" },
             { text: @tr("Add sub-item…"), enabled: !App.detail.is_external },

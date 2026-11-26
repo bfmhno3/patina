@@ -34,6 +34,9 @@ export global App {
     // Window size, mirrored from MainWindow so popups can cover the whole window.
     in_out property <length> window_width;
     in_out property <length> window_height;
+    // Layout breakpoints: the rail replaces the bottom bar, and item detail opens beside the list.
+    out property <bool> wide: root.window_width >= 600px;
+    out property <bool> two_pane: root.window_width >= 1000px;
 
     in property <[string]> identities;
     in property <string> mode_label;
@@ -87,6 +90,7 @@ export global App {
     callback close_graph();
     callback set_scope(int, string);
     callback navigate(int);
+    callback refresh();
     callback open_item(string);
     callback close_detail();
     callback open_settings();
