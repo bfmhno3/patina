@@ -18,7 +18,8 @@ use crate::{
     BreakKindUi, CardData, CardKind, ConvRow, CountRow, DecisionRow, DetailData, FocusGroup,
     FrequencyUi, GroupRow, HabitKindUi, HabitRow, InboxRow, InterruptRow, ItemForm, ItemRow,
     NoteRow, PostponedRow, ProjectRow, ReasonData, ReasonKind, ReviewData, RhythmData,
-    RhythmModeUi, TagRow, TimeRow, TimerData, TodayData, TrendRow, WaitRow, WeekPoint,
+    RhythmModeUi, SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow, WaitRow,
+    WeekPoint,
 };
 
 pub fn ss(s: impl AsRef<str>) -> SharedString {
@@ -356,6 +357,22 @@ pub fn today_data(t: &TodayView, has_identities: bool) -> TodayData {
         warnings: int(t.warnings),
         review_due: t.review_due,
         has_identities,
+        suggestion: t.suggestion.as_ref().map_or_else(
+            || SuggestionData {
+                identity: ss(""),
+                weekend: false,
+                matches: 0,
+                samples: 0,
+                below_target: -1,
+            },
+            |s| SuggestionData {
+                identity: ss(&s.identity),
+                weekend: s.weekend,
+                matches: int(s.matches),
+                samples: int(s.samples),
+                below_target: s.below_target_minutes.map_or(-1, int),
+            },
+        ),
         banner_items: item_rows(&banner_items),
         banner_habits: habit_rows(&t.banner.habits),
     }

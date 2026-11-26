@@ -28,6 +28,8 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
 
     bind!(on_capture, |c, text: SharedString| c.capture(&text));
     bind!(on_switch_mode, |c, name: SharedString| c.switch_mode(&name));
+    bind!(on_dismiss_suggestion, |c, name: SharedString| c
+        .dismiss_suggestion(&name));
     bind!(on_set_scope, |c, kind: i32, name: SharedString| c
         .set_scope(kind, &name));
     bind!(on_navigate, |c, page: i32| c.navigate(page));

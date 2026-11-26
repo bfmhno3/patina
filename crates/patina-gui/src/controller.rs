@@ -138,7 +138,10 @@ impl Controller {
 
     /// Runs a command, raises the matching notice, and refreshes the window.
     fn exec(&mut self, cmd: Command) -> Result<CommandOutcome, String> {
-        let quiet = matches!(cmd, Command::Next(_) | Command::SnoozeBreak);
+        let quiet = matches!(
+            cmd,
+            Command::Next(_) | Command::SnoozeBreak | Command::DismissSuggestion(_)
+        );
         let undo = matches!(cmd, Command::Undo);
         let result = self.run(cmd);
         match &result {
@@ -284,6 +287,12 @@ impl Controller {
 
     pub fn set_rhythm(&mut self, mode: patina_core::event::RhythmMode) {
         self.exec_quiet(Command::SetRhythm(command::SetRhythm { mode }));
+    }
+
+    pub fn dismiss_suggestion(&mut self, identity: &str) {
+        self.exec_quiet(Command::DismissSuggestion(command::DismissSuggestion {
+            identity: identity.to_string(),
+        }));
     }
 
     pub fn mark_started(&mut self, id: &str) {

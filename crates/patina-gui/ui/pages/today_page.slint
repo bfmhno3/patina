@@ -9,6 +9,7 @@ import {
     TextButton,
 } from "@material";
 import { App } from "../app.slint";
+import { Labels } from "../labels.slint";
 import { AppIcons } from "../icons.slint";
 import { AbandonDialog } from "../components/abandon_dialog.slint";
 import { CheckInDialog } from "../components/check_in_dialog.slint";
@@ -53,6 +54,53 @@ export component TodayPage inherits Rectangle {
 
                         clicked => {
                             App.init_identities();
+                        }
+                    }
+                }
+            }
+
+            if App.today.suggestion.identity != "": Rectangle {
+                background: MaterialPalette.secondary_container;
+                border_radius: MaterialStyleMetrics.border_radius_12;
+
+                VerticalLayout {
+                    padding: MaterialStyleMetrics.padding_16;
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: @tr("You are usually in {} at this time on {} ({} of {} days). Switch now?", App.today.suggestion.identity, App.today.suggestion.weekend ? @tr("weekends") : @tr("weekdays"), App.today.suggestion.matches, App.today.suggestion.samples);
+                        wrap: word_wrap;
+                        overflow: clip;
+                        color: MaterialPalette.on_secondary_container;
+                        style: MaterialTypography.body_large;
+                    }
+
+                    if App.today.suggestion.below_target >= 0: MaterialText {
+                        text: @tr("{} is {} below this week's target.", App.today.suggestion.identity, Labels.minutes(App.today.suggestion.below_target));
+                        wrap: word_wrap;
+                        overflow: clip;
+                        color: MaterialPalette.on_secondary_container;
+                        style: MaterialTypography.body_medium;
+                    }
+
+                    HorizontalLayout {
+                        spacing: MaterialStyleMetrics.spacing_8;
+                        alignment: end;
+
+                        TextButton {
+                            text: @tr("Not now");
+
+                            clicked => {
+                                App.dismiss_suggestion(App.today.suggestion.identity);
+                            }
+                        }
+
+                        FilledButton {
+                            text: @tr("Switch");
+
+                            clicked => {
+                                App.switch_mode(App.today.suggestion.identity);
+                            }
                         }
                     }
                 }

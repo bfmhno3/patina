@@ -126,6 +126,14 @@ export struct RhythmData {
     resume_is_habit: bool,
 }
 
+export struct SuggestionData {
+    identity: string,
+    weekend: bool,
+    matches: int,
+    samples: int,
+    below_target: int,
+}
+
 export struct TodayData {
     today: string,
     scope_label: string,
@@ -141,6 +149,7 @@ export struct TodayData {
     has_identities: bool,
     banner_items: [ItemRow],
     banner_habits: [HabitRow],
+    suggestion: SuggestionData,
 }
 
 export struct NoteRow {
