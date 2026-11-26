@@ -1,6 +1,7 @@
 //! The controller: runs core commands and queries, and projects the results into the
 //! `App` global. All domain rules stay in `patina-core`; this only translates.
 
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use jiff::ZonedDateTime;
@@ -57,6 +58,8 @@ pub struct Controller {
     tree_all: bool,
     detail: Option<String>,
     graph: Option<String>,
+    /// Proposal parts the owner unticked, by proposal id.
+    deselected: HashMap<String, BTreeSet<usize>>,
     today: Option<Date>,
     mode_name: Option<String>,
     resume: Option<Resume>,
@@ -92,6 +95,7 @@ impl Controller {
             tree_all: false,
             detail: None,
             graph: None,
+            deselected: HashMap::new(),
             today: None,
             mode_name: None,
             resume: None,
@@ -235,6 +239,97 @@ impl Controller {
             win.global::<App<'_>>().set_detail_open(false);
         }
         self.refresh();
+    }
+
+    // ---- AI proposals and bulk undo ----
+
+    fn proposals(&self) -> Result<Vec<patina_core::query::ProposalView>, String> {
+        match self.ask(Query::Proposals {
+            all: false,
+            source: None,
+        })? {
+            QueryOutput::Proposals(v) => Ok(v),
+            _ => Err("unexpected query result".into()),
+        }
+    }
+
+    /// Ticks or unticks one part; unticking drops the parts that need it, ticking brings
+    /// back the parts it needs.
+    pub fn toggle_unit(&mut self, id: &str, index: i32) {
+        let Ok(index) = usize::try_from(index) else {
+            return;
+        };
+        let Ok(views) = self.proposals() else {
+            return;
+        };
+        let Some(p) = views.iter().find(|p| p.id.to_string() == id) else {
+            return;
+        };
+        let units: Vec<patina_core::proposal::Unit> = p
+            .units
+            .iter()
+            .map(|u| patina_core::proposal::Unit {
+                ops: Vec::new(),
+                needs: u.needs.clone(),
+            })
+            .collect();
+        let off = self.deselected.entry(id.to_string()).or_default();
+        let checked = p
+            .units
+            .get(index)
+            .is_some_and(|u| convert::unit_checked(u.state, Some(off), index));
+        if checked {
+            off.extend(patina_core::proposal::dependents(&units, index));
+        } else {
+            for u in patina_core::proposal::with_needs(&units, &BTreeSet::from([index])) {
+                off.remove(&u);
+            }
+        }
+        self.refresh();
+    }
+
+    pub fn accept_proposal(&mut self, id: &str) -> SharedString {
+        let views = match self.proposals() {
+            Ok(v) => v,
+            Err(e) => return ss(e),
+        };
+        let off = self.deselected.get(id);
+        let selected: Vec<usize> = views
+            .iter()
+            .find(|p| p.id.to_string() == id)
+            .map(|p| {
+                p.units
+                    .iter()
+                    .filter(|u| convert::unit_checked(u.state, off, u.index))
+                    .map(|u| u.index)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if selected.is_empty() {
+            return ss("nothing selected");
+        }
+        let result = self.exec_text(Command::AcceptProposal(command::AcceptProposal {
+            proposal: id.to_string(),
+            units: Some(selected),
+        }));
+        if result.is_empty() {
+            self.deselected.remove(id);
+        }
+        result
+    }
+
+    pub fn reject_proposal(&mut self, id: &str) -> SharedString {
+        self.exec_text(Command::RejectProposal(command::RejectProposal {
+            proposal: id.to_string(),
+            note: None,
+        }))
+    }
+
+    pub fn undo_source(&mut self, source: &str) -> SharedString {
+        self.exec_text(Command::UndoSource(command::UndoSource {
+            source: source.to_string(),
+            since: None,
+        }))
     }
 
     pub fn open_graph(&mut self, id: &str) {
@@ -950,6 +1045,10 @@ impl Controller {
                         .map(|e| convert::inbox_row(e, &now))
                         .collect(),
                 ));
+                let views = self.proposals()?;
+                self.deselected
+                    .retain(|id, _| views.iter().any(|p| p.id.to_string() == *id));
+                app.set_proposals(convert::proposal_rows(&views, &self.deselected, &now));
             }
             2 => {
                 let nodes = self.tree(self.tree_all)?;
@@ -998,7 +1097,11 @@ impl Controller {
         if app.get_settings_open() {
             let settings = self.patina.settings().map_err(err)?;
             let r = &settings.rhythm;
+            let QueryOutput::Sources(sources) = self.ask(Query::Sources)? else {
+                return Err("unexpected query result".into());
+            };
             app.set_settings(SettingsData {
+                sources: convert::source_rows(&sources, &now),
                 storage: self.storage,
                 identities: convert::model(
                     identities

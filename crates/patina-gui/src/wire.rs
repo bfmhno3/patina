@@ -35,6 +35,14 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
     bind!(on_navigate, |c, page: i32| c.navigate(page));
     bind!(on_open_item, |c, id: SharedString| c.open_item(&id));
     bind!(on_close_detail, |c| c.close_detail());
+    bind!(on_toggle_unit, |c, id: SharedString, index: i32| c
+        .toggle_unit(&id, index));
+    bind!(on_accept_proposal, |c, id: SharedString| c
+        .accept_proposal(&id));
+    bind!(on_reject_proposal, |c, id: SharedString| c
+        .reject_proposal(&id));
+    bind!(on_undo_source, |c, source: SharedString| c
+        .undo_source(&source));
     bind!(on_open_graph, |c, id: SharedString| c.open_graph(&id));
     bind!(on_close_graph, |c| c.close_graph());
     bind!(on_open_settings, |c| c.set_settings_open(true));

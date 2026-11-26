@@ -150,6 +150,43 @@ export struct GraphData {
     nodes: [GraphNodeData],
 }
 
+export struct FieldRow {
+    field: string,
+    old: string,
+    new: string,
+}
+
+export struct ChangeRow {
+    kind: string,
+    item: string,
+    target: string,
+    fields: [FieldRow],
+}
+
+export struct UnitRow {
+    index: int,
+    state: string,
+    problem: string,
+    checked: bool,
+    needs: string,
+    changes: [ChangeRow],
+}
+
+export struct ProposalRow {
+    id: string,
+    short: string,
+    source: string,
+    submitted: string,
+    summary: string,
+    units: [UnitRow],
+}
+
+export struct SourceRow {
+    source: string,
+    commands: int,
+    last: string,
+}
+
 export struct SuggestionData {
     identity: string,
     weekend: bool,
@@ -168,6 +205,7 @@ export struct TodayData {
     actionable: [ItemRow],
     needs_decision: [DecisionRow],
     inbox: int,
+    proposals: int,
     warnings: int,
     review_due: bool,
     has_identities: bool,
@@ -346,6 +384,7 @@ export struct SettingsData {
     root: string,
     device: string,
     storage: StorageUi,
+    sources: [SourceRow],
     version: string,
     focus_minutes: int,
     short_break: int,

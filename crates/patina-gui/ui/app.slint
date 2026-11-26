@@ -8,6 +8,7 @@ import {
     HabitForm,
     GraphData,
     HabitRow,
+    ProposalRow,
     InboxRow,
     ItemForm,
     ItemRow,
@@ -45,6 +46,7 @@ export global App {
     in property <[ItemRow]> tree;
     in property <[HabitRow]> habits;
     in property <[HabitRow]> graduated_habits;
+    in property <[ProposalRow]> proposals;
     in_out property <bool> graph_open;
     in property <GraphData> graph;
     in property <DetailData> detail;
@@ -77,6 +79,10 @@ export global App {
     callback capture(string) -> string;
     callback switch_mode(string);
     callback dismiss_suggestion(string);
+    callback toggle_unit(string, int);
+    callback accept_proposal(string) -> string;
+    callback reject_proposal(string) -> string;
+    callback undo_source(string) -> string;
     callback open_graph(string);
     callback close_graph();
     callback set_scope(int, string);

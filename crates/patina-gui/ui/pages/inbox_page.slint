@@ -1,20 +1,28 @@
 import {
+    CheckBox,
+    CheckState,
+    FilledButton,
     IconButton,
+    MaterialPalette,
     MaterialStyleMetrics,
     MaterialText,
     MaterialTypography,
     ScrollView,
+    TextButton,
 } from "@material";
 import { App } from "../app.slint";
 import { AppIcons } from "../icons.slint";
+import { Labels } from "../labels.slint";
 import { ItemFormDialog } from "../components/item_form_dialog.slint";
 import { ItemPickerDialog } from "../components/item_picker_dialog.slint";
 import { PickerPurpose } from "../types.slint";
+import { SectionHeader } from "../components/section_header.slint";
 import { Tile } from "../components/tile.slint";
 
 export component InboxPage inherits Rectangle {
     property <string> merge_source;
     property <string> error;
+    property <string> proposal_error;
 
     ScrollView {
         width: 100%;
@@ -24,6 +32,114 @@ export component InboxPage inherits Rectangle {
             alignment: start;
             padding: MaterialStyleMetrics.padding_16;
             spacing: MaterialStyleMetrics.spacing_4;
+
+            if App.proposals.length > 0: SectionHeader {
+                text: @tr("Proposals");
+            }
+
+            if root.proposal_error != "": MaterialText {
+                text: root.proposal_error;
+                wrap: word_wrap;
+                overflow: clip;
+                color: MaterialPalette.error;
+                style: MaterialTypography.body_medium;
+            }
+
+            for p in App.proposals: Rectangle {
+                background: MaterialPalette.surface_container;
+                border_radius: MaterialStyleMetrics.border_radius_12;
+
+                VerticalLayout {
+                    padding: MaterialStyleMetrics.padding_16;
+                    spacing: MaterialStyleMetrics.spacing_8;
+
+                    MaterialText {
+                        text: p.summary;
+                        wrap: word_wrap;
+                        overflow: clip;
+                        style: MaterialTypography.title_medium;
+                    }
+
+                    MaterialText {
+                        text: p.source + " · " + p.submitted;
+                        style: MaterialTypography.body_small;
+                    }
+
+                    for u in p.units: HorizontalLayout {
+                        spacing: MaterialStyleMetrics.spacing_8;
+
+                        CheckBox {
+                            check_state: u.checked ? CheckState.checked : CheckState.unchecked;
+                            enabled: u.state == "ready";
+                            vertical_stretch: 0;
+
+                            checked_state_changed(state) => {
+                                App.toggle_unit(p.id, u.index);
+                            }
+                        }
+
+                        VerticalLayout {
+                            horizontal_stretch: 1;
+                            alignment: center;
+
+                            MaterialText {
+                                text: @tr("Part {}", u.index + 1);
+                                style: MaterialTypography.label_large;
+                            }
+
+                            for c in u.changes: VerticalLayout {
+                                MaterialText {
+                                    text: Labels.change(c);
+                                    wrap: word_wrap;
+                                    overflow: clip;
+                                    style: MaterialTypography.body_medium;
+                                }
+
+                                for f in c.fields: MaterialText {
+                                    text: Labels.field(f.field) + ": " + f.old + " → " + f.new;
+                                    wrap: word_wrap;
+                                    overflow: clip;
+                                    style: MaterialTypography.body_small;
+                                }
+                            }
+
+                            if u.needs != "": MaterialText {
+                                text: @tr("Needs parts {}", u.needs);
+                                style: MaterialTypography.body_small;
+                            }
+
+                            if u.state == "stale": MaterialText {
+                                text: @tr("Out of date: {}", u.problem);
+                                wrap: word_wrap;
+                                overflow: clip;
+                                color: MaterialPalette.error;
+                                style: MaterialTypography.body_small;
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: MaterialStyleMetrics.spacing_8;
+
+                        TextButton {
+                            text: @tr("Reject");
+
+                            clicked => {
+                                root.proposal_error = App.reject_proposal(p.id);
+                            }
+                        }
+
+                        FilledButton {
+                            text: @tr("Accept selected");
+
+                            clicked => {
+                                root.proposal_error = App.accept_proposal(p.id);
+                            }
+                        }
+                    }
+                }
+            }
 
             if App.inbox.length == 0: MaterialText {
                 text: @tr("The inbox is empty. Capture a thought above.");

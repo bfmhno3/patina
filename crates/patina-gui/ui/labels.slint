@@ -2,6 +2,7 @@
 
 import {
     BreakKindUi,
+    ChangeRow,
     ItemRow,
     NoticeKind,
     ReasonData,
@@ -50,6 +51,68 @@ export global Labels {
         }
         if key == "graduated" {
             return @tr("graduated");
+        }
+        return key;
+    }
+
+    public pure function change(c: ChangeRow) -> string {
+        if c.kind == "add_item" {
+            return c.target != "" ? @tr("add \"{}\" under \"{}\"", c.item, c.target) : @tr("add \"{}\"", c.item);
+        }
+        if c.kind == "edit" {
+            return @tr("edit \"{}\"", c.item);
+        }
+        if c.kind == "note" {
+            return @tr("note on \"{}\": {}", c.item, c.target);
+        }
+        if c.kind == "link" {
+            return @tr("\"{}\" depends on \"{}\"", c.item, c.target);
+        }
+        if c.kind == "unlink" {
+            return @tr("\"{}\" no longer depends on \"{}\"", c.item, c.target);
+        }
+        return c.target != "" ? @tr("move \"{}\" under \"{}\"", c.item, c.target) : @tr("move \"{}\" to top level", c.item);
+    }
+
+    public pure function field(key: string) -> string {
+        if key == "title" {
+            return @tr("title");
+        }
+        if key == "identity" {
+            return @tr("identity");
+        }
+        if key == "tags" {
+            return @tr("tags");
+        }
+        if key == "tags_added" {
+            return @tr("tags added");
+        }
+        if key == "tags_removed" {
+            return @tr("tags removed");
+        }
+        if key == "defer" {
+            return @tr("hidden until");
+        }
+        if key == "scheduled" {
+            return @tr("planned");
+        }
+        if key == "deadline" {
+            return @tr("due");
+        }
+        if key == "follow_up" {
+            return @tr("follow up");
+        }
+        if key == "waiting_for" {
+            return @tr("waiting for");
+        }
+        if key == "important" {
+            return @tr("important");
+        }
+        if key == "size" {
+            return @tr("size");
+        }
+        if key == "repeat" {
+            return @tr("repeat");
         }
         return key;
     }

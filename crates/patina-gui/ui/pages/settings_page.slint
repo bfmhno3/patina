@@ -7,6 +7,7 @@ import {
     MaterialText,
     MaterialTypography,
     ScrollView,
+    TextButton,
     TextField,
     TonalButton,
 } from "@material";
@@ -21,6 +22,7 @@ import { Tile } from "../components/tile.slint";
 
 export component SettingsPage inherits Rectangle {
     property <string> identity_error;
+    property <string> sources_error;
     property <string> new_identity;
     property <string> target_for;
     property <string> rhythm_value: Labels.rhythm_mode(App.rhythm.mode);
@@ -173,6 +175,36 @@ export component SettingsPage inherits Rectangle {
 
                 clicked => {
                     App.undo();
+                }
+            }
+
+            SectionHeader {
+                text: @tr("AI changes");
+            }
+
+            if App.settings.sources.length == 0: MaterialText {
+                text: @tr("No AI changes to undo.");
+                style: MaterialTypography.body_medium;
+            }
+
+            if root.sources_error != "": MaterialText {
+                text: root.sources_error;
+                wrap: word_wrap;
+                overflow: clip;
+                color: MaterialPalette.error;
+                style: MaterialTypography.body_medium;
+            }
+
+            for s in App.settings.sources: Tile {
+                text: s.source;
+                supporting_text: @tr("{} commands, last {}", s.commands, s.last);
+
+                TextButton {
+                    text: @tr("Undo all");
+
+                    clicked => {
+                        root.sources_error = App.undo_source(s.source);
+                    }
                 }
             }
 

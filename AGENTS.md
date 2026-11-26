@@ -7,7 +7,7 @@ Patina is the owner's personal task system (identity × form model, project DAGs
 - `.cargo/config.toml`: Windows MSVC stack size for debug builds.
 - `crates/patina-core/`: domain library: commands, queries, event log, projections. Pure; see invariants.
 - `crates/patina-cli/`: `patina` binary; thin adapter; human-readable and JSON output.
-- `crates/patina-mcp/`: `patina-mcp` binary; read-only MCP server over stdio; only identities in `[mcp] visible_identities` are visible (`patina_core::visibility`).
+- `crates/patina-mcp/`: `patina-mcp` binary; MCP server over stdio; only identities in `[mcp] visible_identities` are visible (`patina_core::visibility`). What a client may write depends on its level in `[mcp]` (`default_level`, `[mcp.clients]`): `read_only`, `propose` (capture and proposals the owner reviews), or `trusted` (direct commands, undone in bulk with `patina undo --source mcp:<client>`); see `patina_core::access`.
 - `crates/patina-gui/`: Slint GUI; `lib` + `cdylib` (Android) + `patina-gui` bin; `build.rs` compiles `ui/` via `slint-project.json`.
   - Rust: `controller.rs` (commands, queries, refresh into the `App` global), `convert.rs` (pure view-model and form conversions), `wire.rs` (callbacks), `notify.rs` (OS notifications), `tests.rs` (headless end-to-end).
   - `ui/main.slint` (only `MainWindow`), `ui/types.slint` (data contract), `ui/app.slint` (the `App` global), `ui/labels.slint` (stable keys to `@tr` text), `ui/pages/`, `ui/components/`, `ui/icons/` + `ui/icons.slint`.
@@ -23,7 +23,7 @@ Read the relevant section of `docs/design.md` before changing domain behavior. I
 
 - `## 实现约束` overrides earlier sections.
 - Items marked `[建议]` are proposals the owner has not confirmed: follow them by default, and ask before building something expensive to reverse on top of one.
-- Respect the phase table in `### 分阶段范围`: do not build later-phase features unless asked (phase 2 is built: GUI, full weekly review with gauges, calibration, break reminders, read-only MCP).
+- Respect the phase table in `### 分阶段范围`: do not build later-phase features unless asked (phase 3 is built: habit graduation, identity-switch suggestions, DAG view, Syncthing-based multi-device merge rules and Android shared storage, MCP proposals and trusted writes).
 - `## 开放问题` items are undecided; ask instead of picking.
 
 ## Architecture Invariants

@@ -54,8 +54,8 @@ export component MainWindow inherits MaterialWindow {
             icon: AppIcons.inbox,
             selected_icon: AppIcons.inbox,
             text: @tr("Inbox"),
-            show_badge: App.today.inbox > 0,
-            badge: App.today.inbox
+            show_badge: App.today.inbox + App.today.proposals > 0,
+            badge: App.today.inbox + App.today.proposals
         },
         {
             icon: AppIcons.account_tree,

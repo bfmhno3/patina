@@ -6,8 +6,9 @@ use jiff::{Timestamp, ZonedDateTime};
 use patina_core::command::{self, AddItem, Triage, Update};
 use patina_core::event::{Frequency, HabitKind, Repeat, RepeatUnit, Size};
 use patina_core::query::{
-    GraphView, HabitView, ItemDetail, ItemView, NextView, ProjectProgress, ReviewView, RhythmView,
-    TimerView, TodayView, TreeNode, ViewStatus,
+    GraphView, HabitView, ItemDetail, ItemView, NextView, ProjectProgress, ProposalStatus,
+    ProposalView, ReviewView, RhythmView, SourceView, TimerView, TodayView, TreeNode, UnitState,
+    ViewStatus,
 };
 use patina_core::recommend::{self, Card, Reason};
 use patina_core::rhythm::BreakDue;
@@ -15,11 +16,11 @@ use patina_core::time::{self, Weekday};
 use slint::{ModelRc, SharedString};
 
 use crate::{
-    BreakKindUi, CardData, CardKind, ConvRow, CountRow, DecisionRow, DetailData, FocusGroup,
-    FrequencyUi, GraphData, GraphNodeData, GroupRow, HabitKindUi, HabitRow, InboxRow, InterruptRow,
-    ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow, ReasonData, ReasonKind, ReviewData,
-    RhythmData, RhythmModeUi, SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow,
-    WaitRow, WeekPoint,
+    BreakKindUi, CardData, CardKind, ChangeRow, ConvRow, CountRow, DecisionRow, DetailData,
+    FieldRow, FocusGroup, FrequencyUi, GraphData, GraphNodeData, GroupRow, HabitKindUi, HabitRow,
+    InboxRow, InterruptRow, ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow, ProposalRow,
+    ReasonData, ReasonKind, ReviewData, RhythmData, RhythmModeUi, SourceRow, SuggestionData,
+    TagRow, TimeRow, TimerData, TodayData, TrendRow, UnitRow, WaitRow, WeekPoint,
 };
 
 pub fn ss(s: impl AsRef<str>) -> SharedString {
@@ -354,6 +355,7 @@ pub fn today_data(t: &TodayView, has_identities: bool) -> TodayData {
                 .collect(),
         ),
         inbox: int(t.inbox),
+        proposals: int(t.proposals),
         warnings: int(t.warnings),
         review_due: t.review_due,
         has_identities,
@@ -837,6 +839,124 @@ pub fn edit_command(d: &ItemDetail, f: &ItemForm, today: Date) -> Result<command
         Some(r) => (Some(r) != cur.repeat).then_some(Update::Set(r)),
     };
     Ok(e)
+}
+
+fn change_row(c: &patina_core::proposal::ChangeView) -> ChangeRow {
+    use patina_core::proposal::{ChangeView, value_text};
+    let fields = |f: &[patina_core::proposal::FieldChange]| {
+        model(
+            f.iter()
+                .map(|f| FieldRow {
+                    field: ss(f.field),
+                    old: ss(value_text(&f.old)),
+                    new: ss(value_text(&f.new)),
+                })
+                .collect(),
+        )
+    };
+    let row = |kind: &str, item: &str, target: &str, f: ModelRc<FieldRow>| ChangeRow {
+        kind: ss(kind),
+        item: ss(item),
+        target: ss(target),
+        fields: f,
+    };
+    match c {
+        ChangeView::AddItem {
+            title,
+            parent,
+            fields: f,
+            ..
+        } => row(
+            "add_item",
+            title,
+            parent.as_deref().unwrap_or(""),
+            fields(f),
+        ),
+        ChangeView::Edit { item, fields: f } => row("edit", item, "", fields(f)),
+        ChangeView::Note { item, text } => row("note", item, text, ModelRc::default()),
+        ChangeView::Link { item, depends_on } => row("link", item, depends_on, ModelRc::default()),
+        ChangeView::Unlink { item, depends_on } => {
+            row("unlink", item, depends_on, ModelRc::default())
+        }
+        ChangeView::Move { item, parent } => row(
+            "move",
+            item,
+            parent.as_deref().unwrap_or(""),
+            ModelRc::default(),
+        ),
+    }
+}
+
+/// Whether a unit is ticked: ready and not deselected.
+pub fn unit_checked(
+    state: UnitState,
+    deselected: Option<&std::collections::BTreeSet<usize>>,
+    index: usize,
+) -> bool {
+    state == UnitState::Ready && !deselected.is_some_and(|d| d.contains(&index))
+}
+
+/// Pending proposals with their parts, ticked unless the owner deselected them.
+pub fn proposal_rows(
+    views: &[ProposalView],
+    deselected: &std::collections::HashMap<String, std::collections::BTreeSet<usize>>,
+    now: &ZonedDateTime,
+) -> ModelRc<ProposalRow> {
+    model(
+        views
+            .iter()
+            .filter(|p| p.status == ProposalStatus::Pending)
+            .map(|p| {
+                let id = p.id.to_string();
+                let off = deselected.get(&id);
+                ProposalRow {
+                    short: ss(&p.short),
+                    source: ss(String::from(p.source.clone())),
+                    submitted: ss(local_day(p.submitted_at, now)),
+                    summary: ss(&p.summary),
+                    units: model(
+                        p.units
+                            .iter()
+                            .map(|u| UnitRow {
+                                index: int(u.index),
+                                state: ss(match u.state {
+                                    UnitState::Ready => "ready",
+                                    UnitState::Stale => "stale",
+                                    UnitState::Accepted => "accepted",
+                                    UnitState::Skipped => "skipped",
+                                    UnitState::Rejected => "rejected",
+                                }),
+                                problem: ss(u.problem.as_deref().unwrap_or("")),
+                                checked: unit_checked(u.state, off, u.index),
+                                needs: ss(u
+                                    .needs
+                                    .iter()
+                                    .map(|n| (n + 1).to_string())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")),
+                                changes: model(u.changes.iter().map(change_row).collect()),
+                            })
+                            .collect(),
+                    ),
+                    id: ss(id),
+                }
+            })
+            .collect(),
+    )
+}
+
+/// Sources whose changes can be undone in bulk.
+pub fn source_rows(sources: &[SourceView], now: &ZonedDateTime) -> ModelRc<SourceRow> {
+    model(
+        sources
+            .iter()
+            .map(|s| SourceRow {
+                source: ss(String::from(s.source.clone())),
+                commands: int(s.commands),
+                last: ss(local_day(s.last_at, now)),
+            })
+            .collect(),
+    )
 }
 
 const NODE_W: f32 = 168.0;

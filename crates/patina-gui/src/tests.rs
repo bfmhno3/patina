@@ -245,3 +245,59 @@ fn graph_page_lays_out_the_children_of_a_composite_item() {
     app.invoke_close_graph();
     assert!(!app.get_graph_open());
 }
+
+#[test]
+fn proposals_show_on_the_inbox_page_and_accepting_applies_them() {
+    use patina_core::command::{AddItem, Command, Propose};
+    use patina_core::engine::Patina;
+    use patina_core::event::Source;
+    use patina_core::proposal::ProposalOp;
+
+    let h = harness();
+    let app = h.app();
+    app.invoke_init_identities();
+    assert_eq!(app.invoke_add_item(form("P", "life")), "");
+
+    let outside = Patina::new(Store::new(
+        h.dir.path().to_path_buf(),
+        DeviceId::from_uuid(Uuid::from_u128(8)),
+    ));
+    outside
+        .run(
+            Command::Propose(Propose {
+                summary: "add a step".into(),
+                ops: vec![ProposalOp::AddItem {
+                    key: "a".into(),
+                    item: AddItem {
+                        title: "step".into(),
+                        identity: None,
+                        parent: Some("P".into()),
+                        tags: vec![],
+                        defer: None,
+                        scheduled: None,
+                        deadline: None,
+                        waiting_for: None,
+                        follow_up: None,
+                        important: false,
+                        size: None,
+                        repeat: None,
+                    },
+                }],
+            }),
+            jiff::ZonedDateTime::now(),
+            Source::Mcp {
+                client: "test".into(),
+            },
+        )
+        .unwrap();
+
+    app.invoke_navigate(1);
+    assert_eq!(app.get_proposals().row_count(), 1);
+    let p = app.get_proposals().row_data(0).unwrap();
+    assert_eq!(p.summary, "add a step");
+    assert!(p.units.row_data(0).unwrap().checked);
+    assert_eq!(app.invoke_accept_proposal(p.id), "");
+    assert_eq!(app.get_proposals().row_count(), 0);
+    app.invoke_navigate(2);
+    assert_eq!(app.get_tree().row_count(), 2);
+}
