@@ -97,6 +97,7 @@ fn lists_tools_and_hides_work_items() {
         names,
         [
             "frontier",
+            "graph",
             "habits",
             "identities",
             "next",

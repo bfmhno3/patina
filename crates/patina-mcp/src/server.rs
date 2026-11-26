@@ -92,6 +92,17 @@ const TOOLS: &[ToolDef] = &[
         }],
     },
     ToolDef {
+        name: "graph",
+        query: "graph",
+        description: "The children of a composite item as a layered dependency graph (layer, frontier flag, edges).",
+        args: &[Arg {
+            name: "item",
+            kind: "string",
+            required: true,
+            description: "Short id or title of a composite item.",
+        }],
+    },
+    ToolDef {
         name: "habits",
         query: "habits",
         description: "All habits with today's state and strength.",
