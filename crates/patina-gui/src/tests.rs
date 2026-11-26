@@ -196,3 +196,28 @@ fn break_reminder_prompts_once_and_starting_the_break_stops_the_timer() {
     app.invoke_resume();
     assert!(app.get_timer().running);
 }
+
+#[test]
+fn graduating_a_habit_moves_it_to_the_graduated_list() {
+    let h = harness();
+    let app = h.app();
+    app.invoke_init_identities();
+    let habit = crate::HabitForm {
+        name: "read".into(),
+        identity: "study".into(),
+        cue: "".into(),
+        kind: 0,
+        target: 1,
+        frequency: 0,
+        times: 3,
+        days: slint::ModelRc::default(),
+    };
+    assert_eq!(app.invoke_add_habit(habit), "");
+    app.invoke_navigate(3);
+    let row = app.get_habits().row_data(0).unwrap();
+    app.invoke_graduate_habit(row.id.clone());
+    assert_eq!(app.get_habits().row_count(), 0);
+    let graduated = app.get_graduated_habits().row_data(0).unwrap();
+    assert_eq!(graduated.name, "read");
+    assert_eq!(graduated.stage, "graduated");
+}

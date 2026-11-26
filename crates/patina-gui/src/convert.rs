@@ -153,6 +153,8 @@ pub fn habit_row(h: &HabitView) -> HabitRow {
         times,
         days: model(days),
         paused: h.paused,
+        stage: ss(h.stage.key()),
+        ready: h.graduation_ready,
         due: h.due,
         strength: h.strength as f32,
         value: h.value as f32,
@@ -541,6 +543,14 @@ pub fn review_data(
                     identity: ss(i.identity.as_deref().unwrap_or("")),
                     handled_now: matches!(i.outcome, patina_core::event::InterruptOutcome::Now),
                 })
+                .collect(),
+        ),
+        graduated: habit_rows(&r.graduated),
+        ready: model(
+            r.habits
+                .iter()
+                .filter(|h| h.habit.graduation_ready)
+                .map(|h| habit_row(&h.habit))
                 .collect(),
         ),
         habits: model(

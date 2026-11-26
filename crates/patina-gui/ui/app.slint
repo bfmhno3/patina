@@ -43,6 +43,7 @@ export global App {
     in property <[InboxRow]> inbox;
     in property <[ItemRow]> tree;
     in property <[HabitRow]> habits;
+    in property <[HabitRow]> graduated_habits;
     in property <DetailData> detail;
     in property <ReviewData> review;
     in property <SettingsData> settings;
@@ -119,6 +120,8 @@ export global App {
     callback skip_habit(string, int) -> string;
     callback pause_habit(string);
     callback resume_habit(string);
+    callback graduate_habit(string);
+    callback reinstate_habit(string);
     callback add_habit(HabitForm) -> string;
     callback edit_habit(string, string, string, string) -> string;
 

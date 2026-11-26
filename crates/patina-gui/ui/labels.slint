@@ -38,6 +38,22 @@ export global Labels {
         return key;
     }
 
+    public pure function habit_stage(key: string) -> string {
+        if key == "building" {
+            return @tr("building");
+        }
+        if key == "maintaining" {
+            return @tr("maintaining");
+        }
+        if key == "paused" {
+            return @tr("paused");
+        }
+        if key == "graduated" {
+            return @tr("graduated");
+        }
+        return key;
+    }
+
     public pure function size(i: int) -> string {
         if i == 1 {
             return @tr("S");

@@ -122,6 +122,10 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
         .pause_habit(&id, true));
     bind!(on_resume_habit, |c, id: SharedString| c
         .pause_habit(&id, false));
+    bind!(on_graduate_habit, |c, id: SharedString| c
+        .graduate_habit(&id, true));
+    bind!(on_reinstate_habit, |c, id: SharedString| c
+        .graduate_habit(&id, false));
     bind!(on_add_habit, |c, form: HabitForm| c.add_habit(&form));
     bind!(on_edit_habit, |c,
                           id: SharedString,

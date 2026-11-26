@@ -565,6 +565,16 @@ impl Controller {
         self.exec_quiet(cmd);
     }
 
+    pub fn graduate_habit(&mut self, id: &str, graduate: bool) {
+        let habit = id.to_string();
+        let cmd = if graduate {
+            Command::GraduateHabit(command::GraduateHabit { habit, from: None })
+        } else {
+            Command::ReinstateHabit(command::ReinstateHabit { habit, from: None })
+        };
+        self.exec_quiet(cmd);
+    }
+
     pub fn add_habit(&mut self, f: &crate::HabitForm) -> SharedString {
         use patina_core::event::Frequency;
         use patina_core::time::Weekday;
@@ -907,7 +917,11 @@ impl Controller {
                 let QueryOutput::Habits(habits) = self.ask(Query::Habits)? else {
                     return Err("unexpected query result".into());
                 };
-                app.set_habits(convert::habit_rows(&habits));
+                let (graduated, active): (Vec<_>, Vec<_>) = habits
+                    .into_iter()
+                    .partition(|h| h.stage == patina_core::query::HabitStage::Graduated);
+                app.set_habits(convert::habit_rows(&active));
+                app.set_graduated_habits(convert::habit_rows(&graduated));
             }
             4 => {
                 let QueryOutput::Review(review) = self.ask(Query::Review)? else {
