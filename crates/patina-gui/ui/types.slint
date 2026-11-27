@@ -380,10 +380,14 @@ export struct IdentityRow {
 
 export enum StorageUi { desktop, shared, private }
 
+export enum LanguageUi { system, english, simplified_chinese, traditional_chinese }
+
 export struct SettingsData {
     root: string,
     device: string,
     storage: StorageUi,
+    // The language picked in Settings; system follows the OS.
+    language: LanguageUi,
     sources: [SourceRow],
     version: string,
     focus_minutes: int,

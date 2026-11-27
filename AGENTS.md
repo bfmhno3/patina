@@ -11,6 +11,7 @@ Patina is the owner's personal task system (identity × form model, project DAGs
 - `crates/patina-gui/`: Slint GUI; `lib` + `cdylib` (Android) + `patina-gui` bin; `build.rs` compiles `ui/` via `slint-project.json`.
   - Rust: `controller.rs` (commands, queries, refresh into the `App` global), `convert.rs` (pure view-model and form conversions), `wire.rs` (callbacks), `notify.rs` (OS notifications), `tests.rs` (headless end-to-end).
   - `ui/main.slint` (only `MainWindow`), `ui/types.slint` (data contract), `ui/app.slint` (the `App` global), `ui/labels.slint` (stable keys to `@tr` text), `ui/pages/`, `ui/components/`, `ui/icons/` + `ui/icons.slint`.
+  - `translations/<lang>/LC_MESSAGES/patina-gui.po` (`zh_CN`, `zh_TW`; English is the source): bundled by `build.rs`, switched live from Settings (`src/language.rs`, preference in `gui.toml` next to `device-id`). After adding or changing an `@tr` string run `just tr-update`, translate the new entries; `just tr-check` (part of `just check`) must pass. Text the Rust code shows goes through `Labels` (`gui_error`, `break_due`), never hard-coded English; core errors stay English.
 - `docs/design.md`: product design (Chinese), the source of truth for behavior.
 - `docs/code-style.md`: code and Markdown style.
 - `vendor/slint-material/`: unmodified Slint Material Components 1.1.0 (MIT). Never edit; upgrade with `just vendor-material <version>` and check its Slint minimum.

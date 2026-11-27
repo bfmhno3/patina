@@ -1,8 +1,10 @@
 //! The controller: runs core commands and queries, and projects the results into the
 //! `App` global. All domain rules stay in `patina-core`; this only translates.
 
+use std::cell::Cell;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use jiff::ZonedDateTime;
 use jiff::civil::Date;
@@ -17,10 +19,11 @@ use patina_core::time::{self, parse_hours};
 use slint::{ComponentHandle as _, Model as _, SharedString};
 use uuid::Uuid;
 
-use crate::convert::{self, ss};
+use crate::convert::{self, GuiError, ss};
+use crate::language::{self, Language};
 use crate::{
-    App, ItemForm, MainWindow, NoticeData, NoticeKind, PickerPurpose, PickerRow, PromptData,
-    PromptKind, SettingsData, StorageUi,
+    App, ItemForm, Labels, MainWindow, NoticeData, NoticeKind, PickerPurpose, PickerRow,
+    PromptData, PromptKind, SettingsData, StorageUi,
 };
 
 /// Which items the Today page shows.
@@ -65,6 +68,12 @@ pub struct Controller {
     resume: Option<Resume>,
     prompt_seq: i32,
     notice_seq: i32,
+    /// Directory of the per-device GUI preferences (`gui.toml`).
+    prefs_dir: PathBuf,
+    /// The language preference; `None` follows the system.
+    language: Option<Language>,
+    /// The language shown, read by the date picker's formatter.
+    locale: Rc<Cell<Language>>,
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -78,6 +87,7 @@ impl Controller {
         root: PathBuf,
         window: slint::Weak<MainWindow>,
         storage: StorageUi,
+        prefs_dir: PathBuf,
     ) -> Self {
         let device = store.device();
         Self {
@@ -101,11 +111,49 @@ impl Controller {
             resume: None,
             prompt_seq: 0,
             notice_seq: 0,
+            language: language::load(&prefs_dir),
+            prefs_dir,
+            locale: Rc::new(Cell::new(Language::En)),
         }
     }
 
     fn ask(&self, q: Query) -> Result<QueryOutput, String> {
         self.patina.query(q, ZonedDateTime::now()).map_err(err)
+    }
+
+    /// Words a GUI-side error in the current language through `Labels.gui_error`.
+    fn error_text(&self, e: &GuiError) -> String {
+        let (key, detail) = e.key();
+        self.window.upgrade().map_or_else(
+            || format!("{e:?}"), // no window, nobody reads it; never "" (that means success)
+            |w| {
+                w.global::<Labels<'_>>()
+                    .invoke_gui_error(key.into(), detail.into())
+                    .to_string()
+            },
+        )
+    }
+
+    /// The language shown, shared with the date picker's formatter.
+    pub fn locale(&self) -> Rc<Cell<Language>> {
+        self.locale.clone()
+    }
+
+    /// Shows the preferred (or system) language; call once the window exists.
+    pub fn apply_language(&self) {
+        let lang = language::resolve(self.language);
+        self.locale.set(lang);
+        language::select(lang);
+    }
+
+    pub fn set_language(&mut self, pref: Option<Language>) {
+        self.language = pref;
+        self.apply_language();
+        if let Err(e) = language::save(&self.prefs_dir, pref) {
+            let text = self.error_text(&GuiError::SaveLanguage(e.to_string()));
+            self.set_notice(NoticeKind::Error, &text, "");
+        }
+        self.refresh();
     }
 
     fn scope_args(&self) -> (Option<String>, bool) {
@@ -306,7 +354,7 @@ impl Controller {
             })
             .unwrap_or_default();
         if selected.is_empty() {
-            return ss("nothing selected");
+            return ss(self.error_text(&GuiError::NothingSelected));
         }
         let result = self.exec_text(Command::AcceptProposal(command::AcceptProposal {
             proposal: id.to_string(),
@@ -474,7 +522,8 @@ impl Controller {
             Ok(Command::Stuck(command::Stuck {
                 item: convert::opt_text(item),
                 waiting_for: waiting.to_string(),
-                follow_up: convert::date_field(follow_up, today)?,
+                follow_up: convert::date_field(follow_up, today)
+                    .map_err(|e| self.error_text(&e))?,
             }))
         });
         self.exec_built(cmd)
@@ -503,7 +552,7 @@ impl Controller {
 
     fn past_time(&self, hhmm: &str) -> Result<jiff::Timestamp, String> {
         time::parse_time(hhmm, &ZonedDateTime::now())
-            .ok_or_else(|| format!("invalid time {:?} (use HH:MM)", hhmm.trim()))
+            .ok_or_else(|| self.error_text(&GuiError::Time(hhmm.trim().to_string())))
     }
 
     pub fn correct_timer(&mut self, hhmm: &str) -> SharedString {
@@ -552,7 +601,9 @@ impl Controller {
     pub fn add_item(&mut self, form: &ItemForm) -> SharedString {
         let cmd = self
             .today_date()
-            .and_then(|today| convert::add_item_command(form, today))
+            .and_then(|today| {
+                convert::add_item_command(form, today).map_err(|e| self.error_text(&e))
+            })
             .map(|c| Command::AddItem(Box::new(c)));
         self.exec_built(cmd)
     }
@@ -560,7 +611,9 @@ impl Controller {
     pub fn triage(&mut self, id: &str, form: &ItemForm) -> SharedString {
         let cmd = self
             .today_date()
-            .and_then(|today| convert::triage_command(id, form, today))
+            .and_then(|today| {
+                convert::triage_command(id, form, today).map_err(|e| self.error_text(&e))
+            })
             .map(|c| Command::Triage(Box::new(c)));
         self.exec_built(cmd)
     }
@@ -577,7 +630,9 @@ impl Controller {
     pub fn edit_item(&mut self, id: &str, form: &ItemForm) -> SharedString {
         let cmd = self.today_date().and_then(|today| {
             let detail = self.detail_of(id)?;
-            convert::edit_command(&detail, form, today).map(|e| Command::Edit(Box::new(e)))
+            convert::edit_command(&detail, form, today)
+                .map_err(|e| self.error_text(&e))
+                .map(|e| Command::Edit(Box::new(e)))
         });
         self.exec_built(cmd)
     }
@@ -585,7 +640,9 @@ impl Controller {
     /// An edit of one date field.
     fn set_date_field(&mut self, id: &str, date: &str, follow_up: bool) -> SharedString {
         let cmd = self.today_date().and_then(|today| {
-            let d = convert::date_field(date, today)?.ok_or_else(|| "enter a date".to_string())?;
+            let d = convert::date_field(date, today)
+                .map_err(|e| self.error_text(&e))?
+                .ok_or_else(|| self.error_text(&GuiError::DateRequired))?;
             let mut e = convert::blank_edit(id);
             if follow_up {
                 e.follow_up = Some(Update::Set(d));
@@ -787,10 +844,7 @@ impl Controller {
                     weekly_minutes,
                 }))
             }
-            None => ss(format!(
-                "invalid hours {:?} (use a number like 20 or 7.5, or none)",
-                hours.trim()
-            )),
+            None => ss(self.error_text(&GuiError::Hours(hours.trim().to_string()))),
         }
     }
 
@@ -979,17 +1033,16 @@ impl Controller {
                 ..PromptData::default()
             });
         } else if let Some(d) = rhythm.due.filter(|_| !self.was_due) {
+            let focus = i32::try_from(rhythm.focus_minutes).unwrap_or(i32::MAX);
+            let minutes = i32::try_from(d.minutes).unwrap_or(i32::MAX);
             crate::notify::desktop(
                 "Patina",
-                &format!(
-                    "Focused {} min. Take a {}-min break?",
-                    rhythm.focus_minutes, d.minutes
-                ),
+                &win.global::<Labels<'_>>().invoke_break_due(focus, minutes),
             );
             prompt = Some(PromptData {
                 kind: PromptKind::BreakDue,
-                minutes: i32::try_from(d.minutes).unwrap_or(i32::MAX),
-                focus_minutes: i32::try_from(rhythm.focus_minutes).unwrap_or(i32::MAX),
+                minutes,
+                focus_minutes: focus,
                 break_kind: convert::break_kind_of(&d),
                 ..PromptData::default()
             });
@@ -1001,7 +1054,10 @@ impl Controller {
             app.set_prompt(p);
         }
         if self.was_on_break && rhythm.on_break.is_none() && today.timer.is_none() {
-            crate::notify::desktop("Patina", "Break over");
+            let text = win
+                .global::<Labels<'_>>()
+                .invoke_notice(NoticeKind::BreakOver, SharedString::new());
+            crate::notify::desktop("Patina", &text);
             self.set_notice(NoticeKind::BreakOver, "", "");
         }
         self.was_on_break = rhythm.on_break.is_some();
@@ -1102,6 +1158,7 @@ impl Controller {
                 return Err("unexpected query result".into());
             };
             app.set_settings(SettingsData {
+                language: convert::language_ui(self.language),
                 sources: convert::source_rows(&sources, &now),
                 storage: self.storage,
                 root: ss(self.root.display().to_string()),

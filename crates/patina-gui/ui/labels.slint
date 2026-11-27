@@ -265,4 +265,35 @@ export global Labels {
             + (r.estimate != "" ? " · " + r.estimate : "")
             + (r.tracked_minutes > 0 ? " · " + minutes(r.tracked_minutes) : "");
     }
+
+    // Errors the GUI raises itself, before core sees the input; Rust passes `GuiError::key`.
+    public pure function gui_error(key: string, detail: string) -> string {
+        if key == "date" {
+            return @tr("invalid date \"{}\" (use YYYY-MM-DD, today, tomorrow, or +N)", detail);
+        }
+        if key == "repeat_interval" {
+            return @tr("repeat intervals must be positive");
+        }
+        if key == "date_required" {
+            return @tr("enter a date");
+        }
+        if key == "time" {
+            return @tr("invalid time \"{}\" (use HH:MM)", detail);
+        }
+        if key == "hours" {
+            return @tr("invalid hours \"{}\" (use a number like 20 or 7.5, or none)", detail);
+        }
+        if key == "nothing_selected" {
+            return @tr("nothing selected");
+        }
+        if key == "save_language" {
+            return @tr("could not save the language setting: {}", detail);
+        }
+        return detail;
+    }
+
+    // Desktop notification body when a break is due.
+    public pure function break_due(focus: int, minutes: int) -> string {
+        return @tr("Focused {} min. Take a {}-min break?", focus, minutes);
+    }
 }

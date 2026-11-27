@@ -9,7 +9,7 @@ use slint::{ComponentHandle as _, Model as _};
 use uuid::Uuid;
 
 use crate::controller::Controller;
-use crate::{App, ItemForm, MainWindow, NoticeKind, wire};
+use crate::{App, ItemForm, Labels, LanguageUi, MainWindow, NoticeKind, wire};
 
 struct Harness {
     window: MainWindow,
@@ -30,8 +30,13 @@ fn harness() -> Harness {
         dir.path().to_path_buf(),
         window.as_weak(),
         crate::StorageUi::Desktop,
+        dir.path().join("device"),
     )));
     wire::connect(&window, ctl.clone());
+    // Assertions must not depend on the machine's locale.
+    window
+        .global::<App<'_>>()
+        .invoke_set_language(LanguageUi::English);
     ctl.borrow_mut().refresh();
     Harness { window, ctl, dir }
 }
@@ -300,4 +305,24 @@ fn proposals_show_on_the_inbox_page_and_accepting_applies_them() {
     assert_eq!(app.get_proposals().row_count(), 0);
     app.invoke_navigate(2);
     assert_eq!(app.get_tree().row_count(), 2);
+}
+
+#[test]
+fn language_switch_translates_and_persists() {
+    let h = harness();
+    let app = h.app();
+    app.invoke_init_identities();
+    app.invoke_set_language(LanguageUi::SimplifiedChinese);
+    assert_eq!(
+        app.invoke_set_target("work".into(), "x".into()),
+        "无效的小时数“x”（请填写 20 或 7.5 这样的数字，或 none）"
+    );
+    let labels = h.window.global::<Labels<'_>>();
+    assert_eq!(labels.invoke_status("todo".into()), "待办");
+    app.invoke_open_settings();
+    assert_eq!(app.get_settings().language, LanguageUi::SimplifiedChinese);
+    let saved = std::fs::read_to_string(h.dir.path().join("device/gui.toml")).unwrap();
+    assert!(saved.contains("language = \"zh_CN\""), "{saved}");
+    app.invoke_set_language(LanguageUi::English);
+    assert_eq!(labels.invoke_status("todo".into()), "To do");
 }

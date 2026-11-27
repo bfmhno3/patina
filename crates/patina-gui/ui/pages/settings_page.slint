@@ -19,13 +19,14 @@ import { PropertyRow } from "../components/property_row.slint";
 import { Section } from "../components/section.slint";
 import { ErrorBanner } from "../components/error_banner.slint";
 import { TextPromptDialog } from "../components/text_prompt_dialog.slint";
-import { RhythmModeUi, StorageUi } from "../types.slint";
+import { LanguageUi, RhythmModeUi, StorageUi } from "../types.slint";
 import { Tile } from "../components/tile.slint";
 
 export component SettingsPage inherits Rectangle {
     property <string> sources_error;
     property <string> target_for;
-    property <string> rhythm_value: Labels.rhythm_mode(App.rhythm.mode);
+    property <int> rhythm_index: App.rhythm.mode == RhythmModeUi.fixed ? 0 : App.rhythm.mode == RhythmModeUi.flowtime ? 1 : 2;
+    property <int> language_index: App.settings.language == LanguageUi.english ? 1 : App.settings.language == LanguageUi.simplified_chinese ? 2 : App.settings.language == LanguageUi.traditional_chinese ? 3 : 0;
 
     PageScroll {
         PageHeader {
@@ -92,8 +93,7 @@ export component SettingsPage inherits Rectangle {
                         Labels.rhythm_mode(RhythmModeUi.flowtime),
                         Labels.rhythm_mode(RhythmModeUi.off)
                     ];
-                    by_value: true;
-                    value <=> root.rhythm_value;
+                    current <=> root.rhythm_index;
 
                     chosen(index) => {
                         App.set_rhythm(index == 0 ? RhythmModeUi.fixed : index == 1 ? RhythmModeUi.flowtime : RhythmModeUi.off);
@@ -106,6 +106,24 @@ export component SettingsPage inherits Rectangle {
                     overflow: clip;
                     color: MaterialPalette.on_surface_variant;
                     style: MaterialTypography.body_medium;
+                }
+            }
+        }
+
+        Section {
+            title: @tr("Language");
+
+            VerticalLayout {
+                padding: MaterialStyleMetrics.padding_16;
+
+                ChoiceRow {
+                    // Language names are shown in their own language, so they are not translated.
+                    options: [@tr("Follow system"), "English", "简体中文", "繁體中文"];
+                    current <=> root.language_index;
+
+                    chosen(index) => {
+                        App.set_language(index == 1 ? LanguageUi.english : index == 2 ? LanguageUi.simplified_chinese : index == 3 ? LanguageUi.traditional_chinese : LanguageUi.system);
+                    }
                 }
             }
         }

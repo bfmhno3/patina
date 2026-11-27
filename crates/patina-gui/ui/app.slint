@@ -13,6 +13,7 @@ import {
     InboxRow,
     ItemForm,
     ItemRow,
+    LanguageUi,
     NoticeData,
     PickerPurpose,
     PickerRow,
@@ -113,6 +114,7 @@ export global App {
     callback start_break();
     callback snooze_break();
     callback set_rhythm(RhythmModeUi);
+    callback set_language(LanguageUi);
     callback resume();
     callback correct_timer(string) -> string;
     callback keep_timer();

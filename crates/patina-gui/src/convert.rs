@@ -15,12 +15,14 @@ use patina_core::rhythm::BreakDue;
 use patina_core::time::{self, Weekday};
 use slint::{ModelRc, SharedString};
 
+use crate::language::Language;
 use crate::{
     BreakKindUi, CardData, CardKind, ChangeRow, ConvRow, CountRow, DecisionRow, DetailData,
     FieldRow, FocusGroup, FrequencyUi, GraphData, GraphNodeData, GroupRow, HabitKindUi, HabitRow,
-    IdentityRow, InboxRow, InterruptRow, ItemForm, ItemRow, NoteRow, PostponedRow, ProjectRow,
-    ProposalRow, ReasonData, ReasonKind, ReviewData, RhythmData, RhythmModeUi, SourceRow,
-    SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow, UnitRow, WaitRow, WeekPoint,
+    IdentityRow, InboxRow, InterruptRow, ItemForm, ItemRow, LanguageUi, NoteRow, PostponedRow,
+    ProjectRow, ProposalRow, ReasonData, ReasonKind, ReviewData, RhythmData, RhythmModeUi,
+    SourceRow, SuggestionData, TagRow, TimeRow, TimerData, TodayData, TrendRow, UnitRow, WaitRow,
+    WeekPoint,
 };
 
 pub fn ss(s: impl AsRef<str>) -> SharedString {
@@ -301,6 +303,25 @@ pub fn rhythm_mode_core(m: RhythmModeUi) -> patina_core::event::RhythmMode {
         RhythmModeUi::Fixed => RhythmMode::Fixed,
         RhythmModeUi::Flowtime => RhythmMode::Flowtime,
         RhythmModeUi::Off => RhythmMode::Off,
+    }
+}
+
+/// The language a Settings choice stands for; `None` follows the system.
+pub fn language_pref(l: LanguageUi) -> Option<Language> {
+    match l {
+        LanguageUi::System => None,
+        LanguageUi::English => Some(Language::En),
+        LanguageUi::SimplifiedChinese => Some(Language::ZhCn),
+        LanguageUi::TraditionalChinese => Some(Language::ZhTw),
+    }
+}
+
+pub fn language_ui(p: Option<Language>) -> LanguageUi {
+    match p {
+        None => LanguageUi::System,
+        Some(Language::En) => LanguageUi::English,
+        Some(Language::ZhCn) => LanguageUi::SimplifiedChinese,
+        Some(Language::ZhTw) => LanguageUi::TraditionalChinese,
     }
 }
 
@@ -705,11 +726,31 @@ pub fn picker_month_offset(month: i32, year: i32) -> i32 {
     civil_date(1, month, year).map_or(0, |d| i32::from(d.weekday().to_sunday_zero_offset()))
 }
 
-/// `strftime`-formats a date; empty when the date or format is invalid.
-pub fn picker_format(format: &str, day: i32, month: i32, year: i32) -> String {
-    civil_date(day, month, year)
-        .and_then(|d| jiff::fmt::strtime::format(format, d).ok())
-        .unwrap_or_default()
+/// `strftime`-formats a date in `lang`; empty when the date or format is invalid.
+///
+/// `%B %Y` and `%a, %b %d` are the vendored date picker's header formats; Chinese
+/// replaces them with month and weekday names jiff's English-only formatter lacks.
+pub fn picker_format(lang: Language, format: &str, day: i32, month: i32, year: i32) -> String {
+    let Some(d) = civil_date(day, month, year) else {
+        return String::new();
+    };
+    let weekdays = match lang {
+        Language::En => None,
+        Language::ZhCn => Some(["周一", "周二", "周三", "周四", "周五", "周六", "周日"]),
+        Language::ZhTw => Some(["週一", "週二", "週三", "週四", "週五", "週六", "週日"]),
+    };
+    if let Some(names) = weekdays {
+        match format {
+            "%B %Y" => return format!("{year} 年 {month} 月"),
+            "%a, %b %d" => {
+                let weekday =
+                    names[usize::from(d.weekday().to_monday_zero_offset().unsigned_abs())];
+                return format!("{month} 月 {day} 日 {weekday}");
+            }
+            _ => {}
+        }
+    }
+    jiff::fmt::strtime::format(format, d).unwrap_or_default()
 }
 
 /// `[day, month, year]`, the picker's date list order.
@@ -728,17 +769,49 @@ pub fn picker_parse(date: &str, format: &str) -> Vec<i32> {
         .map_or_else(|_| Vec::new(), picker_parts)
 }
 
-const BAD_DATE: &str = "use YYYY-MM-DD, today, tomorrow, or +N";
+/// Input the GUI rejects itself, before core sees it; `Controller::error_text` words it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GuiError {
+    /// A date field that does not parse, with the trimmed input.
+    Date(String),
+    /// A repeat interval of zero.
+    RepeatInterval,
+    /// A date prompt left empty.
+    DateRequired,
+    /// A time that is not HH:MM, with the trimmed input.
+    Time(String),
+    /// Weekly hours that do not parse, with the trimmed input.
+    Hours(String),
+    /// A proposal accepted with every part unticked.
+    NothingSelected,
+    /// `gui.toml` could not be written, with the I/O error.
+    SaveLanguage(String),
+}
+
+impl GuiError {
+    /// The `Labels.gui_error` key and its detail argument.
+    pub fn key(&self) -> (&'static str, &str) {
+        match self {
+            Self::Date(d) => ("date", d),
+            Self::RepeatInterval => ("repeat_interval", ""),
+            Self::DateRequired => ("date_required", ""),
+            Self::Time(t) => ("time", t),
+            Self::Hours(h) => ("hours", h),
+            Self::NothingSelected => ("nothing_selected", ""),
+            Self::SaveLanguage(e) => ("save_language", e),
+        }
+    }
+}
 
 /// Parses a date field; empty is none.
-pub fn date_field(s: &str, today: Date) -> Result<Option<Date>, String> {
+pub fn date_field(s: &str, today: Date) -> Result<Option<Date>, GuiError> {
     let s = s.trim();
     if s.is_empty() {
         return Ok(None);
     }
     time::parse_date(s, today)
         .map(Some)
-        .ok_or_else(|| format!("invalid date {s:?} ({BAD_DATE})"))
+        .ok_or_else(|| GuiError::Date(s.to_string()))
 }
 
 /// Words split on whitespace and commas, without a leading `#`.
@@ -765,12 +838,12 @@ pub fn size_of(i: i32) -> Option<Size> {
     }
 }
 
-fn repeat_of(f: &ItemForm) -> Result<Option<Repeat>, String> {
+fn repeat_of(f: &ItemForm) -> Result<Option<Repeat>, GuiError> {
     let n = u32::try_from(f.repeat_n).unwrap_or(0);
     match f.repeat_kind {
         1 => {
             if n == 0 {
-                return Err("repeat intervals must be positive".into());
+                return Err(GuiError::RepeatInterval);
             }
             let unit = match f.repeat_unit {
                 1 => RepeatUnit::Week,
@@ -781,7 +854,7 @@ fn repeat_of(f: &ItemForm) -> Result<Option<Repeat>, String> {
         }
         2 => {
             if n == 0 {
-                return Err("repeat intervals must be positive".into());
+                return Err(GuiError::RepeatInterval);
             }
             Ok(Some(Repeat::AfterCompletion { days: n }))
         }
@@ -793,7 +866,7 @@ fn repeat_of(f: &ItemForm) -> Result<Option<Repeat>, String> {
 pub type FormDates = (Option<Date>, Option<Date>, Option<Date>, Option<Date>);
 
 /// Parses the four date fields of `f`.
-pub fn item_form_dates(f: &ItemForm, today: Date) -> Result<FormDates, String> {
+pub fn item_form_dates(f: &ItemForm, today: Date) -> Result<FormDates, GuiError> {
     Ok((
         date_field(&f.defer, today)?,
         date_field(&f.scheduled, today)?,
@@ -802,7 +875,7 @@ pub fn item_form_dates(f: &ItemForm, today: Date) -> Result<FormDates, String> {
     ))
 }
 
-pub fn add_item_command(f: &ItemForm, today: Date) -> Result<AddItem, String> {
+pub fn add_item_command(f: &ItemForm, today: Date) -> Result<AddItem, GuiError> {
     let (defer, scheduled, deadline, follow_up) = item_form_dates(f, today)?;
     Ok(AddItem {
         title: f.title.to_string(),
@@ -820,7 +893,7 @@ pub fn add_item_command(f: &ItemForm, today: Date) -> Result<AddItem, String> {
     })
 }
 
-pub fn triage_command(id: &str, f: &ItemForm, today: Date) -> Result<Triage, String> {
+pub fn triage_command(id: &str, f: &ItemForm, today: Date) -> Result<Triage, GuiError> {
     let (defer, scheduled, deadline, follow_up) = item_form_dates(f, today)?;
     Ok(Triage {
         item: id.to_string(),
@@ -862,7 +935,7 @@ fn date_update(
     field: &str,
     current: Option<Date>,
     today: Date,
-) -> Result<Option<Update<Date>>, String> {
+) -> Result<Option<Update<Date>>, GuiError> {
     match date_field(field, today)? {
         None => Ok(current.map(|_| Update::Clear)),
         Some(d) => Ok((Some(d) != current).then_some(Update::Set(d))),
@@ -870,7 +943,7 @@ fn date_update(
 }
 
 /// The edit that turns `d`'s item into what `f` describes; unchanged fields stay `None`.
-pub fn edit_command(d: &ItemDetail, f: &ItemForm, today: Date) -> Result<command::Edit, String> {
+pub fn edit_command(d: &ItemDetail, f: &ItemForm, today: Date) -> Result<command::Edit, GuiError> {
     let cur = &d.item;
     let mut e = blank_edit(&cur.id.to_string());
     let title = f.title.trim();
@@ -1143,10 +1216,7 @@ mod tests {
         let mut f = form();
         f.deadline = ss("someday");
         let err = item_form_dates(&f, today).unwrap_err();
-        assert_eq!(
-            err,
-            "invalid date \"someday\" (use YYYY-MM-DD, today, tomorrow, or +N)"
-        );
+        assert_eq!(err, GuiError::Date("someday".into()));
         f.deadline = ss("+2");
         assert_eq!(
             item_form_dates(&f, today).unwrap().2.unwrap().to_string(),
@@ -1176,8 +1246,27 @@ mod tests {
         assert_eq!(picker_days_in_month(2, 2028), 29);
         assert_eq!(picker_month_offset(11, 2026), 0); // 2026-11-01 is a Sunday
         assert_eq!(picker_month_offset(2, 2027), 1); // 2027-02-01 is a Monday
-        assert_eq!(picker_format("%Y-%m-%d", 5, 3, 2027), "2027-03-05");
-        assert_eq!(picker_format("%Y-%m-%d", 0, 0, 0), "");
+        assert_eq!(
+            picker_format(Language::En, "%Y-%m-%d", 5, 3, 2027),
+            "2027-03-05"
+        );
+        assert_eq!(picker_format(Language::En, "%Y-%m-%d", 0, 0, 0), "");
+        assert_eq!(
+            picker_format(Language::En, "%B %Y", 26, 11, 2026),
+            "November 2026"
+        );
+        assert_eq!(
+            picker_format(Language::ZhCn, "%B %Y", 26, 11, 2026),
+            "2026 年 11 月"
+        );
+        assert_eq!(
+            picker_format(Language::ZhTw, "%a, %b %d", 26, 11, 2026),
+            "11 月 26 日 週四"
+        );
+        assert_eq!(
+            picker_format(Language::ZhCn, "%Y-%m-%d", 26, 11, 2026),
+            "2026-11-26"
+        );
         assert_eq!(picker_parse("03/05/2027", "%m/%d/%Y"), [5, 3, 2027]);
         assert!(picker_parse("today", "%Y-%m-%d").is_empty());
     }

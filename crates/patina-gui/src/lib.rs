@@ -15,6 +15,7 @@ slint::include_modules!();
 
 mod controller;
 mod convert;
+mod language;
 mod notify;
 mod storage;
 #[cfg(test)]
@@ -27,7 +28,12 @@ use controller::Controller;
 const REFRESH_SECS: u64 = 30;
 
 /// Creates the window, wires it to the data under `store`, and runs the event loop.
-fn launch(store: Store, root: std::path::PathBuf, storage: StorageUi) -> anyhow::Result<()> {
+fn launch(
+    store: Store,
+    root: std::path::PathBuf,
+    storage: StorageUi,
+    prefs_dir: std::path::PathBuf,
+) -> anyhow::Result<()> {
     let window = MainWindow::new()?;
     #[cfg(target_os = "android")]
     {
@@ -39,8 +45,10 @@ fn launch(store: Store, root: std::path::PathBuf, storage: StorageUi) -> anyhow:
         root,
         window.as_weak(),
         storage,
+        prefs_dir,
     )));
     wire::connect(&window, ctl.clone());
+    ctl.borrow().apply_language();
     ctl.borrow_mut().refresh();
     let timer = slint::Timer::default();
     let tick = ctl.clone();
@@ -62,7 +70,8 @@ fn launch(store: Store, root: std::path::PathBuf, storage: StorageUi) -> anyhow:
 pub fn run() -> anyhow::Result<()> {
     let root = patina_core::store::default_root()?;
     let store = Store::new(root.clone(), patina_core::store::device_id()?);
-    launch(store, root, StorageUi::Desktop)
+    let prefs = patina_core::store::device_dir()?;
+    launch(store, root, StorageUi::Desktop, prefs)
 }
 
 #[cfg(target_os = "android")]
@@ -84,5 +93,5 @@ fn android_main(app: slint::android::AndroidApp) {
     } else {
         StorageUi::Private
     };
-    launch(Store::new(root.clone(), device), root, kind).expect("the GUI failed");
+    launch(Store::new(root.clone(), device), root, kind, internal).expect("the GUI failed");
 }

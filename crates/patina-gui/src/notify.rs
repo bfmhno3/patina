@@ -1,4 +1,4 @@
-//! OS notifications (desktop only). Text is English: Slint's `@tr` does not reach here.
+//! OS notifications (desktop only). Callers pass text already translated through `Labels`.
 
 /// Shows a desktop notification; failures are logged, never raised.
 #[cfg(not(target_os = "android"))]

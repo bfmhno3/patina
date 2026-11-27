@@ -3659,9 +3659,12 @@ dependencies = [
  "jiff",
  "notify-rust",
  "patina-core",
+ "serde",
  "slint",
  "slint-build",
+ "sys-locale",
  "tempfile",
+ "toml",
  "uuid",
 ]
 

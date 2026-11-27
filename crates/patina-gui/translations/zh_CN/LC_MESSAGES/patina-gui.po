@@ -1,0 +1,2376 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: bfmhno 3\n"
+"POT-Creation-Date: 2026-11-26 16:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: crates/patina-gui/ui/components/abandon_dialog.slint:47
+msgctxt "AbandonDialog"
+msgid "Abandon"
+msgstr "放弃"
+
+#: crates/patina-gui/ui/components/abandon_dialog.slint:63
+msgctxt "AbandonDialog"
+msgid "Why are you letting this go?"
+msgstr "为什么要放下这件事？"
+
+#: crates/patina-gui/ui/components/abandon_dialog.slint:86
+msgctxt "AbandonDialog"
+msgid "Note"
+msgstr "备注"
+
+#: crates/patina-gui/ui/components/break_dialog.slint:21
+msgctxt "BreakDialog"
+msgid "Time for a break"
+msgstr "该休息了"
+
+#: crates/patina-gui/ui/components/break_dialog.slint:23
+msgctxt "BreakDialog"
+msgid "Not now"
+msgstr "暂不"
+
+#: crates/patina-gui/ui/components/break_dialog.slint:23
+msgctxt "BreakDialog"
+msgid "10 more minutes"
+msgstr "再等 10 分钟"
+
+#: crates/patina-gui/ui/components/break_dialog.slint:24
+msgctxt "BreakDialog"
+msgid "Start break"
+msgstr "开始休息"
+
+#: crates/patina-gui/ui/components/break_dialog.slint:35
+msgctxt "BreakDialog"
+msgid "You've focused {} min. Take a {}-min {} break?"
+msgstr "你已专注 {} 分钟。要休息 {} 分钟（{}）吗？"
+
+#: crates/patina-gui/ui/components/capture_bar.slint:86
+msgctxt "CaptureBar"
+msgid "Capture a thought"
+msgstr "记录一个想法"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:49
+msgctxt "CheckInDialog"
+msgid "Skip habit"
+msgstr "跳过习惯"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:49
+msgctxt "CheckInDialog"
+msgid "Check in"
+msgstr "打卡"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:52
+msgctxt "CheckInDialog"
+msgid "Skip"
+msgstr "跳过"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:75
+msgctxt "CheckInDialog"
+msgid "Skipped days don't count against the habit's strength."
+msgstr "跳过的日子不会影响习惯的强度。"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:83
+msgctxt "CheckInDialog"
+msgid "Day"
+msgstr "日期"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:89
+msgctxt "CheckInDialog"
+msgid "Today"
+msgstr "今天"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:89
+msgctxt "CheckInDialog"
+msgid "Yesterday"
+msgstr "昨天"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:89
+msgctxt "CheckInDialog"
+msgid "2 days ago"
+msgstr "前天"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:94
+msgctxt "CheckInDialog"
+msgid "Total for the day"
+msgstr "当天总计"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:95
+msgctxt "CheckInDialog"
+msgid "of {}"
+msgstr "/ {}"
+
+#: crates/patina-gui/ui/components/check_in_dialog.slint:103
+msgctxt "CheckInDialog"
+msgid "Note"
+msgstr "备注"
+
+#: crates/patina-gui/ui/components/date_field.slint:17
+msgctxt "DateField"
+msgid "YYYY-MM-DD, today, tomorrow, +N"
+msgstr "YYYY-MM-DD、today、tomorrow、+N"
+
+#: crates/patina-gui/ui/components/date_field.slint:26
+msgctxt "DateField"
+msgid "Today"
+msgstr "今天"
+
+#: crates/patina-gui/ui/components/date_field.slint:26
+msgctxt "DateField"
+msgid "Tomorrow"
+msgstr "明天"
+
+#: crates/patina-gui/ui/components/date_field.slint:26
+msgctxt "DateField"
+msgid "Next week"
+msgstr "下周"
+
+#: crates/patina-gui/ui/components/date_field.slint:26
+msgctxt "DateField"
+msgid "Clear"
+msgstr "清除"
+
+#: crates/patina-gui/ui/components/date_prompt_dialog.slint:11
+msgctxt "DatePromptDialog"
+msgid "OK"
+msgstr "确定"
+
+#: crates/patina-gui/ui/components/form_dialog.slint:75
+msgctxt "FormDialog"
+msgid "Close"
+msgstr "关闭"
+
+#: crates/patina-gui/ui/components/graph_node.slint:60
+msgctxt "GraphNode"
+msgid "Open graph"
+msgstr "打开依赖图"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:79
+msgctxt "HabitFormDialog"
+msgid "Count, {} a day"
+msgstr "计次，每天 {} 次"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:81
+msgctxt "HabitFormDialog"
+msgid "Duration, {} min a day"
+msgstr "计时，每天 {} 分钟"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:83
+msgctxt "HabitFormDialog"
+msgid "Check off"
+msgstr "打勾"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:88
+msgctxt "HabitFormDialog"
+msgid "Every day"
+msgstr "每天"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:90
+msgctxt "HabitFormDialog"
+msgid "{} times a week"
+msgstr "每周 {} 次"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:92
+msgctxt "HabitFormDialog"
+msgid "On specific weekdays"
+msgstr "指定星期几"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:120
+msgctxt "HabitFormDialog"
+msgid "Edit habit"
+msgstr "编辑习惯"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:120
+msgctxt "HabitFormDialog"
+msgid "New habit"
+msgstr "新建习惯"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:121
+msgctxt "HabitFormDialog"
+msgid "Save"
+msgstr "保存"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:132
+msgctxt "HabitFormDialog"
+msgid "Details"
+msgstr "详情"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:140
+msgctxt "HabitFormDialog"
+msgid "Name"
+msgstr "名称"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:144
+msgctxt "HabitFormDialog"
+msgid "Identity"
+msgstr "身份"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:157
+msgctxt "HabitFormDialog"
+msgid "Cue"
+msgstr "触发提示"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:159
+msgctxt "HabitFormDialog"
+msgid "When or where you will do it"
+msgstr "你打算何时或在哪里做"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:165
+msgctxt "HabitFormDialog"
+msgid "Goal"
+msgstr "目标"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:172
+msgctxt "HabitFormDialog"
+msgid "Kind"
+msgstr "类型"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:178
+msgctxt "HabitFormDialog"
+msgid "Check"
+msgstr "打勾"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:178
+msgctxt "HabitFormDialog"
+msgid "Count"
+msgstr "计次"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:178
+msgctxt "HabitFormDialog"
+msgid "Duration"
+msgstr "计时"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:187
+msgctxt "HabitFormDialog"
+msgid "Daily count"
+msgstr "每日次数"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:194
+msgctxt "HabitFormDialog"
+msgid "Daily time"
+msgstr "每日时长"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:195
+msgctxt "HabitFormDialog"
+msgid "min"
+msgstr "分钟"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:205
+msgctxt "HabitFormDialog"
+msgid "Schedule"
+msgstr "安排"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:212
+msgctxt "HabitFormDialog"
+msgid "How often"
+msgstr "频率"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:218
+msgctxt "HabitFormDialog"
+msgid "Daily"
+msgstr "每天"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:218
+msgctxt "HabitFormDialog"
+msgid "Per week"
+msgstr "每周"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:218
+msgctxt "HabitFormDialog"
+msgid "Weekdays"
+msgstr "星期几"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:223
+msgctxt "HabitFormDialog"
+msgid "Times per week"
+msgstr "每周次数"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:271
+msgctxt "HabitFormDialog"
+msgid "Plan"
+msgstr "计划"
+
+#: crates/patina-gui/ui/components/habit_form_dialog.slint:297
+msgctxt "HabitFormDialog"
+msgid "Kind and schedule can't be changed after a habit is created."
+msgstr "习惯创建后，类型和安排无法更改。"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:35
+msgctxt "HabitTile"
+msgid "{} / {}"
+msgstr "{} / {}"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:38
+msgctxt "HabitTile"
+msgid "{} / {} min"
+msgstr "{} / {} 分钟"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:41
+msgctxt "HabitTile"
+msgid "{} / {} this week"
+msgstr "本周 {} / {}"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:43
+msgctxt "HabitTile"
+msgid "done"
+msgstr "已完成"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:43
+msgctxt "HabitTile"
+msgid "to do"
+msgstr "待办"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:119
+msgctxt "HabitTile"
+msgid "Every day"
+msgstr "每天"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:119
+msgctxt "HabitTile"
+msgid "{} times a week"
+msgstr "每周 {} 次"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:119
+msgctxt "HabitTile"
+msgid "On specific weekdays"
+msgstr "指定星期几"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:119
+msgctxt "HabitTile"
+msgid "ready to graduate"
+msgstr "可以毕业了"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:134
+msgctxt "HabitTile"
+msgid "{}%"
+msgstr "{}%"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:153
+msgctxt "HabitTile"
+msgid "More"
+msgstr "更多"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:174
+msgctxt "HabitTile"
+msgid "Check in…"
+msgstr "打卡…"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:175
+msgctxt "HabitTile"
+msgid "Skip…"
+msgstr "跳过…"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:177
+msgctxt "HabitTile"
+msgid "Resume"
+msgstr "恢复"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:177
+msgctxt "HabitTile"
+msgid "Pause"
+msgstr "暂停"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:180
+msgctxt "HabitTile"
+msgid "Edit…"
+msgstr "编辑…"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:182
+msgctxt "HabitTile"
+msgid "Reinstate"
+msgstr "恢复"
+
+#: crates/patina-gui/ui/components/habit_tile.slint:182
+msgctxt "HabitTile"
+msgid "Graduate"
+msgstr "毕业"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:39
+msgctxt "InterruptDialog"
+msgid "Interruption"
+msgstr "被打断"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:42
+msgctxt "InterruptDialog"
+msgid "Save"
+msgstr "保存"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:56
+msgctxt "InterruptDialog"
+msgid "What came up?"
+msgstr "发生了什么？"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:67
+msgctxt "InterruptDialog"
+msgid "Handle it now"
+msgstr "马上处理"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:72
+msgctxt "InterruptDialog"
+msgid "Creates a chore and switches the timer to it"
+msgstr "创建一个杂务，并把计时切换到它"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:72
+msgctxt "InterruptDialog"
+msgid "Goes to the inbox; the timer keeps running"
+msgstr "放入收件箱；计时继续"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:90
+msgctxt "InterruptDialog"
+msgid "Identity"
+msgstr "身份"
+
+#: crates/patina-gui/ui/components/interrupt_dialog.slint:103
+msgctxt "InterruptDialog"
+msgid "Where did you leave off?"
+msgstr "你停在哪了？"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:129
+msgctxt "ItemFormDialog"
+msgid "New item"
+msgstr "新建事项"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:129
+msgctxt "ItemFormDialog"
+msgid "New sub-item"
+msgstr "新建子事项"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:129
+msgctxt "ItemFormDialog"
+msgid "Triage"
+msgstr "整理"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:129
+msgctxt "ItemFormDialog"
+msgid "Edit item"
+msgstr "编辑事项"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:130
+msgctxt "ItemFormDialog"
+msgid "Save"
+msgstr "保存"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:141
+msgctxt "ItemFormDialog"
+msgid "Details"
+msgstr "详情"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:149
+msgctxt "ItemFormDialog"
+msgid "Title"
+msgstr "标题"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:153
+msgctxt "ItemFormDialog"
+msgid "Identity"
+msgstr "身份"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:168
+msgctxt "ItemFormDialog"
+msgid "Top level"
+msgstr "顶层"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:168
+msgctxt "ItemFormDialog"
+msgid "Under {}"
+msgstr "在 {} 之下"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:174
+msgctxt "ItemFormDialog"
+msgid "Choose parent…"
+msgstr "选择上级…"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:182
+msgctxt "ItemFormDialog"
+msgid "Clear"
+msgstr "清除"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:192
+msgctxt "ItemFormDialog"
+msgid "Tags"
+msgstr "标签"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:194
+msgctxt "ItemFormDialog"
+msgid "Separated by spaces or commas"
+msgstr "用空格或逗号分隔"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:198
+msgctxt "ItemFormDialog"
+msgid "Size"
+msgstr "尺码"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:204
+msgctxt "ItemFormDialog"
+msgid "–"
+msgstr "–"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:204
+msgctxt "ItemFormDialog"
+msgid "S"
+msgstr "S"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:204
+msgctxt "ItemFormDialog"
+msgid "M"
+msgstr "M"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:204
+msgctxt "ItemFormDialog"
+msgid "L"
+msgstr "L"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:212
+msgctxt "ItemFormDialog"
+msgid "Important"
+msgstr "重要"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:226
+msgctxt "ItemFormDialog"
+msgid "Dates"
+msgstr "日期"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:233
+msgctxt "ItemFormDialog"
+msgid "Planned for"
+msgstr "计划日"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:242
+msgctxt "ItemFormDialog"
+msgid "Deadline"
+msgstr "截止日"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:251
+msgctxt "ItemFormDialog"
+msgid "Hidden until"
+msgstr "推迟到"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:262
+msgctxt "ItemFormDialog"
+msgid "Waiting"
+msgstr "等待中"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:270
+msgctxt "ItemFormDialog"
+msgid "Waiting for"
+msgstr "在等"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:275
+msgctxt "ItemFormDialog"
+msgid "Follow up on"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:286
+msgctxt "ItemFormDialog"
+msgid "Repeat"
+msgstr "重复"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:293
+msgctxt "ItemFormDialog"
+msgid "Never"
+msgstr "从不"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:293
+msgctxt "ItemFormDialog"
+msgid "Every"
+msgstr "每隔"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:293
+msgctxt "ItemFormDialog"
+msgid "After completion"
+msgstr "完成后"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:299
+msgctxt "ItemFormDialog"
+msgid "Every how many"
+msgstr "每隔多少"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:299
+msgctxt "ItemFormDialog"
+msgid "Days after completion"
+msgstr "完成后的天数"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:304
+msgctxt "ItemFormDialog"
+msgid "Days"
+msgstr "天"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:304
+msgctxt "ItemFormDialog"
+msgid "Weeks"
+msgstr "周"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:304
+msgctxt "ItemFormDialog"
+msgid "Months"
+msgstr "月"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:320
+msgctxt "ItemFormDialog"
+msgid "Choose parent"
+msgstr "选择上级"
+
+#: crates/patina-gui/ui/components/item_form_dialog.slint:323
+msgctxt "ItemFormDialog"
+msgid "There are no open items yet."
+msgstr "还没有未完成的事项。"
+
+#: crates/patina-gui/ui/components/item_picker_dialog.slint:62
+msgctxt "ItemPickerDialog"
+msgid "Search"
+msgstr "搜索"
+
+#: crates/patina-gui/ui/components/item_picker_dialog.slint:86
+msgctxt "ItemPickerDialog"
+msgid "No matches"
+msgstr "没有匹配项"
+
+#: crates/patina-gui/ui/components/item_picker_dialog.slint:86
+msgctxt "ItemPickerDialog"
+msgid "Nothing to choose"
+msgstr "没有可选项"
+
+#: crates/patina-gui/ui/components/item_picker_dialog.slint:87
+msgctxt "ItemPickerDialog"
+msgid "Try a different search."
+msgstr "换个关键词试试。"
+
+#: crates/patina-gui/ui/components/item_tile.slint:132
+msgctxt "ItemTile"
+msgid "due {}"
+msgstr "截止 {}"
+
+#: crates/patina-gui/ui/components/item_tile.slint:138
+msgctxt "ItemTile"
+msgid "planned {}"
+msgstr "计划 {}"
+
+#: crates/patina-gui/ui/components/item_tile.slint:144
+msgctxt "ItemTile"
+msgid "follow up {}"
+msgstr "跟进 {}"
+
+#: crates/patina-gui/ui/components/item_tile.slint:150
+msgctxt "ItemTile"
+msgid "waiting for {}"
+msgstr "在等 {}"
+
+#: crates/patina-gui/ui/components/item_tile.slint:169
+msgctxt "ItemTile"
+msgid "Start timer"
+msgstr "开始计时"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:26
+msgctxt "ModeDialog"
+msgid "Identity mode"
+msgstr "身份模式"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:34
+msgctxt "ModeDialog"
+msgid "Today shows the items and habits of the identity you work as."
+msgstr "“今天”页会显示你当前所用身份的事项和习惯。"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:48
+msgctxt "ModeDialog"
+msgid "target {} h/week"
+msgstr "目标 {} 小时/周"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:48
+msgctxt "ModeDialog"
+msgid "{} open items"
+msgstr "{} 个未完成事项"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:68
+msgctxt "ModeDialog"
+msgid "Away"
+msgstr "离开"
+
+#: crates/patina-gui/ui/components/mode_dialog.slint:69
+msgctxt "ModeDialog"
+msgid "Done for now; mode time stops counting"
+msgstr "暂时到此为止；模式时间停止计算"
+
+#: crates/patina-gui/ui/components/notice_bar.slint:41
+msgctxt "NoticeBar"
+msgid "Undo"
+msgstr "撤销"
+
+#: crates/patina-gui/ui/components/notice_bar.slint:44
+msgctxt "NoticeBar"
+msgid "Open"
+msgstr "打开"
+
+#: crates/patina-gui/ui/components/notice_bar.slint:47
+msgctxt "NoticeBar"
+msgid "Resume"
+msgstr "恢复"
+
+#: crates/patina-gui/ui/components/notice_bar.slint:50
+msgctxt "NoticeBar"
+msgid "Show"
+msgstr "查看"
+
+#: crates/patina-gui/ui/components/number_stepper.slint:35
+msgctxt "NumberStepper"
+msgid "Less"
+msgstr "减少"
+
+#: crates/patina-gui/ui/components/number_stepper.slint:64
+msgctxt "NumberStepper"
+msgid "More"
+msgstr "增加"
+
+#: crates/patina-gui/ui/components/prompt_dialog.slint:20
+msgctxt "PromptDialog"
+msgid "Cancel"
+msgstr "取消"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:56
+msgctxt "RecommendationCard"
+msgid "Next up"
+msgstr "下一件"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:56
+msgctxt "RecommendationCard"
+msgid "This one looks big"
+msgstr "这件看起来很大"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:102
+msgctxt "RecommendationCard"
+msgid "Start"
+msgstr "开始"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:111
+msgctxt "RecommendationCard"
+msgid "Split"
+msgstr "拆解"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:120
+msgctxt "RecommendationCard"
+msgid "Skip"
+msgstr "跳过"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:128
+msgctxt "RecommendationCard"
+msgid "Too big"
+msgstr "太大了"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:142
+msgctxt "RecommendationCard"
+msgid "Weekly review"
+msgstr "周复盘"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:146
+msgctxt "RecommendationCard"
+msgid "The weekly review is due (last: {})"
+msgstr "该做周复盘了（上次：{}）"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:146
+msgctxt "RecommendationCard"
+msgid "The weekly review is due"
+msgstr "该做周复盘了"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:159
+msgctxt "RecommendationCard"
+msgid "Start review"
+msgstr "开始复盘"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:182
+msgctxt "RecommendationCard"
+msgid "Inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:186
+msgctxt "RecommendationCard"
+msgid "{} thoughts are waiting in the inbox"
+msgstr "收件箱里有 {} 个想法在等待"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:199
+msgctxt "RecommendationCard"
+msgid "Triage"
+msgstr "整理"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:222
+msgctxt "RecommendationCard"
+msgid "All clear"
+msgstr "全部完成"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:226
+msgctxt "RecommendationCard"
+msgid "Nothing to do here"
+msgstr "这里没有待做的事"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:232
+msgctxt "RecommendationCard"
+msgid "{}: {} actionable"
+msgstr "{}：{} 个可执行"
+
+#: crates/patina-gui/ui/components/recommendation_card.slint:242
+msgctxt "RecommendationCard"
+msgid "What could you do in the first 5 minutes?"
+msgstr "最初 5 分钟你能做什么？"
+
+#: crates/patina-gui/ui/components/status_strip.slint:50
+msgctxt "StatusStrip"
+msgid "Timing"
+msgstr "计时中"
+
+#: crates/patina-gui/ui/components/status_strip.slint:75
+msgctxt "StatusStrip"
+msgid "Stop"
+msgstr "停止"
+
+#: crates/patina-gui/ui/components/status_strip.slint:88
+msgctxt "StatusStrip"
+msgid "Stuck"
+msgstr "卡住了"
+
+#: crates/patina-gui/ui/components/status_strip.slint:102
+msgctxt "StatusStrip"
+msgid "Interrupt"
+msgstr "被打断"
+
+#: crates/patina-gui/ui/components/status_strip.slint:115
+msgctxt "StatusStrip"
+msgid "Break"
+msgstr "休息"
+
+#: crates/patina-gui/ui/components/status_strip.slint:144
+msgctxt "StatusStrip"
+msgid "On a {} break until {}"
+msgstr "{}，到 {} 结束"
+
+#: crates/patina-gui/ui/components/status_strip.slint:152
+msgctxt "StatusStrip"
+msgid "Resume {}"
+msgstr "继续 {}"
+
+#: crates/patina-gui/ui/components/status_strip.slint:183
+msgctxt "StatusStrip"
+msgid "due {}"
+msgstr "截止 {}"
+
+#: crates/patina-gui/ui/components/status_strip.slint:183
+msgctxt "StatusStrip"
+msgid "follow up {}"
+msgstr "跟进 {}"
+
+#: crates/patina-gui/ui/components/stuck_dialog.slint:32
+msgctxt "StuckDialog"
+msgid "Stuck on something external"
+msgstr "被外部事项卡住了"
+
+#: crates/patina-gui/ui/components/stuck_dialog.slint:35
+msgctxt "StuckDialog"
+msgid "Save"
+msgstr "保存"
+
+#: crates/patina-gui/ui/components/stuck_dialog.slint:49
+msgctxt "StuckDialog"
+msgid "Waiting for"
+msgstr "在等"
+
+#: crates/patina-gui/ui/components/stuck_dialog.slint:54
+msgctxt "StuckDialog"
+msgid "Follow up on"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/components/text_prompt_dialog.slint:11
+msgctxt "TextPromptDialog"
+msgid "OK"
+msgstr "确定"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:34
+msgctxt "TimeCorrectionDialog"
+msgid "Timer still running"
+msgstr "计时仍在运行"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:34
+msgctxt "TimeCorrectionDialog"
+msgid "Still here?"
+msgstr "还在吗？"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:37
+msgctxt "TimeCorrectionDialog"
+msgid "Still working"
+msgstr "仍在工作"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:37
+msgctxt "TimeCorrectionDialog"
+msgid "Still here"
+msgstr "还在"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:38
+msgctxt "TimeCorrectionDialog"
+msgid "Stop at"
+msgstr "停止于"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:38
+msgctxt "TimeCorrectionDialog"
+msgid "Away from"
+msgstr "离开于"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:62
+msgctxt "TimeCorrectionDialog"
+msgid "The timer on {} has run since {}. When did you stop?"
+msgstr "{} 的计时从 {} 起一直在运行。你是什么时候停下的？"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:62
+msgctxt "TimeCorrectionDialog"
+msgid "{} mode since {}. When did you leave?"
+msgstr "{} 模式从 {} 开始。你是什么时候离开的？"
+
+#: crates/patina-gui/ui/components/time_correction_dialog.slint:71
+msgctxt "TimeCorrectionDialog"
+msgid "Time (HH:MM)"
+msgstr "时间（HH:MM）"
+
+#: crates/patina-gui/ui/labels.slint:16
+msgctxt "Labels"
+msgid "Inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/labels.slint:19
+msgctxt "Labels"
+msgid "To do"
+msgstr "待办"
+
+#: crates/patina-gui/ui/labels.slint:22
+msgctxt "Labels"
+msgid "In progress"
+msgstr "进行中"
+
+#: crates/patina-gui/ui/labels.slint:25
+msgctxt "Labels"
+msgid "Blocked"
+msgstr "阻塞"
+
+#: crates/patina-gui/ui/labels.slint:28
+msgctxt "Labels"
+msgid "Waiting"
+msgstr "等待中"
+
+#: crates/patina-gui/ui/labels.slint:31
+msgctxt "Labels"
+msgid "Done"
+msgstr "已完成"
+
+#: crates/patina-gui/ui/labels.slint:34
+msgctxt "Labels"
+msgid "Abandoned"
+msgstr "已放弃"
+
+#: crates/patina-gui/ui/labels.slint:37
+msgctxt "Labels"
+msgid "Deferred"
+msgstr "已推迟"
+
+#: crates/patina-gui/ui/labels.slint:44
+msgctxt "Labels"
+msgid "building"
+msgstr "培养中"
+
+#: crates/patina-gui/ui/labels.slint:47
+msgctxt "Labels"
+msgid "maintaining"
+msgstr "维持"
+
+#: crates/patina-gui/ui/labels.slint:50
+msgctxt "Labels"
+msgid "paused"
+msgstr "暂停"
+
+#: crates/patina-gui/ui/labels.slint:53
+msgctxt "Labels"
+msgid "graduated"
+msgstr "毕业"
+
+#: crates/patina-gui/ui/labels.slint:60
+msgctxt "Labels"
+msgid "add \"{}\" under \"{}\""
+msgstr "在“{}”下添加“{}”"
+
+#: crates/patina-gui/ui/labels.slint:60
+msgctxt "Labels"
+msgid "add \"{}\""
+msgstr "添加“{}”"
+
+#: crates/patina-gui/ui/labels.slint:63
+msgctxt "Labels"
+msgid "edit \"{}\""
+msgstr "编辑“{}”"
+
+#: crates/patina-gui/ui/labels.slint:66
+msgctxt "Labels"
+msgid "note on \"{}\": {}"
+msgstr "“{}”的备注：{}"
+
+#: crates/patina-gui/ui/labels.slint:69
+msgctxt "Labels"
+msgid "\"{}\" depends on \"{}\""
+msgstr "“{}”依赖“{}”"
+
+#: crates/patina-gui/ui/labels.slint:72
+msgctxt "Labels"
+msgid "\"{}\" no longer depends on \"{}\""
+msgstr "“{}”不再依赖“{}”"
+
+#: crates/patina-gui/ui/labels.slint:74
+msgctxt "Labels"
+msgid "move \"{}\" under \"{}\""
+msgstr "把“{}”移到“{}”下"
+
+#: crates/patina-gui/ui/labels.slint:74
+msgctxt "Labels"
+msgid "move \"{}\" to top level"
+msgstr "把“{}”移到顶层"
+
+#: crates/patina-gui/ui/labels.slint:79
+msgctxt "Labels"
+msgid "title"
+msgstr "标题"
+
+#: crates/patina-gui/ui/labels.slint:82
+msgctxt "Labels"
+msgid "identity"
+msgstr "身份"
+
+#: crates/patina-gui/ui/labels.slint:85
+msgctxt "Labels"
+msgid "tags"
+msgstr "标签"
+
+#: crates/patina-gui/ui/labels.slint:88
+msgctxt "Labels"
+msgid "tags added"
+msgstr "已添加标签"
+
+#: crates/patina-gui/ui/labels.slint:91
+msgctxt "Labels"
+msgid "tags removed"
+msgstr "已移除标签"
+
+#: crates/patina-gui/ui/labels.slint:94
+msgctxt "Labels"
+msgid "hidden until"
+msgstr "推迟到"
+
+#: crates/patina-gui/ui/labels.slint:97
+msgctxt "Labels"
+msgid "planned"
+msgstr "计划日"
+
+#: crates/patina-gui/ui/labels.slint:100
+msgctxt "Labels"
+msgid "due"
+msgstr "截止日"
+
+#: crates/patina-gui/ui/labels.slint:103
+msgctxt "Labels"
+msgid "follow up"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/labels.slint:106
+msgctxt "Labels"
+msgid "waiting for"
+msgstr "在等"
+
+#: crates/patina-gui/ui/labels.slint:109
+msgctxt "Labels"
+msgid "important"
+msgstr "重要"
+
+#: crates/patina-gui/ui/labels.slint:112
+msgctxt "Labels"
+msgid "size"
+msgstr "尺码"
+
+#: crates/patina-gui/ui/labels.slint:115
+msgctxt "Labels"
+msgid "repeat"
+msgstr "重复"
+
+#: crates/patina-gui/ui/labels.slint:122
+msgctxt "Labels"
+msgid "S"
+msgstr "S"
+
+#: crates/patina-gui/ui/labels.slint:125
+msgctxt "Labels"
+msgid "M"
+msgstr "M"
+
+#: crates/patina-gui/ui/labels.slint:128
+msgctxt "Labels"
+msgid "L"
+msgstr "L"
+
+#: crates/patina-gui/ui/labels.slint:130
+msgctxt "Labels"
+msgid "–"
+msgstr "–"
+
+#: crates/patina-gui/ui/labels.slint:135
+msgctxt "Labels"
+msgid "{}h {}m"
+msgstr "{} 小时 {} 分钟"
+
+#: crates/patina-gui/ui/labels.slint:137
+msgctxt "Labels"
+msgid "{} min"
+msgstr "{} 分钟"
+
+#: crates/patina-gui/ui/labels.slint:143
+msgctxt "Labels"
+msgid "Overdue by {} days"
+msgstr "已逾期 {} 天"
+
+#: crates/patina-gui/ui/labels.slint:146
+msgctxt "Labels"
+msgid "Due today"
+msgstr "今天截止"
+
+#: crates/patina-gui/ui/labels.slint:148
+msgctxt "Labels"
+msgid "Due in {} days"
+msgstr "{} 天后截止"
+
+#: crates/patina-gui/ui/labels.slint:151
+msgctxt "Labels"
+msgid "Planned {} days ago"
+msgstr "计划于 {} 天前"
+
+#: crates/patina-gui/ui/labels.slint:151
+msgctxt "Labels"
+msgid "Planned for today"
+msgstr "计划今天做"
+
+#: crates/patina-gui/ui/labels.slint:154
+msgctxt "Labels"
+msgid "Unlocks {} items"
+msgstr "可解锁 {} 个事项"
+
+#: crates/patina-gui/ui/labels.slint:157
+msgctxt "Labels"
+msgid "{} items depend on it"
+msgstr "有 {} 个事项依赖它"
+
+#: crates/patina-gui/ui/labels.slint:160
+msgctxt "Labels"
+msgid "In this week's focus"
+msgstr "在本周重点中"
+
+#: crates/patina-gui/ui/labels.slint:163
+msgctxt "Labels"
+msgid "Marked important"
+msgstr "已标为重要"
+
+#: crates/patina-gui/ui/labels.slint:166
+msgctxt "Labels"
+msgid "Small ({})"
+msgstr "小（{}）"
+
+#: crates/patina-gui/ui/labels.slint:169
+msgctxt "Labels"
+msgid "Skipped {} times recently"
+msgstr "最近跳过了 {} 次"
+
+#: crates/patina-gui/ui/labels.slint:171
+msgctxt "Labels"
+msgid "First step"
+msgstr "第一步"
+
+#: crates/patina-gui/ui/labels.slint:176
+msgctxt "Labels"
+msgid "No longer important"
+msgstr "不再重要"
+
+#: crates/patina-gui/ui/labels.slint:179
+msgctxt "Labels"
+msgid "Replaced by something else"
+msgstr "被别的事取代"
+
+#: crates/patina-gui/ui/labels.slint:182
+msgctxt "Labels"
+msgid "Too hard"
+msgstr "太难了"
+
+#: crates/patina-gui/ui/labels.slint:184
+msgctxt "Labels"
+msgid "Other"
+msgstr "其他"
+
+#: crates/patina-gui/ui/labels.slint:189
+msgctxt "Labels"
+msgid "weeks"
+msgstr "周"
+
+#: crates/patina-gui/ui/labels.slint:192
+msgctxt "Labels"
+msgid "months"
+msgstr "个月"
+
+#: crates/patina-gui/ui/labels.slint:194
+msgctxt "Labels"
+msgid "days"
+msgstr "天"
+
+#: crates/patina-gui/ui/labels.slint:199
+msgctxt "Labels"
+msgid "Mon"
+msgstr "周一"
+
+#: crates/patina-gui/ui/labels.slint:202
+msgctxt "Labels"
+msgid "Tue"
+msgstr "周二"
+
+#: crates/patina-gui/ui/labels.slint:205
+msgctxt "Labels"
+msgid "Wed"
+msgstr "周三"
+
+#: crates/patina-gui/ui/labels.slint:208
+msgctxt "Labels"
+msgid "Thu"
+msgstr "周四"
+
+#: crates/patina-gui/ui/labels.slint:211
+msgctxt "Labels"
+msgid "Fri"
+msgstr "周五"
+
+#: crates/patina-gui/ui/labels.slint:214
+msgctxt "Labels"
+msgid "Sat"
+msgstr "周六"
+
+#: crates/patina-gui/ui/labels.slint:216
+msgctxt "Labels"
+msgid "Sun"
+msgstr "周日"
+
+#: crates/patina-gui/ui/labels.slint:221
+msgctxt "Labels"
+msgid "short"
+msgstr "短休息"
+
+#: crates/patina-gui/ui/labels.slint:224
+msgctxt "Labels"
+msgid "long"
+msgstr "长休息"
+
+#: crates/patina-gui/ui/labels.slint:226
+msgctxt "Labels"
+msgid "flow"
+msgstr "比例休息"
+
+#: crates/patina-gui/ui/labels.slint:231
+msgctxt "Labels"
+msgid "Fixed"
+msgstr "固定"
+
+#: crates/patina-gui/ui/labels.slint:234
+msgctxt "Labels"
+msgid "Flowtime"
+msgstr "比例"
+
+#: crates/patina-gui/ui/labels.slint:236
+msgctxt "Labels"
+msgid "Off"
+msgstr "关闭"
+
+#: crates/patina-gui/ui/labels.slint:241
+msgctxt "Labels"
+msgid "Saved: {}"
+msgstr "已保存：{}"
+
+#: crates/patina-gui/ui/labels.slint:241
+msgctxt "Labels"
+msgid "Saved"
+msgstr "已保存"
+
+#: crates/patina-gui/ui/labels.slint:244
+msgctxt "Labels"
+msgid "Undone"
+msgstr "已撤销"
+
+#: crates/patina-gui/ui/labels.slint:247
+msgctxt "Labels"
+msgid "Left off: {}"
+msgstr "停在：{}"
+
+#: crates/patina-gui/ui/labels.slint:250
+msgctxt "Labels"
+msgid "{} took over twice its estimate"
+msgstr "{} 用时已超过预估的两倍"
+
+#: crates/patina-gui/ui/labels.slint:253
+msgctxt "Labels"
+msgid "Break over"
+msgstr "休息结束"
+
+#: crates/patina-gui/ui/labels.slint:256
+msgctxt "Labels"
+msgid "{} items need a decision"
+msgstr "有 {} 个事项需要决定"
+
+#: crates/patina-gui/ui/labels.slint:272
+msgctxt "Labels"
+msgid "invalid date \"{}\" (use YYYY-MM-DD, today, tomorrow, or +N)"
+msgstr "无效的日期“{}”（请使用 YYYY-MM-DD、today、tomorrow 或 +N）"
+
+#: crates/patina-gui/ui/labels.slint:275
+msgctxt "Labels"
+msgid "repeat intervals must be positive"
+msgstr "重复间隔必须为正数"
+
+#: crates/patina-gui/ui/labels.slint:278
+msgctxt "Labels"
+msgid "enter a date"
+msgstr "请输入日期"
+
+#: crates/patina-gui/ui/labels.slint:281
+msgctxt "Labels"
+msgid "invalid time \"{}\" (use HH:MM)"
+msgstr "无效的时间“{}”（请使用 HH:MM）"
+
+#: crates/patina-gui/ui/labels.slint:284
+msgctxt "Labels"
+msgid "invalid hours \"{}\" (use a number like 20 or 7.5, or none)"
+msgstr "无效的小时数“{}”（请填写 20 或 7.5 这样的数字，或 none）"
+
+#: crates/patina-gui/ui/labels.slint:287
+msgctxt "Labels"
+msgid "nothing selected"
+msgstr "未选择任何内容"
+
+#: crates/patina-gui/ui/labels.slint:290
+msgctxt "Labels"
+msgid "could not save the language setting: {}"
+msgstr "无法保存语言设置：{}"
+
+#: crates/patina-gui/ui/labels.slint:297
+msgctxt "Labels"
+msgid "Focused {} min. Take a {}-min break?"
+msgstr "已专注 {} 分钟。休息 {} 分钟吧？"
+
+#: crates/patina-gui/ui/main.slint:37
+msgctxt "MainWindow"
+msgid "Patina"
+msgstr "Patina"
+
+#: crates/patina-gui/ui/main.slint:50
+msgctxt "MainWindow"
+msgid "Today"
+msgstr "今天"
+
+#: crates/patina-gui/ui/main.slint:57
+msgctxt "MainWindow"
+msgid "Inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/main.slint:64
+msgctxt "MainWindow"
+msgid "Projects"
+msgstr "项目"
+
+#: crates/patina-gui/ui/main.slint:71
+msgctxt "MainWindow"
+msgid "Habits"
+msgstr "习惯"
+
+#: crates/patina-gui/ui/main.slint:78
+msgctxt "MainWindow"
+msgid "Review"
+msgstr "复盘"
+
+#: crates/patina-gui/ui/main.slint:159
+msgctxt "MainWindow"
+msgid "Away"
+msgstr "离开"
+
+#: crates/patina-gui/ui/main.slint:172
+msgctxt "MainWindow"
+msgid "Settings"
+msgstr "设置"
+
+#: crates/patina-gui/ui/pages/graph_page.slint:23
+msgctxt "GraphPage"
+msgid "Back"
+msgstr "返回"
+
+#: crates/patina-gui/ui/pages/graph_page.slint:34
+msgctxt "GraphPage"
+msgid "Up to parent"
+msgstr "返回上级"
+
+#: crates/patina-gui/ui/pages/graph_page.slint:45
+msgctxt "GraphPage"
+msgid "No sub-items."
+msgstr "没有子事项。"
+
+#: crates/patina-gui/ui/pages/habits_page.slint:20
+msgctxt "HabitsPage"
+msgid "Habits"
+msgstr "习惯"
+
+#: crates/patina-gui/ui/pages/habits_page.slint:25
+msgctxt "HabitsPage"
+msgid "No habits yet."
+msgstr "还没有习惯。"
+
+#: crates/patina-gui/ui/pages/habits_page.slint:26
+msgctxt "HabitsPage"
+msgid "Build one with New habit."
+msgstr "点“新建习惯”来培养一个。"
+
+#: crates/patina-gui/ui/pages/habits_page.slint:48
+msgctxt "HabitsPage"
+msgid "Graduated"
+msgstr "已毕业"
+
+#: crates/patina-gui/ui/pages/habits_page.slint:66
+msgctxt "HabitsPage"
+msgid "New habit"
+msgstr "新建习惯"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:34
+msgctxt "InboxPage"
+msgid "Inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:35
+msgctxt "InboxPage"
+msgid "{} to triage"
+msgstr "{} 项待整理"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:43
+msgctxt "InboxPage"
+msgid "Proposals"
+msgstr "提案"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:104
+msgctxt "InboxPage"
+msgid "Part {}"
+msgstr "第 {} 部分"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:125
+msgctxt "InboxPage"
+msgid "Needs parts {}"
+msgstr "需要第 {} 部分"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:130
+msgctxt "InboxPage"
+msgid "Out of date: {}"
+msgstr "已过期：{}"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:144
+msgctxt "InboxPage"
+msgid "Reject"
+msgstr "拒绝"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:152
+msgctxt "InboxPage"
+msgid "Accept selected"
+msgstr "接受所选"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:176
+msgctxt "InboxPage"
+msgid "Triage"
+msgstr "整理"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:185
+msgctxt "InboxPage"
+msgid "Merge into…"
+msgstr "合并到…"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:196
+msgctxt "InboxPage"
+msgid "Discard"
+msgstr "丢弃"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:207
+msgctxt "InboxPage"
+msgid "Inbox zero"
+msgstr "收件箱已清空"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:208
+msgctxt "InboxPage"
+msgid "The inbox is empty. Capture a thought above."
+msgstr "收件箱是空的。请在上方记录一个想法。"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:218
+msgctxt "InboxPage"
+msgid "“{}” becomes a note on the item you pick"
+msgstr "“{}”会成为你所选事项的备注"
+
+#: crates/patina-gui/ui/pages/inbox_page.slint:220
+msgctxt "InboxPage"
+msgid "There are no open items to merge into."
+msgstr "没有可供合并的未完成事项。"
+
+#: crates/patina-gui/ui/pages/item_page.slint:62
+msgctxt "ItemPage"
+msgid "Close"
+msgstr "关闭"
+
+#: crates/patina-gui/ui/pages/item_page.slint:62
+msgctxt "ItemPage"
+msgid "Back"
+msgstr "返回"
+
+#: crates/patina-gui/ui/pages/item_page.slint:77
+msgctxt "ItemPage"
+msgid "Edit…"
+msgstr "编辑…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:90
+msgctxt "ItemPage"
+msgid "More"
+msgstr "更多"
+
+#: crates/patina-gui/ui/pages/item_page.slint:142
+msgctxt "ItemPage"
+msgid "Start"
+msgstr "开始"
+
+#: crates/patina-gui/ui/pages/item_page.slint:151
+msgctxt "ItemPage"
+msgid "Done…"
+msgstr "完成…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:170
+msgctxt "ItemPage"
+msgid "Left off: {}"
+msgstr "停在：{}"
+
+#: crates/patina-gui/ui/pages/item_page.slint:184
+msgctxt "ItemPage"
+msgid "Completed {}"
+msgstr "完成于 {}"
+
+#: crates/patina-gui/ui/pages/item_page.slint:184
+msgctxt "ItemPage"
+msgid "Abandoned {}"
+msgstr "放弃于 {}"
+
+#: crates/patina-gui/ui/pages/item_page.slint:196
+msgctxt "ItemPage"
+msgid "Details"
+msgstr "详情"
+
+#: crates/patina-gui/ui/pages/item_page.slint:200
+msgctxt "ItemPage"
+msgid "Identity"
+msgstr "身份"
+
+#: crates/patina-gui/ui/pages/item_page.slint:206
+msgctxt "ItemPage"
+msgid "Due"
+msgstr "截止日"
+
+#: crates/patina-gui/ui/pages/item_page.slint:213
+msgctxt "ItemPage"
+msgid "Planned"
+msgstr "计划日"
+
+#: crates/patina-gui/ui/pages/item_page.slint:220
+msgctxt "ItemPage"
+msgid "Hidden until"
+msgstr "推迟到"
+
+#: crates/patina-gui/ui/pages/item_page.slint:227
+msgctxt "ItemPage"
+msgid "Waiting for"
+msgstr "在等"
+
+#: crates/patina-gui/ui/pages/item_page.slint:234
+msgctxt "ItemPage"
+msgid "Follow up"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/pages/item_page.slint:241
+msgctxt "ItemPage"
+msgid "Tags"
+msgstr "标签"
+
+#: crates/patina-gui/ui/pages/item_page.slint:248
+msgctxt "ItemPage"
+msgid "Estimate"
+msgstr "预估"
+
+#: crates/patina-gui/ui/pages/item_page.slint:249
+msgctxt "ItemPage"
+msgid "children {}"
+msgstr "子事项 {}"
+
+#: crates/patina-gui/ui/pages/item_page.slint:255
+msgctxt "ItemPage"
+msgid "Tracked"
+msgstr "已计时"
+
+#: crates/patina-gui/ui/pages/item_page.slint:262
+msgctxt "ItemPage"
+msgid "Repeats"
+msgstr "重复"
+
+#: crates/patina-gui/ui/pages/item_page.slint:263
+msgctxt "ItemPage"
+msgid "Repeats every {} {}"
+msgstr "每 {} {}重复"
+
+#: crates/patina-gui/ui/pages/item_page.slint:263
+msgctxt "ItemPage"
+msgid "Repeats {} days after completion"
+msgstr "完成后 {} 天重复"
+
+#: crates/patina-gui/ui/pages/item_page.slint:269
+msgctxt "ItemPage"
+msgid "Notes"
+msgstr "备注"
+
+#: crates/patina-gui/ui/pages/item_page.slint:299
+msgctxt "ItemPage"
+msgid "Add a note"
+msgstr "添加备注"
+
+#: crates/patina-gui/ui/pages/item_page.slint:314
+msgctxt "ItemPage"
+msgid "Depends on"
+msgstr "依赖"
+
+#: crates/patina-gui/ui/pages/item_page.slint:327
+msgctxt "ItemPage"
+msgid "Unlink"
+msgstr "取消关联"
+
+#: crates/patina-gui/ui/pages/item_page.slint:337
+msgctxt "ItemPage"
+msgid "Blocks"
+msgstr "阻塞"
+
+#: crates/patina-gui/ui/pages/item_page.slint:351
+msgctxt "ItemPage"
+msgid "Sub-items"
+msgstr "子事项"
+
+#: crates/patina-gui/ui/pages/item_page.slint:368
+msgctxt "ItemPage"
+msgid "Mark as started"
+msgstr "标为已开始"
+
+#: crates/patina-gui/ui/pages/item_page.slint:369
+msgctxt "ItemPage"
+msgid "Add sub-item…"
+msgstr "添加子事项…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:370
+msgctxt "ItemPage"
+msgid "Move…"
+msgstr "移动…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:371
+msgctxt "ItemPage"
+msgid "Move to top level"
+msgstr "移到顶层"
+
+#: crates/patina-gui/ui/pages/item_page.slint:372
+msgctxt "ItemPage"
+msgid "Depends on…"
+msgstr "依赖…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:373
+msgctxt "ItemPage"
+msgid "Stuck…"
+msgstr "卡住了…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:374
+msgctxt "ItemPage"
+msgid "Abandon…"
+msgstr "放弃…"
+
+#: crates/patina-gui/ui/pages/item_page.slint:375
+msgctxt "ItemPage"
+msgid "Show graph"
+msgstr "显示依赖图"
+
+#: crates/patina-gui/ui/pages/item_page.slint:401
+msgctxt "ItemPage"
+msgid "Complete"
+msgstr "完成"
+
+#: crates/patina-gui/ui/pages/item_page.slint:403
+msgctxt "ItemPage"
+msgid "Note (optional)"
+msgstr "备注（可选）"
+
+#: crates/patina-gui/ui/pages/item_page.slint:404
+msgctxt "ItemPage"
+msgid "Done"
+msgstr "完成"
+
+#: crates/patina-gui/ui/pages/item_page.slint:418
+msgctxt "ItemPage"
+msgid "Move under…"
+msgstr "移到…之下"
+
+#: crates/patina-gui/ui/pages/item_page.slint:421
+msgctxt "ItemPage"
+msgid "Moving “{}”"
+msgstr "正在移动“{}”"
+
+#: crates/patina-gui/ui/pages/item_page.slint:423
+msgctxt "ItemPage"
+msgid "There are no other open items."
+msgstr "没有其他未完成的事项。"
+
+#: crates/patina-gui/ui/pages/item_page.slint:434
+msgctxt "ItemPage"
+msgid "“{}” will wait for the item you pick"
+msgstr "“{}”将等待你所选的事项"
+
+#: crates/patina-gui/ui/pages/item_page.slint:436
+msgctxt "ItemPage"
+msgid "Only sibling items can be prerequisites."
+msgstr "只有同级事项才能作为前置事项。"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:23
+msgctxt "ProjectsPage"
+msgid "Projects"
+msgstr "项目"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:30
+msgctxt "ProjectsPage"
+msgid "Show settled"
+msgstr "显示已结束项"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:60
+msgctxt "ProjectsPage"
+msgid "Graph"
+msgstr "依赖图"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:71
+msgctxt "ProjectsPage"
+msgid "No projects yet"
+msgstr "还没有项目"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:72
+msgctxt "ProjectsPage"
+msgid "Create one with New item."
+msgstr "点“新建事项”来创建一个。"
+
+#: crates/patina-gui/ui/pages/projects_page.slint:80
+msgctxt "ProjectsPage"
+msgid "New item"
+msgstr "新建事项"
+
+#: crates/patina-gui/ui/pages/review_page.slint:49
+msgctxt "ReviewPage"
+msgid "1 · Progress"
+msgstr "1 · 进展"
+
+#: crates/patina-gui/ui/pages/review_page.slint:52
+msgctxt "ReviewPage"
+msgid "2 · Time"
+msgstr "2 · 时间"
+
+#: crates/patina-gui/ui/pages/review_page.slint:55
+msgctxt "ReviewPage"
+msgid "3 · Habits"
+msgstr "3 · 习惯"
+
+#: crates/patina-gui/ui/pages/review_page.slint:58
+msgctxt "ReviewPage"
+msgid "4 · Calibration"
+msgstr "4 · 校准"
+
+#: crates/patina-gui/ui/pages/review_page.slint:61
+msgctxt "ReviewPage"
+msgid "5 · Backlog"
+msgstr "5 · 积压"
+
+#: crates/patina-gui/ui/pages/review_page.slint:64
+msgctxt "ReviewPage"
+msgid "6 · Notes"
+msgstr "6 · 备注"
+
+#: crates/patina-gui/ui/pages/review_page.slint:66
+msgctxt "ReviewPage"
+msgid "7 · Conclusion"
+msgstr "7 · 结论"
+
+#: crates/patina-gui/ui/pages/review_page.slint:71
+msgctxt "ReviewPage"
+msgid "Weekly review"
+msgstr "周复盘"
+
+#: crates/patina-gui/ui/pages/review_page.slint:72
+msgctxt "ReviewPage"
+msgid "Since {}"
+msgstr "自 {} 起"
+
+#: crates/patina-gui/ui/pages/review_page.slint:72
+msgctxt "ReviewPage"
+msgid "Since the beginning"
+msgstr "自最初起"
+
+#: crates/patina-gui/ui/pages/review_page.slint:72
+msgctxt "ReviewPage"
+msgid "A review is due"
+msgstr "该复盘了"
+
+#: crates/patina-gui/ui/pages/review_page.slint:76
+msgctxt "ReviewPage"
+msgid "Full"
+msgstr "完整"
+
+#: crates/patina-gui/ui/pages/review_page.slint:76
+msgctxt "ReviewPage"
+msgid "Minimal"
+msgstr "精简"
+
+#: crates/patina-gui/ui/pages/review_page.slint:111
+msgctxt "ReviewPage"
+msgid "Nothing completed in this window."
+msgstr "这段时间内没有完成任何事项。"
+
+#: crates/patina-gui/ui/pages/review_page.slint:133
+msgctxt "ReviewPage"
+msgid "{}: +{} this window ({} done, {} open)"
+msgstr "{}：本期新增 {} 项（已完成 {} 项，未完成 {} 项）"
+
+#: crates/patina-gui/ui/pages/review_page.slint:140
+msgctxt "ReviewPage"
+msgid "Open projects"
+msgstr "进行中的项目"
+
+#: crates/patina-gui/ui/pages/review_page.slint:149
+msgctxt "ReviewPage"
+msgid "{}: {} done, {} open ({} {} open, +{} this window)"
+msgstr "{}：已完成 {} 项，未完成 {} 项（未完成数 {}{}，本期完成 {} 项）"
+
+#: crates/patina-gui/ui/pages/review_page.slint:175
+msgctxt "ReviewPage"
+msgid "mode {}"
+msgstr "模式 {}"
+
+#: crates/patina-gui/ui/pages/review_page.slint:187
+msgctxt "ReviewPage"
+msgid "Interruptions: {}"
+msgstr "被打断：{} 次"
+
+#: crates/patina-gui/ui/pages/review_page.slint:193
+msgctxt "ReviewPage"
+msgid "inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/pages/review_page.slint:219
+msgctxt "ReviewPage"
+msgid "points"
+msgstr "点"
+
+#: crates/patina-gui/ui/pages/review_page.slint:232
+msgctxt "ReviewPage"
+msgid "Ready to graduate"
+msgstr "可以毕业"
+
+#: crates/patina-gui/ui/pages/review_page.slint:252
+msgctxt "ReviewPage"
+msgid "Graduate"
+msgstr "毕业"
+
+#: crates/patina-gui/ui/pages/review_page.slint:261
+msgctxt "ReviewPage"
+msgid "Graduated (spot check)"
+msgstr "已毕业（抽查）"
+
+#: crates/patina-gui/ui/pages/review_page.slint:281
+msgctxt "ReviewPage"
+msgid "Reinstate"
+msgstr "恢复"
+
+#: crates/patina-gui/ui/pages/review_page.slint:301
+msgctxt "ReviewPage"
+msgid ""
+"Estimate error {} over {} timed items (0 is perfect, 1 is off by a factor of "
+"two)"
+msgstr "预估误差 {}（共 {} 个计时事项；0 为完全准确，1 表示相差两倍）"
+
+#: crates/patina-gui/ui/pages/review_page.slint:301
+msgctxt "ReviewPage"
+msgid "No timed estimates in this window."
+msgstr "这段时间内没有带计时的预估。"
+
+#: crates/patina-gui/ui/pages/review_page.slint:317
+msgctxt "ReviewPage"
+msgid "Your {} {} ≈ {} (default {}, {} samples)"
+msgstr "你的 {} {} ≈ {}（默认 {}，{} 个样本）"
+
+#: crates/patina-gui/ui/pages/review_page.slint:317
+msgctxt "ReviewPage"
+msgid "all"
+msgstr "全部"
+
+#: crates/patina-gui/ui/pages/review_page.slint:339
+msgctxt "ReviewPage"
+msgid "Postponed again and again"
+msgstr "一再推迟"
+
+#: crates/patina-gui/ui/pages/review_page.slint:358
+msgctxt "ReviewPage"
+msgid "Split…"
+msgstr "拆解…"
+
+#: crates/patina-gui/ui/pages/review_page.slint:366
+msgctxt "ReviewPage"
+msgid "Abandon…"
+msgstr "放弃…"
+
+#: crates/patina-gui/ui/pages/review_page.slint:374
+msgctxt "ReviewPage"
+msgid "Set date…"
+msgstr "设置日期…"
+
+#: crates/patina-gui/ui/pages/review_page.slint:385
+msgctxt "ReviewPage"
+msgid "Waiting for others"
+msgstr "等待他人"
+
+#: crates/patina-gui/ui/pages/review_page.slint:404
+msgctxt "ReviewPage"
+msgid "{} days"
+msgstr "{} 天"
+
+#: crates/patina-gui/ui/pages/review_page.slint:410
+msgctxt "ReviewPage"
+msgid "Follow up on…"
+msgstr "跟进日…"
+
+#: crates/patina-gui/ui/pages/review_page.slint:419
+msgctxt "ReviewPage"
+msgid "Arrived"
+msgstr "已到达"
+
+#: crates/patina-gui/ui/pages/review_page.slint:429
+msgctxt "ReviewPage"
+msgid "Inbox"
+msgstr "收件箱"
+
+#: crates/patina-gui/ui/pages/review_page.slint:445
+msgctxt "ReviewPage"
+msgid "Triage…"
+msgstr "整理…"
+
+#: crates/patina-gui/ui/pages/review_page.slint:453
+msgctxt "ReviewPage"
+msgid "Discard"
+msgstr "丢弃"
+
+#: crates/patina-gui/ui/pages/review_page.slint:473
+msgctxt "ReviewPage"
+msgid "No notes in this window."
+msgstr "这段时间内没有备注。"
+
+#: crates/patina-gui/ui/pages/review_page.slint:497
+msgctxt "ReviewPage"
+msgid "What do you conclude from this week?"
+msgstr "你从这一周得出了什么结论？"
+
+#: crates/patina-gui/ui/pages/review_page.slint:501
+msgctxt "ReviewPage"
+msgid "Current focus"
+msgstr "当前重点"
+
+#: crates/patina-gui/ui/pages/review_page.slint:516
+msgctxt "ReviewPage"
+msgid "Next week's focus: one item per identity"
+msgstr "下周重点：每个身份选一个事项"
+
+#: crates/patina-gui/ui/pages/review_page.slint:544
+msgctxt "ReviewPage"
+msgid "Finish review"
+msgstr "完成复盘"
+
+#: crates/patina-gui/ui/pages/review_page.slint:563
+msgctxt "ReviewPage"
+msgid "Back"
+msgstr "返回"
+
+#: crates/patina-gui/ui/pages/review_page.slint:574
+msgctxt "ReviewPage"
+msgid "Next"
+msgstr "下一步"
+
+#: crates/patina-gui/ui/pages/review_page.slint:590
+msgctxt "ReviewPage"
+msgid "Set a date"
+msgstr "设置日期"
+
+#: crates/patina-gui/ui/pages/review_page.slint:591
+msgctxt "ReviewPage"
+msgid "Date"
+msgstr "日期"
+
+#: crates/patina-gui/ui/pages/review_page.slint:600
+msgctxt "ReviewPage"
+msgid "Follow up"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/pages/review_page.slint:601
+msgctxt "ReviewPage"
+msgid "Follow up on"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:33
+msgctxt "SettingsPage"
+msgid "Settings"
+msgstr "设置"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:35
+msgctxt "SettingsPage"
+msgid "Back"
+msgstr "返回"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:43
+msgctxt "SettingsPage"
+msgid "Identities"
+msgstr "身份"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:49
+msgctxt "SettingsPage"
+msgid "target {} h/week"
+msgstr "目标 {} 小时/周"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:49
+msgctxt "SettingsPage"
+msgid "{} open items, {} habits"
+msgstr "{} 个未完成事项，{} 个习惯"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:53
+msgctxt "SettingsPage"
+msgid "Rename"
+msgstr "重命名"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:63
+msgctxt "SettingsPage"
+msgid "Weekly target"
+msgstr "每周目标"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:75
+msgctxt "SettingsPage"
+msgid "Add identity"
+msgstr "添加身份"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:84
+msgctxt "SettingsPage"
+msgid "Break reminders"
+msgstr "休息提醒"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:104
+msgctxt "SettingsPage"
+msgid ""
+"Focus {} min, short break {} min, long break {} min after {} rounds. "
+"Flowtime: one break minute per {} focus minutes. Snooze {} min. Edit "
+"config.toml to change these."
+msgstr "专注 {} 分钟，短休息 {} 分钟，每 {} 轮后长休息 {} 分钟。比例模式：每专注 {} 分钟休息 1 分钟。稍后提醒 {} 分钟。如需更改，请编辑 config.toml。"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:114
+msgctxt "SettingsPage"
+msgid "Language"
+msgstr "语言"
+
+#. Language names are shown in their own language, so they are not translated.
+#: crates/patina-gui/ui/pages/settings_page.slint:121
+msgctxt "SettingsPage"
+msgid "Follow system"
+msgstr "跟随系统"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:132
+msgctxt "SettingsPage"
+msgid "Data"
+msgstr "数据"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:136
+msgctxt "SettingsPage"
+msgid "Location"
+msgstr "位置"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:142
+msgctxt "SettingsPage"
+msgid "Device"
+msgstr "设备"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:152
+msgctxt "SettingsPage"
+msgid ""
+"Stored privately on this device. To sync with Syncthing, allow \"All files "
+"access\" for Patina in Android settings and restart; the data then moves to "
+"Documents/Patina."
+msgstr "数据私密存储在此设备上。如需通过 Syncthing 同步，请在 Android 设置中允许 Patina 的“所有文件访问权限”并重启；数据随后会移到 Documents/Patina。"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:160
+msgctxt "SettingsPage"
+msgid ""
+"Stored in Documents/Patina. Sync events/ and config.toml with Syncthing; the "
+"device id stays private."
+msgstr "数据存储在 Documents/Patina。请用 Syncthing 同步 events/ 和 config.toml；设备 ID 保持私密。"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:171
+msgctxt "SettingsPage"
+msgid "Undo last command"
+msgstr "撤销上一条命令"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:187
+msgctxt "SettingsPage"
+msgid "AI changes"
+msgstr "AI 的更改"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:193
+msgctxt "SettingsPage"
+msgid "No AI changes to undo."
+msgstr "没有可撤销的 AI 更改。"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:203
+msgctxt "SettingsPage"
+msgid "{} commands, last {}"
+msgstr "{} 条命令，最近一条 {}"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:206
+msgctxt "SettingsPage"
+msgid "Undo all"
+msgstr "全部撤销"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:216
+msgctxt "SettingsPage"
+msgid "About"
+msgstr "关于"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:223
+msgctxt "SettingsPage"
+msgid "Patina {}"
+msgstr "Patina {}"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:234
+msgctxt "SettingsPage"
+msgid "Rename identity"
+msgstr "重命名身份"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:236
+msgctxt "SettingsPage"
+msgid "Name"
+msgstr "名称"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:244
+msgctxt "SettingsPage"
+msgid "New identity"
+msgstr "新建身份"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:247
+msgctxt "SettingsPage"
+msgid "Add"
+msgstr "添加"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:257
+msgctxt "SettingsPage"
+msgid "Hours per week"
+msgstr "每周小时数"
+
+#: crates/patina-gui/ui/pages/settings_page.slint:258
+msgctxt "SettingsPage"
+msgid "A number like 20 or 7.5, or none"
+msgstr "填写 20 或 7.5 这样的数字，或 none"
+
+#: crates/patina-gui/ui/pages/today_page.slint:28
+msgctxt "TodayPage"
+msgid "Mode"
+msgstr "模式"
+
+#: crates/patina-gui/ui/pages/today_page.slint:32
+msgctxt "TodayPage"
+msgid "Today"
+msgstr "今天"
+
+#: crates/patina-gui/ui/pages/today_page.slint:40
+msgctxt "TodayPage"
+msgid ""
+"Welcome to Patina. Start with the default identities: work, life, study."
+msgstr "欢迎使用 Patina。先从默认身份开始：工作、生活、学习。"
+
+#: crates/patina-gui/ui/pages/today_page.slint:51
+msgctxt "TodayPage"
+msgid "Create default identities"
+msgstr "创建默认身份"
+
+#: crates/patina-gui/ui/pages/today_page.slint:64
+msgctxt "TodayPage"
+msgid "You are usually in {} at this time on {} ({} of {} days). Switch now?"
+msgstr "你在 {1} 的这个时间通常处于“{0}”模式（{2} / {3} 天）。现在切换吗？"
+
+#: crates/patina-gui/ui/pages/today_page.slint:64
+msgctxt "TodayPage"
+msgid "weekends"
+msgstr "周末"
+
+#: crates/patina-gui/ui/pages/today_page.slint:64
+msgctxt "TodayPage"
+msgid "weekdays"
+msgstr "工作日"
+
+#: crates/patina-gui/ui/pages/today_page.slint:72
+msgctxt "TodayPage"
+msgid "{} is {} below this week's target."
+msgstr "{} 比本周目标少了 {}。"
+
+#: crates/patina-gui/ui/pages/today_page.slint:84
+msgctxt "TodayPage"
+msgid "Not now"
+msgstr "暂不"
+
+#: crates/patina-gui/ui/pages/today_page.slint:92
+msgctxt "TodayPage"
+msgid "Switch"
+msgstr "切换"
+
+#: crates/patina-gui/ui/pages/today_page.slint:106
+msgctxt "TodayPage"
+msgid "All"
+msgstr "全部"
+
+#: crates/patina-gui/ui/pages/today_page.slint:138
+msgctxt "TodayPage"
+msgid "Needs decision"
+msgstr "需要决定"
+
+#: crates/patina-gui/ui/pages/today_page.slint:156
+msgctxt "TodayPage"
+msgid "Abandoned prerequisite: {}"
+msgstr "已放弃的前置事项：{}"
+
+#: crates/patina-gui/ui/pages/today_page.slint:166
+msgctxt "TodayPage"
+msgid "Unlink"
+msgstr "取消关联"
+
+#: crates/patina-gui/ui/pages/today_page.slint:174
+msgctxt "TodayPage"
+msgid "Abandon…"
+msgstr "放弃…"
+
+#: crates/patina-gui/ui/pages/today_page.slint:185
+msgctxt "TodayPage"
+msgid "Follow up"
+msgstr "跟进日"
+
+#: crates/patina-gui/ui/pages/today_page.slint:198
+msgctxt "TodayPage"
+msgid "Deadlines"
+msgstr "截止日"
+
+#: crates/patina-gui/ui/pages/today_page.slint:211
+msgctxt "TodayPage"
+msgid "Planned for today"
+msgstr "计划今天做"
+
+#: crates/patina-gui/ui/pages/today_page.slint:224
+msgctxt "TodayPage"
+msgid "Habits"
+msgstr "习惯"
+
+#: crates/patina-gui/ui/pages/today_page.slint:243
+msgctxt "TodayPage"
+msgid "Actionable"
+msgstr "可执行"
+
+#: crates/patina-gui/ui/pages/today_page.slint:244
+msgctxt "TodayPage"
+msgid "{}"
+msgstr "{}"
+
+#. this is used for the navigation between months
+#: vendor/slint-material/ui/components/date_picker.slint:322
+msgctxt "DatePickerPopup"
+msgid "Enter date"
+msgstr "输入日期"
+
+#: vendor/slint-material/ui/components/date_picker.slint:325
+msgctxt "DatePickerPopup"
+msgid "Cancel"
+msgstr "取消"
+
+#: vendor/slint-material/ui/components/date_picker.slint:326
+msgctxt "DatePickerPopup"
+msgid "Ok"
+msgstr "确定"
+
+#: vendor/slint-material/ui/components/date_picker.slint:343
+msgctxt "One-letter abbrev for Sunday"
+msgid "S"
+msgstr "日"
+
+#: vendor/slint-material/ui/components/date_picker.slint:344
+msgctxt "One-letter abbrev for Monday"
+msgid "M"
+msgstr "一"
+
+#: vendor/slint-material/ui/components/date_picker.slint:345
+msgctxt "One-letter abbrev for Tuesday"
+msgid "T"
+msgstr "二"
+
+#: vendor/slint-material/ui/components/date_picker.slint:346
+msgctxt "One-letter abbrev for Wednesday"
+msgid "W"
+msgstr "三"
+
+#: vendor/slint-material/ui/components/date_picker.slint:347
+msgctxt "One-letter abbrev for Thursday"
+msgid "T"
+msgstr "四"
+
+#: vendor/slint-material/ui/components/date_picker.slint:348
+msgctxt "One-letter abbrev for Friday"
+msgid "F"
+msgstr "五"
+
+#: vendor/slint-material/ui/components/date_picker.slint:349
+msgctxt "One-letter abbrev for Saturday"
+msgid "S"
+msgstr "六"
+
+#: vendor/slint-material/ui/components/time_picker.slint:119
+msgctxt "Clock"
+msgid "{} Hours or minutes of {}"
+msgstr "{} {}的时或分"
+
+#: vendor/slint-material/ui/components/time_picker.slint:368
+msgctxt "TimePickerPopup"
+msgid "Select time"
+msgstr "选择时间"
+
+#: vendor/slint-material/ui/components/time_picker.slint:369
+msgctxt "TimePickerPopup"
+msgid "Cancel"
+msgstr "取消"
+
+#: vendor/slint-material/ui/components/time_picker.slint:370
+msgctxt "TimePickerPopup"
+msgid "Ok"
+msgstr "确定"
+
+#: vendor/slint-material/ui/components/time_picker.slint:372
+msgctxt "TimePickerPopup"
+msgid "Hour"
+msgstr "时"
+
+#: vendor/slint-material/ui/components/time_picker.slint:373
+msgctxt "TimePickerPopup"
+msgid "Minute"
+msgstr "分"

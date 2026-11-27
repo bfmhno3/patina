@@ -9,7 +9,7 @@ use slint::{ComponentHandle as _, Model as _, SharedString};
 
 use crate::controller::Controller;
 use crate::{
-    App, DatePickerAdapter, HabitForm, ItemForm, MainWindow, NoticeData, PickerPurpose,
+    App, DatePickerAdapter, HabitForm, ItemForm, LanguageUi, MainWindow, NoticeData, PickerPurpose,
     RhythmModeUi, convert,
 };
 
@@ -86,6 +86,8 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
     bind!(on_snooze_break, |c| c.snooze_break());
     bind!(on_set_rhythm, |c, mode: RhythmModeUi| c
         .set_rhythm(convert::rhythm_mode_core(mode)));
+    bind!(on_set_language, |c, lang: LanguageUi| c
+        .set_language(convert::language_pref(lang)));
     bind!(on_resume, |c| c.resume());
     bind!(on_correct_timer, |c, t: SharedString| c.correct_timer(&t));
     bind!(on_keep_timer, |_c| {});
@@ -181,10 +183,14 @@ pub fn connect(window: &MainWindow, ctl: Rc<RefCell<Controller>>) {
     );
 
     // Data for Material's date picker; "now" is the system date.
+    // The formatter reads a shared `Cell`, so this pure callback never borrows the controller.
+    let locale = ctl.borrow().locale();
     let dp = window.global::<DatePickerAdapter<'_>>();
     dp.on_month_day_count(convert::picker_days_in_month);
     dp.on_month_offset(convert::picker_month_offset);
-    dp.on_format_date(|f, d, m, y| convert::ss(convert::picker_format(&f, d, m, y)));
+    dp.on_format_date(move |f, d, m, y| {
+        convert::ss(convert::picker_format(locale.get(), &f, d, m, y))
+    });
     dp.on_parse_date(|s, f| convert::model(convert::picker_parse(&s, &f)));
     dp.on_valid_date(|s, f| !convert::picker_parse(&s, &f).is_empty());
     dp.on_date_now(|| convert::model(convert::picker_parts(ZonedDateTime::now().date())));
