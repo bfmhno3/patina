@@ -20,6 +20,8 @@ export component FormDialog inherits PopupWindow {
     callback accepted();
 
     property <bool> floating: App.wide;
+    property <length> safe_width: root.width - App.inset_left - App.inset_right;
+    property <length> safe_height: root.height - App.inset_top - App.inset_bottom;
 
     close_policy: no_auto_close;
     forward_focus: focus_scope;
@@ -46,10 +48,10 @@ export component FormDialog inherits PopupWindow {
     }
 
     panel := Elevation {
-        x: (root.width - self.width) / 2;
-        y: (root.height - self.height) / 2;
-        width: root.floating ? min(MaterialStyleMetrics.size_640, root.width - 2 * MaterialStyleMetrics.padding_24) : root.width;
-        height: root.floating ? root.height - 2 * MaterialStyleMetrics.padding_24 : root.height;
+        x: root.floating ? App.inset_left + (root.safe_width - self.width) / 2 : 0;
+        y: root.floating ? App.inset_top + (root.safe_height - self.height) / 2 : 0;
+        width: root.floating ? min(MaterialStyleMetrics.size_640, root.safe_width - 2 * MaterialStyleMetrics.padding_24) : root.width;
+        height: root.floating ? root.safe_height - 2 * MaterialStyleMetrics.padding_24 : root.height;
         level: root.floating ? 3 : 0;
         border_radius: root.floating ? MaterialStyleMetrics.border_radius_28 : 0px;
         background: MaterialPalette.surface;
@@ -61,6 +63,11 @@ export component FormDialog inherits PopupWindow {
         }
 
         VerticalLayout {
+            padding_top: root.floating ? 0px : App.inset_top;
+            padding_bottom: root.floating ? 0px : App.inset_bottom;
+            padding_left: root.floating ? 0px : App.inset_left;
+            padding_right: root.floating ? 0px : App.inset_right;
+
             HorizontalLayout {
                 min_height: MaterialStyleMetrics.size_64;
                 padding_left: MaterialStyleMetrics.padding_8;
