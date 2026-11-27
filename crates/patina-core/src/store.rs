@@ -116,10 +116,18 @@ pub fn device_id() -> Result<DeviceId, StoreError> {
         })?;
         return Ok(DeviceId::from_uuid(id));
     }
+    device_id_in(&device_dir()?)
+}
+
+/// This device's private directory (`device-id`, GUI preferences); never synced.
+///
+/// # Errors
+/// Fails when the platform has neither a state nor a local data directory.
+pub fn device_dir() -> Result<PathBuf, StoreError> {
     let base = dirs::state_dir()
         .or_else(dirs::data_local_dir)
         .ok_or(StoreError::NoDataDir)?;
-    device_id_in(&base.join("patina"))
+    Ok(base.join("patina"))
 }
 
 /// Handle to a data root for one device.
