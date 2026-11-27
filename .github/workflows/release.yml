@@ -121,6 +121,9 @@ jobs:
   publish:
     name: Publish GitHub release
     needs: [version, desktop, android]
+    # Publish whatever built: a failed job no longer blocks the others. Re-running only the
+    # failed jobs adds their files to the same release.
+    if: ${{ !cancelled() && needs.version.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
