@@ -51,6 +51,9 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      - name: Install fontconfig headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig1-dev
       - run: rustup toolchain install
       - run: cargo build --release --locked -p patina-cli -p patina-mcp -p patina-gui --bins
       - name: Package
