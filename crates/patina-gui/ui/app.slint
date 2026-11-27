@@ -36,6 +36,11 @@ export global App {
     // Window size, mirrored from MainWindow so popups can cover the whole window.
     in_out property <length> window_width;
     in_out property <length> window_height;
+    // System bars and display cutouts drawn over the window (Android edge to edge); 0 on desktop. Set by MainWindow from `safe_area_insets`.
+    in_out property <length> inset_top;
+    in_out property <length> inset_bottom;
+    in_out property <length> inset_left;
+    in_out property <length> inset_right;
     // Layout breakpoints: the rail replaces the bottom bar, and item detail opens beside the list.
     out property <bool> wide: root.window_width >= 600px;
     out property <bool> two_pane: root.window_width >= 1000px;

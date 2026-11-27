@@ -81,10 +81,22 @@ export component MainWindow inherits MaterialWindow {
         },
     ];
 
+    function sync_insets() {
+        App.inset_top = root.safe_area_insets.top;
+        App.inset_bottom = root.safe_area_insets.bottom;
+        App.inset_left = root.safe_area_insets.left;
+        App.inset_right = root.safe_area_insets.right;
+    }
+
     init => {
         MaterialPalette.schemes = Theme.schemes;
         App.window_width = root.width;
         App.window_height = root.height;
+        root.sync_insets();
+    }
+
+    changed safe_area_insets => {
+        root.sync_insets();
     }
 
     changed width => {
@@ -112,6 +124,11 @@ export component MainWindow inherits MaterialWindow {
     }
 
     HorizontalLayout {
+        padding_top: App.inset_top;
+        padding_left: App.inset_left;
+        padding_right: App.inset_right;
+        padding_bottom: App.wide ? App.inset_bottom : 0px;
+
         if App.wide: NavigationRail {
             alignment: start;
             horizontal_stretch: 0;
@@ -224,6 +241,11 @@ export component MainWindow inherits MaterialWindow {
                     App.navigate(index);
                 }
             }
+
+            if !App.wide: Rectangle {
+                height: App.inset_bottom;
+                background: MaterialPalette.surface_container;
+            }
         }
     }
 
@@ -235,7 +257,7 @@ export component MainWindow inherits MaterialWindow {
 
     notice := NoticeBar {
         x: (root.width - self.width) / 2;
-        y: root.height - self.height - (App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.size_80 + MaterialStyleMetrics.padding_16);
+        y: root.height - self.height - App.inset_bottom - (App.wide ? MaterialStyleMetrics.padding_24 : MaterialStyleMetrics.size_80 + MaterialStyleMetrics.padding_16);
         width: min(root.width - 2 * MaterialStyleMetrics.padding_16, MaterialStyleMetrics.size_572);
     }
 }

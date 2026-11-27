@@ -9,6 +9,7 @@ import {
     MaterialTypography,
     TextButton,
 } from "@material";
+import { App } from "../app.slint";
 import { ErrorBanner } from "error_banner.slint";
 
 // A compact prompt shell: a centered card over a scrim, styled like FormDialog. Escape closes it; Return accepts.
@@ -20,6 +21,9 @@ export component PromptDialog inherits PopupWindow {
     in property <string> cancel_text: @tr("Cancel");
     // Close on a tap outside the card; off for dialogs with input, so a mis-tap cannot drop it.
     in property <bool> dismissible;
+
+    property <length> safe_width: root.width - App.inset_left - App.inset_right;
+    property <length> safe_height: root.height - App.inset_top - App.inset_bottom;
 
     callback accepted();
     // The secondary button; the dialog closes right after it.
@@ -60,10 +64,10 @@ export component PromptDialog inherits PopupWindow {
     }
 
     panel := Elevation {
-        x: (root.width - self.width) / 2;
-        y: (root.height - self.height) / 2;
-        width: min(MaterialStyleMetrics.size_572, root.width - 2 * MaterialStyleMetrics.padding_24);
-        height: min(layout.preferred_height, root.height - 2 * MaterialStyleMetrics.padding_24);
+        x: App.inset_left + (root.safe_width - self.width) / 2;
+        y: App.inset_top + (root.safe_height - self.height) / 2;
+        width: min(MaterialStyleMetrics.size_572, root.safe_width - 2 * MaterialStyleMetrics.padding_24);
+        height: min(layout.preferred_height, root.safe_height - 2 * MaterialStyleMetrics.padding_24);
         level: 3;
         border_radius: MaterialStyleMetrics.border_radius_28;
         background: MaterialPalette.surface_container_high;
