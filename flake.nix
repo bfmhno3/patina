@@ -163,6 +163,8 @@
               ];
               env = {
                 ANDROID_HOME = sdkRoot;
+                # cargo-apk prefers the deprecated variable; CI runners preset it to their own SDK.
+                ANDROID_SDK_ROOT = sdkRoot;
                 ANDROID_NDK_ROOT = "${sdkRoot}/ndk-bundle";
                 JAVA_HOME = pkgs.jdk17.home;
               };
