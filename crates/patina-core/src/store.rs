@@ -170,13 +170,22 @@ impl Store {
         Ok(settings)
     }
 
-    /// Takes the exclusive write lock on this device's file, creating it if needed.
+    /// Takes the exclusive write lock for this device, creating its files if needed.
     ///
     /// # Errors
     /// Fails on I/O errors.
     pub fn lock(&self) -> Result<WriteGuard, StoreError> {
         let dir = self.events_dir();
         fs::create_dir_all(&dir).map_err(io(&dir))?;
+        let lock_path = dir.join(format!("{}.lock", self.device.as_uuid()));
+        let lock = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&lock_path)
+            .map_err(io(&lock_path))?;
+        lock.lock().map_err(io(&lock_path))?;
+        // Windows locks are mandatory: locking the log itself would make `load` fail even in this process.
         let path = dir.join(format!("{}.jsonl", self.device.as_uuid()));
         let file = OpenOptions::new()
             .create(true)
@@ -184,8 +193,7 @@ impl Store {
             .read(true)
             .open(&path)
             .map_err(io(&path))?;
-        file.lock().map_err(io(&path))?;
-        Ok(WriteGuard { file, path })
+        Ok(WriteGuard { file, lock, path })
     }
 
     /// Reads every device file and merges events by `recorded_at`.
@@ -260,10 +268,11 @@ impl Store {
     }
 }
 
-/// Exclusive lock on this device's file; released on drop.
+/// Exclusive write lock for this device's log, held on `<device>.lock`; released on drop.
 #[derive(Debug)]
 pub struct WriteGuard {
     file: File,
+    lock: File,
     path: PathBuf,
 }
 
@@ -296,7 +305,7 @@ impl WriteGuard {
 
 impl Drop for WriteGuard {
     fn drop(&mut self) {
-        let _ = self.file.unlock();
+        let _ = self.lock.unlock();
     }
 }
 
