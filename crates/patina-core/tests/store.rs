@@ -169,3 +169,15 @@ fn the_same_event_in_two_device_files_loads_once() {
         LoadProblem::DuplicateEvent { .. }
     ));
 }
+
+#[test]
+fn load_works_while_the_write_lock_is_held() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = store(&dir, 1);
+    let mut g = s.lock().unwrap();
+    g.append(&[event(1, 1, "2026-11-24T01:00:00Z")]).unwrap();
+    assert_eq!(s.load().unwrap().events.len(), 1);
+    g.append(&[event(2, 1, "2026-11-24T02:00:00Z")]).unwrap();
+    drop(g);
+    assert_eq!(s.load().unwrap().events.len(), 2);
+}
