@@ -135,12 +135,25 @@ pub fn device_dir() -> Result<PathBuf, StoreError> {
 pub struct Store {
     root: PathBuf,
     device: DeviceId,
+    lock_dir: Option<PathBuf>,
 }
 
 impl Store {
     /// Creates a handle; performs no I/O.
     pub fn new(root: PathBuf, device: DeviceId) -> Self {
-        Self { root, device }
+        Self {
+            root,
+            device,
+            lock_dir: None,
+        }
+    }
+
+    /// Keeps the write lock file in `dir` instead of `events/`, for data roots on file
+    /// systems without file locks (Android shared storage); performs no I/O.
+    #[must_use]
+    pub fn with_lock_dir(mut self, dir: PathBuf) -> Self {
+        self.lock_dir = Some(dir);
+        self
     }
 
     /// This device's id.
@@ -170,14 +183,22 @@ impl Store {
         Ok(settings)
     }
 
-    /// Takes the exclusive write lock for this device, creating its files if needed.
+    /// Takes the exclusive write lock for this device (on `<device>.lock` in the lock directory,
+    /// `events/` by default), creating its files if needed.
     ///
     /// # Errors
     /// Fails on I/O errors.
     pub fn lock(&self) -> Result<WriteGuard, StoreError> {
         let dir = self.events_dir();
         fs::create_dir_all(&dir).map_err(io(&dir))?;
-        let lock_path = dir.join(format!("{}.lock", self.device.as_uuid()));
+        let lock_dir = match &self.lock_dir {
+            Some(lock_dir) => {
+                fs::create_dir_all(lock_dir).map_err(io(lock_dir))?;
+                lock_dir.clone()
+            }
+            None => dir.clone(),
+        };
+        let lock_path = lock_dir.join(format!("{}.lock", self.device.as_uuid()));
         let lock = OpenOptions::new()
             .create(true)
             .write(true)
@@ -268,7 +289,7 @@ impl Store {
     }
 }
 
-/// Exclusive write lock for this device's log, held on `<device>.lock`; released on drop.
+/// Exclusive write lock for this device's log, held on `<device>.lock` in the store's lock directory; released on drop.
 #[derive(Debug)]
 pub struct WriteGuard {
     file: File,

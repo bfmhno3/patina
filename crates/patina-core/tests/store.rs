@@ -181,3 +181,18 @@ fn load_works_while_the_write_lock_is_held() {
     drop(g);
     assert_eq!(s.load().unwrap().events.len(), 2);
 }
+
+#[test]
+fn a_lock_dir_keeps_the_lock_file_out_of_the_data_root() {
+    let root = tempfile::tempdir().unwrap();
+    let locks = tempfile::tempdir().unwrap();
+    let s = store(&root, 1).with_lock_dir(locks.path().join("private"));
+    s.lock()
+        .unwrap()
+        .append(&[event(1, 1, "2026-11-24T01:00:00Z")])
+        .unwrap();
+    let lock = format!("{}.lock", Uuid::from_u128(1));
+    assert!(locks.path().join("private").join(&lock).exists());
+    assert!(!root.path().join("events").join(&lock).exists());
+    assert_eq!(s.load().unwrap().events.len(), 1);
+}
