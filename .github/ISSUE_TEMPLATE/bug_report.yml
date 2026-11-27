@@ -1,0 +1,76 @@
+name: Bug report
+description: Something does not work as docs/design.md or the docs describe
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues may be written in English or Chinese. **Never paste a real event log, config, or other personal data**: reduce the problem to a synthetic example.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - core (domain, event log, projections)
+        - cli (patina)
+        - gui (patina-gui)
+        - mcp (patina-mcp)
+        - android
+        - build / nix / ci
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - Linux
+        - Windows
+        - macOS
+        - Android
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `patina --version`, the release tag, or the commit hash
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Commands or UI steps from a fresh data directory (`PATINA_DIR=$(mktemp -d)`). Include synthetic events if needed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Link the docs/design.md section if it defines the behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      render: text
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues
+          required: true
+        - label: This report contains no real event log or personal data
+          required: true

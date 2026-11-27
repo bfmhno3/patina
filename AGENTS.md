@@ -16,6 +16,7 @@ Patina is the owner's personal task system (identity × form model, project DAGs
 - `docs/code-style.md`: code and Markdown style.
 - `vendor/slint-material/`: unmodified Slint Material Components 1.1.0 (MIT). Never edit; upgrade with `just vendor-material <version>` and check its Slint minimum.
 - `flake.nix`, `justfile`, `rust-toolchain.toml`: environment and tasks.
+- `.github/`: CI (`ci.yml`: `just check` in Nix, tests on Windows and macOS, PR commit check), tag releases (`release.yml`, notes from `cliff.toml`), issue/PR templates, Dependabot.
 - New front ends (MCP server, TUI) are new crates `crates/patina-<name>/` that depend on `patina-core` only.
 
 ## Design Doc
@@ -81,7 +82,7 @@ Read [`docs/code-style.md`](docs/code-style.md) before writing code or docs.
 
 ### Git Commits
 
-Atomic commits, Conventional Commits with scope = crate short name (`core`, `cli`, `gui`) or `nix`, `build`, `docs`, `vendor`, e.g. `feat(core): append events to the device log`, `build(nix): add android dev shell`. Commit `Cargo.lock` and `flake.lock`.
+Atomic commits, Conventional Commits. Types and scopes are listed in `CONTRIBUTING.md` (scopes `core`, `cli`, `gui`, `mcp`, `nix`, `build`, `docs`, `design`, `vendor`; CI changes use type `ci`), e.g. `feat(core): append events to the device log`, `build(nix): add android dev shell`. Commit `Cargo.lock` and `flake.lock`.
 
 ## Security and Privacy
 

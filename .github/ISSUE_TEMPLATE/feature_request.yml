@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose new behavior or a change to existing behavior
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Patina is the owner's personal task system and follows [docs/design.md](https://github.com/bfmhno3/patina/blob/main/docs/design.md). Requests on the design's "明确不做" list (team collaboration, gamification, ML recommendations, ...) are declined. Issues may be written in English or Chinese.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - core (domain, event log, projections)
+        - cli (patina)
+        - gui (patina-gui)
+        - mcp (patina-mcp)
+        - android
+        - build / nix / ci
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and why the current behavior gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: input
+    id: design-section
+    attributes:
+      label: Related docs/design.md section
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and docs/design.md
+          required: true
