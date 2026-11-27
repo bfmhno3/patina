@@ -66,6 +66,22 @@
               };
             }
           );
+          # nixpkgs lags Slint; drop this override once pkgs.slint-tr-extractor >= the slint crate version.
+          slint-tr-extractor = pkgs.slint-tr-extractor.overrideAttrs (
+            finalAttrs: _: {
+              version = "1.19.1";
+              src = pkgs.fetchCrate {
+                pname = "slint-tr-extractor";
+                inherit (finalAttrs) version;
+                hash = "sha256-rDpImUAhDEZdXHALL2rMkYKYxeqTHkqxKUUybxtAA8I=";
+              };
+              cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+                inherit (finalAttrs) src;
+                name = "slint-tr-extractor-${finalAttrs.version}-vendor";
+                hash = "sha256-UPJpEWwVoO1C0uOnoOvpXvcd8TtLsqFJTUK5qLDfUFg=";
+              };
+            }
+          );
           # Libraries winit/femtovg/fontique dlopen at run time on Linux.
           runtimeLibs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (
             with pkgs;
@@ -87,9 +103,11 @@
             packages = [
               rustToolchain
               slint-lsp
+              slint-tr-extractor
             ]
             ++ (with pkgs; [
               just
+              gettext
               nixfmt
               pkg-config
               curl

@@ -34,8 +34,38 @@ lint:
 test:
     cargo test --workspace
 
+# Extract `@tr` strings and merge them into every translation
+tr-update:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    slint-tr-extractor crates/patina-gui -o "$tmp/patina-gui.pot"
+    for lang in zh_CN zh_TW; do
+        po="crates/patina-gui/translations/$lang/LC_MESSAGES/patina-gui.po"
+        if [[ -f "$po" ]]; then
+            msgmerge --quiet --update --backup=none --no-fuzzy-matching "$po" "$tmp/patina-gui.pot"
+            msgattrib --no-obsolete --output-file="$po" "$po"
+        else
+            mkdir -p "$(dirname "$po")"
+            msginit --no-translator --locale="$lang.UTF-8" --input="$tmp/patina-gui.pot" --output-file="$po"
+        fi
+    done
+
+# Fail if a translation lacks, or leaves untranslated, any `@tr` string
+tr-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    slint-tr-extractor crates/patina-gui -o "$tmp/patina-gui.pot"
+    for po in crates/patina-gui/translations/*/LC_MESSAGES/patina-gui.po; do
+        msgfmt --check-format --output-file=/dev/null "$po"
+        msgcmp "$po" "$tmp/patina-gui.pot"
+    done
+
 # Everything that must pass before a commit
-check: fmt-check lint test
+check: fmt-check lint test tr-check
 
 # Run the CLI, e.g. `just cli --version`
 cli *args:
