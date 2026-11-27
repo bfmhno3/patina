@@ -93,5 +93,7 @@ fn android_main(app: slint::android::AndroidApp) {
     } else {
         StorageUi::Private
     };
-    launch(Store::new(root.clone(), device), root, kind, internal).expect("the GUI failed");
+    // Shared storage is FUSE without flock (ENOSYS); the private directory supports it.
+    let store = Store::new(root.clone(), device).with_lock_dir(internal.clone());
+    launch(store, root, kind, internal).expect("the GUI failed");
 }
